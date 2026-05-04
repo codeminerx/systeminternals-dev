@@ -1,0 +1,170 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Redis data structures (hashes, lists, sets, sorted sets, streams), persistence options (RDB/AOF), pub/sub, rate limiting, and when to use Redis as a primary database instead of just a cache."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Redis Beyond Caching: Using Redis as a Primary Database</title><meta property="og:title" content="Redis Beyond Caching: Using Redis as a Primary Database"><meta property="og:description" content="Redis data structures (hashes, lists, sets, sorted sets, streams), persistence options (RDB/AOF), pub/sub, rate limiting, and when to use Redis as a primary database instead of just a cache."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/redis-beyond-caching"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Redis Beyond Caching: Using Redis as a Primary Database"><meta name="twitter:description" content="Redis data structures (hashes, lists, sets, sorted sets, streams), persistence options (RDB/AOF), pub/sub, rate limiting, and when to use Redis as a primary database instead of just a cache."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Redis Beyond Caching: Using Redis as a Primary Database</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2024-01-20T00:00:00.000Z" data-astro-cid-gjtny2mx>January 19, 2024</time> <span class="reading-time" data-astro-cid-gjtny2mx>4 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>redis</span><span class="tag" data-astro-cid-gjtny2mx>databases</span><span class="tag" data-astro-cid-gjtny2mx>nosql</span><span class="tag" data-astro-cid-gjtny2mx>caching</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Redis started as a cache, but it’s evolved into something much more powerful. Let’s explore using Redis beyond simple key-value caching.</p>
+<h2 id="redis-data-structures">Redis Data Structures</h2>
+<p>This is where Redis shines. It’s not just <code>GET</code> and <code>SET</code>.</p>
+<h3 id="strings">Strings</h3>
+<p>The basics, but powerful:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">SET</span><span style="color:#9ECE6A"> user:1:session</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">abc123</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A"> EX</span><span style="color:#FF9E64"> 3600</span><span style="color:#51597D;font-style:italic">  # Expires in 1 hour</span></span>
+<span class="line"><span style="color:#C0CAF5">GET</span><span style="color:#9ECE6A"> user:1:session</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Atomic increment - perfect for counters</span></span>
+<span class="line"><span style="color:#C0CAF5">INCR</span><span style="color:#9ECE6A"> page:views:home</span></span>
+<span class="line"><span style="color:#C0CAF5">INCRBY</span><span style="color:#9ECE6A"> user:1:points</span><span style="color:#FF9E64"> 50</span></span>
+<span class="line"></span></code></pre>
+<h3 id="hashes">Hashes</h3>
+<p>Store objects without serialization overhead:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">HSET</span><span style="color:#9ECE6A"> user:1</span><span style="color:#9ECE6A"> name</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">Alice</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A"> email</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">alice@example.com</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A"> role</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">admin</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">HGET</span><span style="color:#9ECE6A"> user:1</span><span style="color:#9ECE6A"> email</span></span>
+<span class="line"><span style="color:#C0CAF5">HGETALL</span><span style="color:#9ECE6A"> user:1</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Increment a field atomically</span></span>
+<span class="line"><span style="color:#C0CAF5">HINCRBY</span><span style="color:#9ECE6A"> user:1</span><span style="color:#9ECE6A"> login_count</span><span style="color:#FF9E64"> 1</span></span>
+<span class="line"></span></code></pre>
+<h3 id="lists">Lists</h3>
+<p>Ordered collections. Great for queues and timelines:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Add to a list</span></span>
+<span class="line"><span style="color:#C0CAF5">LPUSH</span><span style="color:#9ECE6A"> notifications:user:1</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">New message from Bob</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">LPUSH</span><span style="color:#9ECE6A"> notifications:user:1</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">Your order shipped</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Get recent notifications</span></span>
+<span class="line"><span style="color:#C0CAF5">LRANGE</span><span style="color:#9ECE6A"> notifications:user:1</span><span style="color:#FF9E64"> 0</span><span style="color:#FF9E64"> 9</span><span style="color:#51597D;font-style:italic">  # Last 10</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Use as a queue</span></span>
+<span class="line"><span style="color:#C0CAF5">RPUSH</span><span style="color:#9ECE6A"> queue:emails</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">email-job-1</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">LPOP</span><span style="color:#9ECE6A"> queue:emails</span><span style="color:#51597D;font-style:italic">  # Process FIFO</span></span>
+<span class="line"></span></code></pre>
+<h3 id="sets">Sets</h3>
+<p>Unique collections. Perfect for tags, followers, etc:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">SADD</span><span style="color:#9ECE6A"> user:1:followers</span><span style="color:#FF9E64"> 2</span><span style="color:#FF9E64"> 3</span><span style="color:#FF9E64"> 4</span></span>
+<span class="line"><span style="color:#C0CAF5">SADD</span><span style="color:#9ECE6A"> user:2:followers</span><span style="color:#FF9E64"> 1</span><span style="color:#FF9E64"> 3</span><span style="color:#FF9E64"> 5</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Who follows both?</span></span>
+<span class="line"><span style="color:#C0CAF5">SINTER</span><span style="color:#9ECE6A"> user:1:followers</span><span style="color:#9ECE6A"> user:2:followers</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Is user 3 a follower?</span></span>
+<span class="line"><span style="color:#C0CAF5">SISMEMBER</span><span style="color:#9ECE6A"> user:1:followers</span><span style="color:#FF9E64"> 3</span></span>
+<span class="line"></span></code></pre>
+<h3 id="sorted-sets">Sorted Sets</h3>
+<p>Ranked data. Leaderboards, time-series, priority queues:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Leaderboard</span></span>
+<span class="line"><span style="color:#C0CAF5">ZADD</span><span style="color:#9ECE6A"> leaderboard</span><span style="color:#FF9E64"> 100</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">alice</span><span style="color:#89DDFF">"</span><span style="color:#FF9E64"> 85</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">bob</span><span style="color:#89DDFF">"</span><span style="color:#FF9E64"> 92</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">charlie</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Top 3 players</span></span>
+<span class="line"><span style="color:#C0CAF5">ZREVRANGE</span><span style="color:#9ECE6A"> leaderboard</span><span style="color:#FF9E64"> 0</span><span style="color:#FF9E64"> 2</span><span style="color:#9ECE6A"> WITHSCORES</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Time-based feeds (score = timestamp)</span></span>
+<span class="line"><span style="color:#C0CAF5">ZADD</span><span style="color:#9ECE6A"> feed:user:1</span><span style="color:#FF9E64"> 1706745600</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">post:123</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">ZADD</span><span style="color:#9ECE6A"> feed:user:1</span><span style="color:#FF9E64"> 1706832000</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">post:124</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Get posts from last 24 hours</span></span>
+<span class="line"><span style="color:#C0CAF5">ZRANGEBYSCORE</span><span style="color:#9ECE6A"> feed:user:1</span><span style="color:#A9B1D6"> (NOW-86400) +inf</span></span>
+<span class="line"></span></code></pre>
+<h2 id="persistence-redis-as-a-real-database">Persistence: Redis as a Real Database</h2>
+<p>Redis isn’t just in-memory. You have persistence options:</p>
+<h3 id="rdb-snapshotting">RDB (Snapshotting)</h3>
+<p>Point-in-time snapshots saved to disk:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span># redis.conf</span></span>
+<span class="line"><span>save 900 1      # Save if 1 key changed in 900 seconds</span></span>
+<span class="line"><span>save 300 10     # Save if 10 keys changed in 300 seconds</span></span>
+<span class="line"><span>save 60 10000   # Save if 10000 keys changed in 60 seconds</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Pros:</strong> Compact, fast recovery
+<strong>Cons:</strong> Data loss between snapshots</p>
+<h3 id="aof-append-only-file">AOF (Append-Only File)</h3>
+<p>Log every write operation:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span># redis.conf</span></span>
+<span class="line"><span>appendonly yes</span></span>
+<span class="line"><span>appendfsync everysec  # Sync to disk every second</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Pros:</strong> Minimal data loss (at most 1 second)
+<strong>Cons:</strong> Larger files, slower recovery</p>
+<h3 id="best-of-both">Best of Both</h3>
+<p>Use both for durability + fast recovery:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span># redis.conf</span></span>
+<span class="line"><span>appendonly yes</span></span>
+<span class="line"><span>appendfsync everysec</span></span>
+<span class="line"><span>save 900 1</span></span>
+<span class="line"><span></span></span></code></pre>
+<h2 id="redis-streams">Redis Streams</h2>
+<p>Event sourcing and message queues built into Redis:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Add events to a stream</span></span>
+<span class="line"><span style="color:#C0CAF5">XADD</span><span style="color:#9ECE6A"> orders</span><span style="color:#F7768E"> *</span><span style="color:#9ECE6A"> product_id</span><span style="color:#FF9E64"> 123</span><span style="color:#9ECE6A"> user_id</span><span style="color:#FF9E64"> 456</span><span style="color:#9ECE6A"> status</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">pending</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Read new events</span></span>
+<span class="line"><span style="color:#C0CAF5">XREAD</span><span style="color:#9ECE6A"> BLOCK</span><span style="color:#FF9E64"> 5000</span><span style="color:#9ECE6A"> STREAMS</span><span style="color:#9ECE6A"> orders</span><span style="color:#A9B1D6"> $</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Consumer groups for distributed processing</span></span>
+<span class="line"><span style="color:#C0CAF5">XGROUP</span><span style="color:#9ECE6A"> CREATE</span><span style="color:#9ECE6A"> orders</span><span style="color:#9ECE6A"> order-processors</span><span style="color:#A9B1D6"> $</span></span>
+<span class="line"><span style="color:#C0CAF5">XREADGROUP</span><span style="color:#9ECE6A"> GROUP</span><span style="color:#9ECE6A"> order-processors</span><span style="color:#9ECE6A"> worker-1</span><span style="color:#9ECE6A"> COUNT</span><span style="color:#FF9E64"> 10</span><span style="color:#9ECE6A"> STREAMS</span><span style="color:#9ECE6A"> orders</span><span style="color:#89DDFF"> ></span></span>
+<span class="line"><span style="color:#C0CAF5">XACK</span><span style="color:#9ECE6A"> orders</span><span style="color:#9ECE6A"> order-processors</span><span style="color:#9ECE6A"> 1234567890-0</span></span>
+<span class="line"></span></code></pre>
+<p>Streams give you Kafka-like functionality without running Kafka.</p>
+<h2 id="use-cases-where-redis-excels">Use Cases Where Redis Excels</h2>
+<h3 id="session-storage">Session Storage</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">HSET</span><span style="color:#9ECE6A"> session:abc123</span><span style="color:#9ECE6A"> user_id</span><span style="color:#FF9E64"> 1</span><span style="color:#9ECE6A"> role</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">admin</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A"> expires_at</span><span style="color:#FF9E64"> 1706918400</span></span>
+<span class="line"><span style="color:#C0CAF5">EXPIRE</span><span style="color:#9ECE6A"> session:abc123</span><span style="color:#FF9E64"> 3600</span></span>
+<span class="line"></span></code></pre>
+<p>Fast reads, automatic expiration, no database load.</p>
+<h3 id="rate-limiting">Rate Limiting</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Sliding window rate limit</span></span>
+<span class="line"><span style="color:#9D7CD8;font-style:italic">local</span><span style="color:#C0CAF5"> key</span><span style="color:#A9B1D6"> = </span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">ratelimit:</span><span style="color:#89DDFF">"</span><span style="color:#A9B1D6"> .. </span><span style="color:#C0CAF5">user_id</span></span>
+<span class="line"><span style="color:#9D7CD8;font-style:italic">local</span><span style="color:#C0CAF5"> count</span><span style="color:#A9B1D6"> = </span><span style="color:#C0CAF5">redis</span><span style="color:#A9B1D6">.</span><span style="color:#C0CAF5">call</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">"INCR"</span><span style="color:#C0CAF5">,</span><span style="color:#9ECE6A"> key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">if</span><span style="color:#C0CAF5"> count</span><span style="color:#9ECE6A"> ==</span><span style="color:#FF9E64"> 1</span><span style="color:#9ECE6A"> then</span></span>
+<span class="line"><span style="color:#C0CAF5">    redis.call(</span><span style="color:#C0CAF5">"EXPIRE"</span><span style="color:#C0CAF5">,</span><span style="color:#9ECE6A"> key,</span><span style="color:#FF9E64"> 60</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#BB9AF7">end</span></span>
+<span class="line"><span style="color:#BB9AF7;font-style:italic">return</span><span style="color:#9ECE6A"> count</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">=</span><span style="color:#FF9E64"> 100</span><span style="color:#E0AF68">  --</span><span style="color:#FF9E64"> 100</span><span style="color:#9ECE6A"> requests</span><span style="color:#9ECE6A"> per</span><span style="color:#9ECE6A"> minute</span></span>
+<span class="line"></span></code></pre>
+<h3 id="real-time-leaderboards">Real-time Leaderboards</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">ZINCRBY</span><span style="color:#9ECE6A"> game:leaderboard</span><span style="color:#FF9E64"> 10</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">player:1</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">ZREVRANK</span><span style="color:#9ECE6A"> game:leaderboard</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">player:1</span><span style="color:#89DDFF">"</span><span style="color:#51597D;font-style:italic">  # Get rank</span></span>
+<span class="line"><span style="color:#C0CAF5">ZREVRANGE</span><span style="color:#9ECE6A"> game:leaderboard</span><span style="color:#FF9E64"> 0</span><span style="color:#FF9E64"> 99</span><span style="color:#9ECE6A"> WITHSCORES</span><span style="color:#51597D;font-style:italic">  # Top 100</span></span>
+<span class="line"></span></code></pre>
+<p>Sorted sets make this trivial. Try doing this efficiently in SQL.</p>
+<h3 id="pubsub">Pub/Sub</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Publisher</span></span>
+<span class="line"><span style="color:#C0CAF5">PUBLISH</span><span style="color:#9ECE6A"> chat:room:1</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">Hello everyone!</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Subscriber</span></span>
+<span class="line"><span style="color:#C0CAF5">SUBSCRIBE</span><span style="color:#9ECE6A"> chat:room:1</span></span>
+<span class="line"></span></code></pre>
+<p>Simple real-time messaging without a separate message broker.</p>
+<h2 id="when-not-to-use-redis-as-primary">When NOT to Use Redis as Primary</h2>
+<ul>
+<li><strong>Complex queries</strong>: No JOINs, no ad-hoc queries</li>
+<li><strong>Large datasets</strong>: Everything must fit in RAM (or use Redis on Flash)</li>
+<li><strong>Strong consistency</strong>: Redis is eventually consistent in cluster mode</li>
+<li><strong>Complex transactions</strong>: Limited ACID guarantees</li>
+</ul>
+<h2 id="redis-cluster-for-scale">Redis Cluster for Scale</h2>
+<p>When one instance isn’t enough:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Data is automatically sharded across nodes</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Each key hashes to a slot (0-16383)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Slots are distributed across nodes</span></span>
+<span class="line"></span></code></pre>
+<p>Redis Cluster provides:</p>
+<ul>
+<li>Automatic sharding</li>
+<li>High availability (replicas)</li>
+<li>Linear scalability</li>
+</ul>
+<h2 id="practical-architecture">Practical Architecture</h2>
+<p>The sweet spot: Redis alongside a traditional database.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>┌─────────────┐     ┌─────────────┐     ┌──────────────┐</span></span>
+<span class="line"><span>│   Client    │────▶│    Redis    │────▶│  PostgreSQL  │</span></span>
+<span class="line"><span>└─────────────┘     │   (hot)     │     │   (source)   │</span></span>
+<span class="line"><span>                    └─────────────┘     └──────────────┘</span></span>
+<span class="line"><span></span></span></code></pre>
+<ul>
+<li>PostgreSQL: Source of truth, complex queries</li>
+<li>Redis: Sessions, caching, real-time features</li>
+</ul>
+<h2 id="the-bottom-line">The Bottom Line</h2>
+<p>Redis isn’t just a cache. With the right use case, it’s a powerful primary database:</p>
+<ul>
+<li>Use it for session management, real-time features, and leaderboards</li>
+<li>Enable persistence (AOF + RDB) for durability</li>
+<li>Consider Redis Cluster for horizontal scaling</li>
+<li>Pair it with a relational database for complex queries</li>
+</ul>
+<p>The key is understanding what Redis does well—fast, structured data access—and using it where that matters most.</p>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/clickhouse-architecture-deep-dive" data-astro-cid-gjtny2mx>ClickHouse Architecture: How a Column-Oriented Database Processes Billions of Rows</a> <p data-astro-cid-gjtny2mx>A deep dive into ClickHouse&#39;s architecture—vectorized execution, MergeTree storage, and how it achieves sub-second queries on trillion-row datasets.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/database-normalization-practical-guide" data-astro-cid-gjtny2mx>Database Normalization: When to Normalize and When to Denormalize</a> <p data-astro-cid-gjtny2mx>Database normalization forms (1NF-3NF), when to denormalize for read performance, OLTP vs OLAP design patterns, star schemas, and practical guidelines for balancing integrity and speed.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/database-transactions-isolation-levels" data-astro-cid-gjtny2mx>Database Transactions and Isolation Levels Explained</a> <p data-astro-cid-gjtny2mx>ACID properties, Read Uncommitted to Serializable isolation levels, dirty reads, non-repeatable reads, phantom reads, pessimistic vs optimistic locking, deadlock handling, and race condition prevention in SQL databases.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Redis Beyond Caching: Using Redis as a Primary Database","description":"Redis data structures (hashes, lists, sets, sorted sets, streams), persistence options (RDB/AOF), pub/sub, rate limiting, and when to use Redis as a primary database instead of just a cache.","datePublished":"2024-01-20T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/redis-beyond-caching"},"keywords":"redis, databases, nosql, caching","articleSection":"redis","about":[{"@type":"Thing","name":"redis"},{"@type":"Thing","name":"databases"},{"@type":"Thing","name":"nosql"},{"@type":"Thing","name":"caching"}]}</script> 

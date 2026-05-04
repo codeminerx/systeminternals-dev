@@ -1,0 +1,282 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A deep dive into the Paxos consensus algorithm—prepare phases, accept phases, multi-Paxos, and why Google Spanner, CockroachDB, and Neo4j use it for distributed agreement."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Paxos Consensus Algorithm: How Distributed Systems Reach Agreement</title><meta property="og:title" content="Paxos Consensus Algorithm: How Distributed Systems Reach Agreement"><meta property="og:description" content="A deep dive into the Paxos consensus algorithm—prepare phases, accept phases, multi-Paxos, and why Google Spanner, CockroachDB, and Neo4j use it for distributed agreement."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/paxos-consensus-algorithm-deep-dive"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Paxos Consensus Algorithm: How Distributed Systems Reach Agreement"><meta name="twitter:description" content="A deep dive into the Paxos consensus algorithm—prepare phases, accept phases, multi-Paxos, and why Google Spanner, CockroachDB, and Neo4j use it for distributed agreement."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Paxos Consensus Algorithm: How Distributed Systems Reach Agreement</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-04T00:00:00.000Z" data-astro-cid-gjtny2mx>May 3, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>9 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>distributed-systems</span><span class="tag" data-astro-cid-gjtny2mx>consensus</span><span class="tag" data-astro-cid-gjtny2mx>paxos</span><span class="tag" data-astro-cid-gjtny2mx>system-design</span><span class="tag" data-astro-cid-gjtny2mx>fault-tolerance</span><span class="tag" data-astro-cid-gjtny2mx>lamport</span><span class="tag" data-astro-cid-gjtny2mx>availability</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>In 1998, Leslie Lamport published a paper describing a consensus algorithm he called Paxos—named after a fictional parliament on a Greek island that reached decisions despite members constantly coming and going. The algorithm became legendary: conceptually elegant, notoriously difficult to implement, and deployed in some of the most critical distributed systems ever built.</p>
+<p>If Raft is the algorithm you learn for interviews, Paxos is the algorithm you encounter in production. Google Spanner uses it. CockroachDB uses it. Neo4j uses it. Understanding Paxos means understanding why most distributed consensus ultimately traces back to this one paper.</p>
+<h2 id="the-problem-paxos-solves">The Problem Paxos Solves</h2>
+<p>Like Raft, Paxos solves the problem of getting distributed servers to agree on a single value—even when servers crash, networks partition, and messages get lost.</p>
+<p>Unlike Raft, Paxos doesn’t distinguish between leader election, log replication, and safety as separate concerns. Paxos has one job: <strong>agree on a single value</strong>. Everything else is built on top.</p>
+<h3 id="the-simple-scenario">The Simple Scenario</h3>
+<p>Imagine three servers trying to agree on which server should be the primary:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Server A: "I propose value Primary=A"</span></span>
+<span class="line"><span>Server B: "I propose value Primary=B"</span></span>
+<span class="line"><span>Server C: "I propose value Primary=C"</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>How do they reach agreement?</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Paxos answers this with a two-phase protocol that guarantees safety regardless of failures.</p>
+<h2 id="paxos-roles-proposers-acceptors-and-learners">Paxos Roles: Proposers, Acceptors, and Learners</h2>
+<p>Paxos has three roles:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Role</th><th>Job</th></tr></thead><tbody><tr><td><strong>Proposer</strong></td><td>Sends proposal values to acceptors</td></tr><tr><td><strong>Acceptor</strong></td><td>Receives proposals and votes on them</td></tr><tr><td><strong>Learner</strong></td><td>Learns the chosen value once consensus is reached</td></tr></tbody></table>
+<p>In practice, every server plays all three roles. The distinction matters only for understanding the protocol.</p>
+<h2 id="the-two-phases-of-basic-paxos">The Two Phases of Basic Paxos</h2>
+<paxosconsensus client:load="">
+<h3 id="phase-1-prepare-proposer--acceptors">Phase 1: Prepare (Proposer → Acceptors)</h3>
+<p>The proposer picks a <strong>proposal number</strong> (called <code>N</code>) and sends a <code>Prepare(N)</code> message to a majority of acceptors:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Proposer: "I'm thinking about proposing a value. Promise not to accept</span></span>
+<span class="line"><span>           any proposals numbered lower than N."</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Each acceptor responds if <code>N</code> is higher than any proposal number it’s already seen:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Acceptor: "OK. I promise. I haven't seen a higher proposal number.</span></span>
+<span class="line"><span>           Oh, and I may have already accepted value V with proposal</span></span>
+<span class="line"><span>           number M—here's that info in case you want to use it."</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>If a majority of acceptors promise, Phase 1 succeeds.</p>
+<h3 id="phase-2-accept-proposer--acceptors">Phase 2: Accept (Proposer → Acceptors)</h3>
+<p>Now the proposer sends an <code>Accept(N, V)</code> message:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Proposer: "I propose value V with proposal number N."</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Rules for choosing <code>V</code>:</p>
+<ul>
+<li>If any acceptor already accepted a value, use the one from the <strong>highest-numbered proposal</strong></li>
+<li>Otherwise, use the proposer’s own value</li>
+</ul>
+<p>Each acceptor accepts the value if <code>N</code> matches the promise it made:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Acceptor: "I accept proposal N with value V."</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>If a majority of acceptors accept, the value is <strong>chosen</strong>.</p>
+<h2 id="why-paxos-guarantees-safety">Why Paxos Guarantees Safety</h2>
+<p>The clever part: even with concurrent proposers and message delays, Paxos never allows two different values to be chosen.</p>
+<p>Here’s why. For two values to be chosen, a majority of acceptors must accept each:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Value V1 chosen → majority of acceptors accepted V1</span></span>
+<span class="line"><span>Value V2 chosen → majority of acceptors accepted V2</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>These majorities must overlap!</span></span>
+<span class="line"><span>At least one acceptor accepted BOTH V1 and V2.</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>But an acceptor can only accept a higher-numbered proposal after seeing it. And that higher-numbered proposal’s proposer must have contacted that acceptor in Phase 1. Therefore, V2’s proposer would have seen V1’s proposal and been forced to propose V1 instead (because Paxos requires using the already-accepted value from the highest proposal number).</p>
+<p>This creates a chain of obligations that makes divergence impossible.</p>
+<h2 id="the-preparepromise-exchange-in-detail">The Prepare/Promise Exchange in Detail</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Proposer (value = "Primary=A", N = 1)</span></span>
+<span class="line"><span>    │</span></span>
+<span class="line"><span>    ├──Prepare(1)──→ Acceptor 1 ──→ Promise(1, none) ✓</span></span>
+<span class="line"><span>    ├──Prepare(1)──→ Acceptor 2 ──→ Promise(1, none) ✓</span></span>
+<span class="line"><span>    └──Prepare(1)──→ Acceptor 3 ──→ Promise(1, none) ✓</span></span>
+<span class="line"><span>                          │</span></span>
+<span class="line"><span>              Majority reached → proceed to Accept</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Proposer → Accept(1, "Primary=A") → Acceptor 1,2,3</span></span>
+<span class="line"><span>    │</span></span>
+<span class="line"><span>    ├──Accept(1, A)──→ Acceptor 1 ──→ Accepted(1, A) ✓</span></span>
+<span class="line"><span>    ├──Accept(1, A)──→ Acceptor 2 ──→ Accepted(1, A) ✓</span></span>
+<span class="line"><span>    └──Accept(1, A)──→ Acceptor 3 ──→ Accepted(1, A) ✓</span></span>
+<span class="line"><span>                          │</span></span>
+<span class="line"><span>              Majority reached → "Primary=A" is CHOSEN</span></span>
+<span class="line"><span></span></span></code></pre>
+<h2 id="handling-failures-and-retries">Handling Failures and Retries</h2>
+<p>Paxos is designed to survive arbitrary failures:</p>
+<p><strong>Proposer crashes mid-proposal:</strong></p>
+<ul>
+<li>A new proposer picks a higher <code>N</code> and restarts Phase 1</li>
+<li>Acceptors remember the highest <code>N</code> they’ve promised</li>
+<li>No value is chosen until a majority agrees</li>
+</ul>
+<p><strong>Acceptor doesn’t respond:</strong></p>
+<ul>
+<li>Proposer times out and retries with higher <code>N</code></li>
+<li>The protocol is idempotent—retrying is safe</li>
+</ul>
+<p><strong>Network partition:</strong></p>
+<ul>
+<li>No majority can be formed → no value chosen → system waits</li>
+<li>This is the CAP tradeoff: Paxos chooses consistency over availability during partitions</li>
+</ul>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Network Partition:</span></span>
+<span class="line"><span>┌─────────────────────┐     ✂      ┌─────────────────────┐</span></span>
+<span class="line"><span>│  Proposer ──→ Majority │   PARTITION   │  Proposer ──→ Minority │</span></span>
+<span class="line"><span>│  (Phase 2 succeeds)     │              │  (Phase 2 fails)       │</span></span>
+<span class="line"><span>└─────────────────────┘              └─────────────────────┘</span></span>
+<span class="line"><span>        ↓ chosen                              ↓ waiting</span></span>
+<span class="line"><span>   Value V is chosen                    No value chosen</span></span>
+<span class="line"><span></span></span></code></pre>
+<h2 id="multi-paxos-consensus-for-a-sequence-of-values">Multi-Paxos: Consensus for a Sequence of Values</h2>
+<p>Basic Paxos agrees on ONE value. Multi-Paxos extends this to agree on a <strong>sequence of values</strong>—making it practical for replicated state machines.</p>
+<p>The trick: use the same proposal number <code>N</code> for multiple values, but increment an <strong>instance number</strong> within each slot:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Instance 1: Basic Paxos → value V1 chosen</span></span>
+<span class="line"><span>Instance 2: Basic Paxos → value V2 chosen</span></span>
+<span class="line"><span>Instance 3: Basic Paxos → value V3 chosen</span></span>
+<span class="line"><span>...</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>In practice, once a leader is established through the first round of Paxos, subsequent instances skip Phase 1 (because everyone knows the leader’s proposals will be the highest). This is how Google Spanner achieves thousands of writes per second across globally distributed nodes.</p>
+<h3 id="spanners-use-of-paxos">Spanner’s Use of Paxos</h3>
+<p>Google Spanner uses Multi-Paxos to replicate data across datacenters:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Datacenter A ──Paxos Leader──→ replicates to ──→ Datacenter B</span></span>
+<span class="line"><span>                                                     ↓</span></span>
+<span class="line"><span>                                              Datacenter C</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Writes: go through leader, committed via Paxos majority</span></span>
+<span class="line"><span>Reads: can be served locally from any replica (with timestamp)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Spanner adds <strong>TrueTime</strong> (atomic clocks with bounded uncertainty) to assign globally consistent timestamps without synchronous clocks.</p>
+<h2 id="paxos-vs-raft-whats-the-difference">Paxos vs Raft: What’s the Difference?</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Property</th><th>Paxos</th><th>Raft</th></tr></thead><tbody><tr><td><strong>Leader election</strong></td><td>Not specified (any proposer can run)</td><td>Explicit heartbeat mechanism</td></tr><tr><td><strong>Log replication</strong></td><td>Multi-Paxos builds a log</td><td>Single leader + AppendEntries</td></tr><tr><td><strong>Understandability</strong></td><td>Academic, harder to follow</td><td>Designed to be readable</td></tr><tr><td><strong>Production use</strong></td><td>Google Spanner, CockroachDB</td><td>etcd, TiKV, CockroachDB</td></tr><tr><td><strong>Membership changes</strong></td><td>Complex</td><td>Joint consensus + overlapping majorities</td></tr><tr><td><strong>Client interaction</strong></td><td>Any client → any server</td><td>Client → leader only</td></tr></tbody></table>
+<p>The key practical difference: <strong>Raft is leader-based, Paxos is not</strong>. Raft forces a single leader to coordinate writes, which makes the protocol easier to reason about but introduces a leader as a bottleneck. Paxos allows any server to propose, which is more fair but more complex to implement.</p>
+<h3 id="why-two-algorithms-for-the-same-problem">Why Two Algorithms for the Same Problem?</h3>
+<p>Raft was designed in 2014 by Diego Ongaro and John Ousterhout specifically to be <strong>easier to understand</strong> than Paxos. The paper is literally called “In Search of an Understandable Consensus Algorithm.”</p>
+<p>But Paxos has a 16-year head start in production systems, and the underlying insight—that you need a majority to guarantee safety—is the same in both algorithms.</p>
+<h2 id="chubby-paxos-in-production-at-google">Chubby: Paxos in Production at Google</h2>
+<p>Before Spanner, Google built <strong>Chubby</strong>—a distributed lock service used internally by Bigtable, MapReduce, and other infrastructure. Chubby uses Paxos for lock consensus:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Chubby Cell:</span></span>
+<span class="line"><span>┌──────────────────────────────────────────┐</span></span>
+<span class="line"><span>│  5 replicas (Paxos acceptors)            │</span></span>
+<span class="line"><span>│  1 master elected via Paxos               │</span></span>
+<span class="line"><span>│  All writes go through master             │</span></span>
+<span class="line"><span>│  Reads can be served by any replica       │</span></span>
+<span class="line"><span>└──────────────────────────────────────────┘</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Use cases:</span></span>
+<span class="line"><span>- Locking Bigtable tablets during compaction</span></span>
+<span class="line"><span>- Master election for MapReduce workers</span></span>
+<span class="line"><span>- Namespace metadata for GFS</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Chubby inspired etcd, which inspired Kubernetes. So when you deploy a pod in Kubernetes, Paxos is quietly running in the etcd cluster underneath.</p>
+<h2 id="implementing-paxos-a-minimal-python-example">Implementing Paxos: A Minimal Python Example</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> asyncio</span></span>
+<span class="line"><span style="color:#7DCFFF">from</span><span style="color:#A9B1D6"> collections </span><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> defaultdict</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> Acceptor</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">promised_n </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 0</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">accepted_n </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 0</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">accepted_v </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> None</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> receive_prepare</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> n</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> dict</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> n </span><span style="color:#BB9AF7">></span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">promised_n</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">promised_n </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> n</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#89DDFF"> {</span></span>
+<span class="line"><span style="color:#89DDFF">                "</span><span style="color:#9ECE6A">ok</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> True</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">                "</span><span style="color:#9ECE6A">accepted_n</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">accepted_n</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">                "</span><span style="color:#9ECE6A">accepted_v</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">accepted_v</span></span>
+<span class="line"><span style="color:#89DDFF">            }</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#89DDFF"> {</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">ok</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> False</span><span style="color:#89DDFF">}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> receive_accept</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> n</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> v</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> dict</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> n </span><span style="color:#BB9AF7">>=</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">promised_n</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">promised_n </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> n</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">accepted_n </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> n</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">accepted_v </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> v</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#89DDFF"> {</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">ok</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> True</span><span style="color:#89DDFF">}</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#89DDFF"> {</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">ok</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> False</span><span style="color:#89DDFF">}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Proposer logic</span></span>
+<span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> propose</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">acceptors</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> list</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">Acceptor</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> v</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> n</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#A9B1D6"> tuple</span><span style="color:#9ABDF5">[</span><span style="color:#0DB9D7">bool</span><span style="color:#89DDFF">,</span><span style="color:#0DB9D7"> any</span><span style="color:#9ABDF5">]:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Phase 1: Prepare</span></span>
+<span class="line"><span style="color:#A9B1D6">    promises </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> []</span></span>
+<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> a </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> acceptors</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        resp </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> await</span><span style="color:#A9B1D6"> a</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">receive_prepare</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">n</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> resp</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">ok</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">            promises</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">append</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">resp</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#0DB9D7"> len</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">promises</span><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7"> &#x3C;</span><span style="color:#0DB9D7"> len</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">acceptors</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> //</span><span style="color:#FF9E64"> 2</span><span style="color:#89DDFF"> +</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> False</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> None</span><span style="color:#51597D;font-style:italic">  # No majority</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Choose highest-numbered value or our own</span></span>
+<span class="line"><span style="color:#A9B1D6">    highest </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> max</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">p</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">accepted_n</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">]</span><span style="color:#BB9AF7"> for</span><span style="color:#C0CAF5"> p </span><span style="color:#BB9AF7">in</span><span style="color:#C0CAF5"> promises </span><span style="color:#BB9AF7">if</span><span style="color:#C0CAF5"> p</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">accepted_v</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">]</span><span style="color:#BB9AF7"> is</span><span style="color:#BB9AF7"> not</span><span style="color:#FF9E64"> None</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> highest</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        v </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> next</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">p</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">accepted_v</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">]</span><span style="color:#BB9AF7"> for</span><span style="color:#C0CAF5"> p </span><span style="color:#BB9AF7">in</span><span style="color:#C0CAF5"> promises </span><span style="color:#BB9AF7">if</span><span style="color:#C0CAF5"> p</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">accepted_n</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">]</span><span style="color:#BB9AF7"> ==</span><span style="color:#C0CAF5"> highest</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Phase 2: Accept</span></span>
+<span class="line"><span style="color:#A9B1D6">    accepts </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 0</span></span>
+<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> a </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> acceptors</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        resp </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> await</span><span style="color:#A9B1D6"> a</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">receive_accept</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">n</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> v</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> resp</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">ok</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">            accepts </span><span style="color:#89DDFF">+=</span><span style="color:#FF9E64"> 1</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> accepts </span><span style="color:#BB9AF7">>=</span><span style="color:#0DB9D7"> len</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">acceptors</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> //</span><span style="color:#FF9E64"> 2</span><span style="color:#89DDFF"> +</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> v</span></span>
+<span class="line"></span></code></pre>
+<h2 id="limitations-of-paxos">Limitations of Paxos</h2>
+<p>Paxos is not perfect:</p>
+<p><strong>1. Uniqueness via proposal numbers, not IDs</strong>
+Two proposers can collude with different proposal numbers. The lower one gets ignored. This is correct but means proposals can be starved.</p>
+<p><strong>2. Multi-Paxos requires careful implementation</strong>
+The theoretical paper doesn’t specify leader election or log management. Every production implementation (Chubby, Spanner, CockroachDB) has its own approach.</p>
+<p><strong>3. Performance is leader-dependent in practice</strong>
+While any server can propose, real Multi-Paxos systems optimize by electing a stable leader. This reintroduces Raft-like behavior.</p>
+<p><strong>4. Byzantine failure not handled</strong>
+Classic Paxos assumes crash failures only. For Byzantine (arbitrary/malicious) failures, you need PBFT (Practical Byzantine Fault Tolerance).</p>
+<h2 id="when-to-use-paxos">When to Use Paxos</h2>
+<p>Use Paxos (or a Paxos-based system) when:</p>
+<ul>
+<li>You need strong consistency across geo-distributed nodes</li>
+<li>You’re building a replicated log, distributed lock service, or metadata store</li>
+<li>You’re ok using an established library rather than writing your own</li>
+</ul>
+<p>Use a Paxos-based system (etcd, CockroachDB, Spanner) rather than implementing Paxos yourself. The protocol is subtle and the implementation is brutal.</p>
+<hr>
+<h2 id="related">Related</h2>
+<p>Paxos and Raft solve the same problem differently. See also:</p>
+<ul>
+<li><a href="/posts/raft-consensus-algorithm-deep-dive">Raft Consensus Algorithm Deep Dive</a> — the leader-based alternative</li>
+<li><a href="/posts/rate-limiter-system-design">Rate Limiter System Design</a> — distributed consistency in practice</li>
+<li><a href="/posts/clickhouse-architecture-deep-dive">ClickHouse Architecture</a> — how analytical databases use distributed consensus</li>
+</ul></paxosconsensus>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/raft-consensus-algorithm-deep-dive" data-astro-cid-gjtny2mx>Raft Consensus Algorithm: How Distributed Systems Agree on Reality</a> <p data-astro-cid-gjtny2mx>A deep dive into Raft&#39;s leader election, log replication, and safety guarantees—and why etcd, CockroachDB, and TiKV all rely on it for distributed consensus.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/rate-limiter-system-design" data-astro-cid-gjtny2mx>Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse</a> <p data-astro-cid-gjtny2mx>Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/url-shortener-system-design" data-astro-cid-gjtny2mx>URL Shortener System Design: How to Handle Millions of Redirects Per Second</a> <p data-astro-cid-gjtny2mx>Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Paxos Consensus Algorithm: How Distributed Systems Reach Agreement","description":"A deep dive into the Paxos consensus algorithm—prepare phases, accept phases, multi-Paxos, and why Google Spanner, CockroachDB, and Neo4j use it for distributed agreement.","datePublished":"2026-05-04T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/paxos-consensus-algorithm-deep-dive"},"keywords":"distributed-systems, consensus, paxos, system-design, fault-tolerance, lamport, availability","articleSection":"distributed-systems","about":[{"@type":"Thing","name":"distributed-systems"},{"@type":"Thing","name":"consensus"},{"@type":"Thing","name":"paxos"},{"@type":"Thing","name":"system-design"},{"@type":"Thing","name":"fault-tolerance"},{"@type":"Thing","name":"lamport"},{"@type":"Thing","name":"availability"}]}</script> 

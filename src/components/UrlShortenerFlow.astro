@@ -1,0 +1,167 @@
+---
+// Interactive URL Shortener Flow Diagram
+---
+
+<div class="canvas-container">
+  <canvas id="url-shortener-flow" width="700" height="320"></canvas>
+  <div class="legend">
+    <span class="legend-item"><span class="dot hot"></span>Hot Path (Redis)</span>
+    <span class="legend-item"><span class="dot miss"></span>Cache Miss (DynamoDB)</span>
+    <span class="legend-item"><span class="dot async"></span>Async (Kafka→ClickHouse)</span>
+  </div>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('url-shortener-flow');
+  const ctx = canvas.getContext('2d');
+
+  // Animate on load
+  let frame = 0;
+  const maxFrames = 120;
+
+  function draw() {
+    ctx.clearRect(0, 0, 700, 320);
+
+    // Title
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter, sans-serif';
+    ctx.fillText('URL Shortener: Write & Redirect Flow', 20, 25);
+
+    // Boxes
+    const boxes = [
+      { x: 20, y: 50, w: 100, h: 50, label: 'API Server', color: '#60a5fa' },
+      { x: 160, y: 50, w: 100, h: 50, label: 'Slug Gen', color: '#a78bfa' },
+      { x: 300, y: 50, w: 100, h: 50, label: 'Redis Cache', color: '#34d399' },
+      { x: 440, y: 50, w: 100, h: 50, label: 'DynamoDB', color: '#f97316' },
+      { x: 580, y: 50, w: 100, h: 50, label: 'Kafka', color: '#ec4899' },
+
+      { x: 20, y: 130, w: 100, h: 50, label: 'User Click', color: '#60a5fa' },
+      { x: 160, y: 130, w: 100, h: 50, label: 'DNS + LB', color: '#60a5fa' },
+      { x: 300, y: 130, w: 100, h: 50, label: 'Redis', color: '#34d399' },
+      { x: 440, y: 130, w: 100, h: 50, label: '301 Redirect', color: '#f59e0b' },
+      { x: 580, y: 130, w: 100, h: 50, label: 'Destination', color: '#8b5cf6' },
+
+      { x: 20, y: 230, w: 100, h: 50, label: 'Click Event', color: '#ec4899' },
+      { x: 160, y: 230, w: 100, h: 50, label: 'Kafka', color: '#ec4899' },
+      { x: 300, y: 230, w: 120, h: 50, label: 'Flink Processor', color: '#ec4899' },
+      { x: 460, y: 230, w: 120, h: 50, label: 'ClickHouse', color: '#f97316' },
+    ];
+
+    // Draw boxes
+    boxes.forEach((b, i) => {
+      ctx.fillStyle = b.color + '22';
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(b.x, b.y, b.w, b.h, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = b.color;
+      ctx.font = '500 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(b.label, b.x + b.w/2, b.y + b.h/2 + 4);
+    });
+
+    // Flow arrows - Write path (top row)
+    const writeArrows = [
+      [120, 75, 160, 75],
+      [260, 75, 300, 75],
+      [400, 75, 440, 75],
+      [540, 75, 580, 75],
+    ];
+
+    // Redirect arrows (middle row)
+    const redirectArrows = [
+      [120, 155, 160, 155],
+      [260, 155, 300, 155],
+      [400, 155, 440, 155],
+      [540, 155, 580, 155],
+    ];
+
+    // Analytics arrows (bottom row)
+    const analyticsArrows = [
+      [120, 255, 160, 255],
+      [260, 255, 300, 255],
+      [420, 255, 460, 255],
+    ];
+
+    const allArrows = [...writeArrows, ...redirectArrows, ...analyticsArrows];
+    const progress = (frame % maxFrames) / maxFrames;
+
+    allArrows.forEach((arrow, i) => {
+      const [x1, y1, x2, y2] = arrow;
+      const active = Math.floor(progress * allArrows.length) === i;
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2 - 8, y2);
+      ctx.strokeStyle = active ? '#60a5fa' : '#2a2a2a';
+      ctx.lineWidth = active ? 2 : 1.5;
+      ctx.stroke();
+
+      // Arrow head
+      ctx.beginPath();
+      ctx.moveTo(x2 - 8, y2 - 4);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x2 - 8, y2 + 4);
+      ctx.strokeStyle = active ? '#60a5fa' : '#2a2a2a';
+      ctx.stroke();
+    });
+
+    // Row labels
+    ctx.fillStyle = '#888';
+    ctx.font = '400 10px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('WRITE PATH', 20, 45);
+    ctx.fillText('READ PATH', 20, 125);
+    ctx.fillText('ANALYTICS', 20, 225);
+
+    frame++;
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+</script>
+
+<style>
+.canvas-container {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+canvas {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dot.hot { background: #34d399; }
+.dot.miss { background: #f97316; }
+.dot.async { background: #ec4899; }
+</style>

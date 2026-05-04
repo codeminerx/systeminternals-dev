@@ -1,0 +1,143 @@
+---
+// Interactive Redirect Latency Breakdown
+---
+
+<div class="canvas-container">
+  <canvas id="redirect-latency" width="650" height="220"></canvas>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('redirect-latency');
+  const ctx = canvas.getContext('2d');
+
+  // Data: stage, time in ms, category
+  const stages = [
+    { name: 'DNS Lookup', ms: 5, color: '#60a5fa' },
+    { name: 'TCP Connect', ms: 3, color: '#60a5fa' },
+    { name: 'TLS Handshake', ms: 8, color: '#a78bfa' },
+    { name: 'Load Balancer', ms: 2, color: '#34d399' },
+    { name: 'Redis Cache', ms: 1, color: '#34d399' },
+    { name: '301 Response', ms: 2, color: '#f59e0b' },
+  ];
+
+  const stagesMiss = [
+    { name: 'DNS Lookup', ms: 5, color: '#60a5fa' },
+    { name: 'TCP Connect', ms: 3, color: '#60a5fa' },
+    { name: 'TLS Handshake', ms: 8, color: '#a78bfa' },
+    { name: 'Load Balancer', ms: 2, color: '#34d399' },
+    { name: 'DynamoDB', ms: 10, color: '#f97316' },
+    { name: '301 Response', ms: 2, color: '#f59e0b' },
+  ];
+
+  let tick = 0;
+
+  function draw() {
+    ctx.clearRect(0, 0, 650, 220);
+
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter, sans-serif';
+    ctx.fillText('Redirect Latency Breakdown (Cache HIT vs MISS)', 20, 25);
+
+    const barY = 50;
+    const barH = 22;
+    const labelX = 20;
+    const barStartX = 130;
+    const maxWidth = 450;
+    const maxMs = 35;
+
+    const totalHit = stages.reduce((s, d) => s + d.ms, 0);
+    const totalMiss = stagesMiss.reduce((s, d) => s + d.ms, 0);
+
+    // Cache HIT row
+    ctx.fillStyle = '#888';
+    ctx.font = '500 11px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Cache HIT:', labelX, barY + barH/2 + 4);
+
+    ctx.fillStyle = '#34d399';
+    ctx.fillText(`~${totalHit}ms`, barStartX + maxWidth + 10, barY + barH/2 + 4);
+
+    // Draw hit bars
+    let x = barStartX;
+    stages.forEach((stage, i) => {
+      const w = (stage.ms / maxMs) * maxWidth;
+      ctx.fillStyle = stage.color;
+      ctx.fillRect(x, barY, w, barH);
+      ctx.fillStyle = '#0d0d0d';
+      ctx.font = '400 10px Inter, sans-serif';
+      if (w > 25) ctx.fillText(`${stage.ms}ms`, x + w/2, barY + barH/2 + 4);
+      x += w + 2;
+    });
+
+    // Cache MISS row
+    const missY = barY + barH + 20;
+    ctx.fillStyle = '#888';
+    ctx.font = '500 11px Inter, sans-serif';
+    ctx.fillText('Cache MISS:', labelX, missY + barH/2 + 4);
+
+    ctx.fillStyle = '#f97316';
+    ctx.fillText(`~${totalMiss}ms`, barStartX + maxWidth + 10, missY + barH/2 + 4);
+
+    let x2 = barStartX;
+    stagesMiss.forEach((stage, i) => {
+      const w = (stage.ms / maxMs) * maxWidth;
+      ctx.fillStyle = stage.color;
+      ctx.fillRect(x2, missY, w, barH);
+      ctx.fillStyle = '#0d0d0d';
+      ctx.font = '400 10px Inter, sans-serif';
+      if (w > 25) ctx.fillText(`${stage.ms}ms`, x2 + w/2, missY + barH/2 + 4);
+      x2 += w + 2;
+    });
+
+    // Legend
+    const legendY = missY + barH + 35;
+    ctx.fillStyle = '#888';
+    ctx.font = '400 10px Inter, sans-serif';
+    ctx.fillText('Stages:', labelX, legendY);
+
+    const legendItems = [
+      { label: 'Network', color: '#60a5fa' },
+      { label: 'Encryption', color: '#a78bfa' },
+      { label: 'Infra', color: '#34d399' },
+      { label: 'Database', color: '#f97316' },
+      { label: 'Response', color: '#f59e0b' },
+    ];
+
+    let lx = labelX + 45;
+    legendItems.forEach(item => {
+      ctx.fillStyle = item.color;
+      ctx.fillRect(lx, legendY - 7, 8, 8);
+      ctx.fillStyle = '#888';
+      ctx.fillText(item.label, lx + 12, legendY);
+      lx += 75;
+    });
+
+    // Latency comparison
+    const diffY = legendY + 30;
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '600 12px Inter, sans-serif';
+    ctx.fillText(`Cache hits reduce latency by ${Math.round((totalMiss - totalHit)/totalMiss * 100)}%`, 20, diffY);
+
+    tick++;
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+</script>
+
+<style>
+.canvas-container {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+canvas {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+</style>

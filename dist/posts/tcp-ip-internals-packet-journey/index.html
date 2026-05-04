@@ -1,0 +1,309 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A deep dive into the TCP/IP protocol stack, from application data to physical frames, and everything that happens in between."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>TCP/IP Internals: How a Packet Travels Across the Network</title><meta property="og:title" content="TCP/IP Internals: How a Packet Travels Across the Network"><meta property="og:description" content="A deep dive into the TCP/IP protocol stack, from application data to physical frames, and everything that happens in between."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/tcp-ip-internals-packet-journey"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="TCP/IP Internals: How a Packet Travels Across the Network"><meta name="twitter:description" content="A deep dive into the TCP/IP protocol stack, from application data to physical frames, and everything that happens in between."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>TCP/IP Internals: How a Packet Travels Across the Network</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2024-03-08T00:00:00.000Z" data-astro-cid-gjtny2mx>March 7, 2024</time> <span class="reading-time" data-astro-cid-gjtny2mx>9 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>networking</span><span class="tag" data-astro-cid-gjtny2mx>tcp</span><span class="tag" data-astro-cid-gjtny2mx>ip</span><span class="tag" data-astro-cid-gjtny2mx>protocols</span><span class="tag" data-astro-cid-gjtny2mx>linux</span><span class="tag" data-astro-cid-gjtny2mx>packet</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every time you load a webpage, send an email, or stream a video, your data is broken into packets, wrapped in headers, sent across the network, and reassembled on the other side. Understanding how this works is fundamental to diagnosing network issues, optimizing performance, and writing distributed systems.</p>
+<h2 id="the-tcpip-model-a-brief-overview">The TCP/IP Model: A Brief Overview</h2>
+<p>The internet uses a layered protocol stack. Each layer has a specific job and communicates with the corresponding layer on the other end:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Layer</th><th>Protocol</th><th>Purpose</th></tr></thead><tbody><tr><td>Application</td><td>HTTP, DNS, SMTP</td><td>Application-specific protocols</td></tr><tr><td>Transport</td><td>TCP, UDP</td><td>Host-to-host communication</td></tr><tr><td>Internet</td><td>IP</td><td>Logical addressing and routing</td></tr><tr><td>Link</td><td>Ethernet, WiFi</td><td>Physical addressing on a local network</td></tr></tbody></table>
+<p>Data flows down through the layers on the sending side, across the physical medium, and back up through the layers on the receiving side.</p>
+<h2 id="the-journey-from-application-to-wire">The Journey: From Application to Wire</h2>
+<h3 id="step-1-application-layer-http">Step 1: Application Layer (HTTP)</h3>
+<p>Let’s say you’re sending an HTTP GET request. Your browser creates the HTTP message:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>GET /index.html HTTP/1.1\r\n</span></span>
+<span class="line"><span>Host: example.com\r\n</span></span>
+<span class="line"><span>\r\n</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>This is just bytes. The application layer doesn’t know or care how it gets transmitted.</p>
+<h3 id="step-2-transport-layer-tcp">Step 2: Transport Layer (TCP)</h3>
+<p>TCP takes the application data and adds its own header. This is where things get interesting.</p>
+<h4 id="tcp-header-structure">TCP Header Structure</h4>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span> 0                   1                   2                   3</span></span>
+<span class="line"><span> 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|          Source Port          |        Destination Port       |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|                       Sequence Number                         |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|                    Acknowledgment Number                      |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>| Offset| Flags     |              Window                       |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|           Checksum            |         Urgent Pointer        |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|                    Options and Padding                       |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|                        Data                                   |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Key fields:</p>
+<ul>
+<li><strong>Source/Destination Port</strong>: Which application on each end (e.g., port 80 for HTTP)</li>
+<li><strong>Sequence Number</strong>: Byte position in the data stream (for ordering and reassembly)</li>
+<li><strong>Acknowledgment Number</strong>: Next expected byte (for reliability)</li>
+<li><strong>Flags</strong>: SYN, ACK, FIN, RST, PSH, URG (control the connection)</li>
+<li><strong>Window</strong>: How much data the receiver can accept (flow control)</li>
+</ul>
+<h4 id="tcp-three-way-handshake">TCP Three-Way Handshake</h4>
+<p>Before any data flows, TCP establishes a connection:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client                                    Server</span></span>
+<span class="line"><span>  │                                         │</span></span>
+<span class="line"><span>  │─── SYN, seq=1000 ────────────────────────▶│  Client wants to connect</span></span>
+<span class="line"><span>  │◀── SYN-ACK, seq=2000, ack=1001 ──────────│  Server agrees, acknowledges</span></span>
+<span class="line"><span>  │─── ACK, seq=1001, ack=2001 ──────────────▶│  Client acknowledges</span></span>
+<span class="line"><span>  │                                         │</span></span>
+<span class="line"><span>  │         Connection Established          │</span></span>
+<span class="line"><span>  │                                         │</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>This exchange ensures:</p>
+<ol>
+<li>The server is reachable</li>
+<li>The server is willing to accept the connection</li>
+<li>Both sides know each other’s sequence numbers</li>
+</ol>
+<h4 id="tcp-termination">TCP Termination</h4>
+<p>Connections close with a four-way handshake:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client                                    Server</span></span>
+<span class="line"><span>  │                                         │</span></span>
+<span class="line"><span>  │─── FIN, seq=500 ────────────────────────▶│  Client wants to close</span></span>
+<span class="line"><span>  │◀── ACK ──────────────────────────────────│  Server acknowledges</span></span>
+<span class="line"><span>  │◀── FIN, seq=300 ─────────────────────────│  Server also wants to close</span></span>
+<span class="line"><span>  │─── ACK ──────────────────────────────────▶│  Client acknowledges</span></span>
+<span class="line"><span>  │                                         │</span></span>
+<span class="line"><span>  │         Connection Terminated           │</span></span>
+<span class="line"><span>  │                                         │</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="step-3-internet-layer-ip">Step 3: Internet Layer (IP)</h3>
+<p>Now we have a TCP segment. The IP layer wraps it in an IP header:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span> 0                   1                   2                   3</span></span>
+<span class="line"><span> 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|Version|  IHL  |   TOS      |        Total Length              |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|         Identification        |Flags|      Fragment Offset    |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|   TTL        |   Protocol    |        Header Checksum         |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|                      Source Address                           |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|                    Destination Address                        |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|                    Options (if IHL > 5)                       |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Key fields:</p>
+<ul>
+<li><strong>Version</strong>: 4 for IPv4, 6 for IPv6</li>
+<li><strong>TTL (Time to Live)</strong>: Maximum hops before packet is discarded</li>
+<li><strong>Protocol</strong>: What’s in the payload (6 = TCP, 17 = UDP, 1 = ICMP)</li>
+<li><strong>Source Address</strong>: 32-bit IPv4 address of sender</li>
+<li><strong>Destination Address</strong>: 32-bit IPv4 address of recipient</li>
+</ul>
+<p>The TTL field is crucial. Each router decrements it by 1. When it reaches 0, the router sends an ICMP “Time Exceeded” message back and discards the packet. This prevents routing loops from consuming bandwidth forever.</p>
+<h3 id="step-4-link-layer-ethernet">Step 4: Link Layer (Ethernet)</h3>
+<p>Finally, the IP packet becomes an Ethernet frame:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>+---------------------------------------+-------------------</span></span>
+<span class="line"><span>| Destination MAC | Source MAC | Type  | Payload (IP packet)</span></span>
+<span class="line"><span>+---------------------------------------+-------------------</span></span>
+<span class="line"><span>       6 bytes          6 bytes    2           46-1500 bytes</span></span>
+<span class="line"><span></span></span></code></pre>
+<ul>
+<li><strong>Destination MAC</strong>: Hardware address of the next hop (router)</li>
+<li><strong>Source MAC</strong>: Your network interface’s MAC address</li>
+<li><strong>Type</strong>: 0x0800 for IPv4, 0x0806 for ARP, 0x86DD for IPv6</li>
+</ul>
+<h2 id="the-physical-journey">The Physical Journey</h2>
+<h3 id="on-a-local-network-same-subnet">On a Local Network (Same Subnet)</h3>
+<p>If the destination is on your local network, the frame goes directly to the destination:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Your Computer → Switch → Destination Computer</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The switch learns MAC addresses by watching traffic. It builds a table mapping MAC addresses to physical ports.</p>
+<h3 id="across-networks-requires-router">Across Networks (Requires Router)</h3>
+<p>If the destination is on a different network, the frame goes to your default gateway (router):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Your Computer → Switch → Router → ... → Destination Network → Switch → Destination</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The router:</p>
+<ol>
+<li>Receives the frame and strips the Ethernet header</li>
+<li>Looks at the destination IP address</li>
+<li>Consults its routing table</li>
+<li>Creates a new frame for the next hop</li>
+<li>Decrements TTL and updates checksums</li>
+</ol>
+<h3 id="routing-table-deep-dive">Routing Table Deep Dive</h3>
+<p>A routing table determines where packets go. Here’s an example:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> ip</span><span style="color:#9ECE6A"> route</span><span style="color:#9ECE6A"> show</span></span>
+<span class="line"><span style="color:#C0CAF5">default</span><span style="color:#9ECE6A"> via</span><span style="color:#FF9E64"> 192.168.1.1</span><span style="color:#9ECE6A"> dev</span><span style="color:#9ECE6A"> eth0</span><span style="color:#9ECE6A"> proto</span><span style="color:#9ECE6A"> dhcp</span></span>
+<span class="line"><span style="color:#C0CAF5">192.168.1.0/24</span><span style="color:#9ECE6A"> dev</span><span style="color:#9ECE6A"> eth0</span><span style="color:#9ECE6A"> proto</span><span style="color:#9ECE6A"> kernel</span><span style="color:#9ECE6A"> scope</span><span style="color:#9ECE6A"> link</span><span style="color:#9ECE6A"> src</span><span style="color:#FF9E64"> 192.168.1.100</span></span>
+<span class="line"><span style="color:#C0CAF5">10.0.0.0/8</span><span style="color:#9ECE6A"> via</span><span style="color:#FF9E64"> 192.168.1.254</span><span style="color:#9ECE6A"> dev</span><span style="color:#9ECE6A"> eth0</span></span>
+<span class="line"></span></code></pre>
+<ul>
+<li><strong>default</strong>: Catch-all for unmatched destinations (go through 192.168.1.1)</li>
+<li><strong>192.168.1.0/24</strong>: Local network (directly connected)</li>
+<li><strong>10.0.0.0/8</strong>: Specific route through 192.168.1.254</li>
+</ul>
+<p>The routing table is searched in order of specificity (longest prefix match). 10.0.0.0/8 is more specific than default, so those packets go through 192.168.1.254.</p>
+<h2 id="network-address-translation-nat">Network Address Translation (NAT)</h2>
+<p>Most home and office networks use NAT. Your private IP address gets translated to a public IP address:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Private Network (192.168.1.0/24)     NAT Router         Internet</span></span>
+<span class="line"><span>192.168.1.100:54321 ─────────────────▶ 203.0.113.5:54321 ──▶ example.com:80</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>When the response comes back, the router knows to send it to 192.168.1.100.</p>
+<p>NAT has implications:</p>
+<ul>
+<li>Servers can’t be easily reached from outside (you need port forwarding)</li>
+<li>It’s a security feature (internal IPs aren’t exposed)</li>
+<li>It consumes router resources (must track each connection)</li>
+</ul>
+<h2 id="packet-fragmentation">Packet Fragmentation</h2>
+<p>The link layer has a maximum frame size called MTU (Maximum Transmission Unit). For Ethernet, it’s typically 1500 bytes.</p>
+<p>If an IP packet exceeds the MTU, it gets fragmented:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Original packet (4000 bytes)</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>         ▼</span></span>
+<span class="line"><span>   ┌─────┼─────┐</span></span>
+<span class="line"><span>   ▼     ▼     ▼</span></span>
+<span class="line"><span> Fragment 1  Fragment 2  Fragment 3</span></span>
+<span class="line"><span>  (1500)    (1500)    (1048)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Each fragment has its own IP header with:</p>
+<ul>
+<li>MF flag (More Fragments) set except on last fragment</li>
+<li>Fragment offset telling where this piece belongs</li>
+</ul>
+<p>The destination reassembles the fragments. If any piece is missing, the entire packet is discarded.</p>
+<h2 id="tools-for-observing-packets">Tools for Observing Packets</h2>
+<h3 id="tcpdump-packet-sniffing">tcpdump: Packet Sniffing</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Capture all HTTP traffic</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpdump</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#E0AF68"> -A</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tcp port 80 and tcp[((tcp[12:1] &#x26; 0xf0) >> 2):2] = 0x4745</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Capture specific host</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpdump</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#9ECE6A"> host</span><span style="color:#FF9E64"> 93.184.216.34</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Capture and save to file</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpdump</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> capture.pcap</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tcp port 80</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span></code></pre>
+<h3 id="ip-interface-configuration">ip: Interface Configuration</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Show all interfaces</span></span>
+<span class="line"><span style="color:#C0CAF5">ip</span><span style="color:#9ECE6A"> addr</span><span style="color:#9ECE6A"> show</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show routing table</span></span>
+<span class="line"><span style="color:#C0CAF5">ip</span><span style="color:#9ECE6A"> route</span><span style="color:#9ECE6A"> show</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show neighbor table (ARP cache)</span></span>
+<span class="line"><span style="color:#C0CAF5">ip</span><span style="color:#9ECE6A"> neigh</span><span style="color:#9ECE6A"> show</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Trace path to destination</span></span>
+<span class="line"><span style="color:#C0CAF5">traceroute</span><span style="color:#9ECE6A"> example.com</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Monitor network statistics</span></span>
+<span class="line"><span style="color:#C0CAF5">ss</span><span style="color:#E0AF68"> -tulnp</span></span>
+<span class="line"></span></code></pre>
+<h3 id="wiresharktshark-deep-packet-analysis">wireshark/tshark: Deep Packet Analysis</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Capture and display interactively</span></span>
+<span class="line"><span style="color:#C0CAF5">wireshark</span><span style="color:#89DDFF"> &#x26;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Capture from CLI and analyze later</span></span>
+<span class="line"><span style="color:#C0CAF5">tshark</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> capture.pcap</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Read capture file</span></span>
+<span class="line"><span style="color:#C0CAF5">tshark</span><span style="color:#E0AF68"> -r</span><span style="color:#9ECE6A"> capture.pcap</span><span style="color:#E0AF68"> -Y</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">http.request.uri contains "login"</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span></code></pre>
+<h2 id="tcp-performance-windows-buffering-and-probing">TCP Performance: Windows, Buffering, and Probing</h2>
+<h3 id="tcp-window-size">TCP Window Size</h3>
+<p>The window size in the TCP header tells the sender how much data can be sent before waiting for an acknowledgment. Larger windows = better throughput for high-latency links.</p>
+<p>Modern systems support <strong>TCP Window Scaling</strong> (RFC 1323), which multiplies the window size. Without scaling, the maximum window is 65KB; with scaling, it can be much larger.</p>
+<h3 id="slow-start-and-congestion-control">Slow Start and Congestion Control</h3>
+<p>TCP doesn’t just blast data at full speed. It starts slowly and speeds up:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Initial: send 1 segment</span></span>
+<span class="line"><span>    │</span></span>
+<span class="line"><span>    ▼ (ACK received)</span></span>
+<span class="line"><span>Send 2 segments</span></span>
+<span class="line"><span>    │</span></span>
+<span class="line"><span>    ▼ (ACKs received)</span></span>
+<span class="line"><span>Send 4 segments</span></span>
+<span class="line"><span>    │</span></span>
+<span class="line"><span>    ▼</span></span>
+<span class="line"><span>Send 8 segments</span></span>
+<span class="line"><span>    │</span></span>
+<span class="line"><span>    ▼</span></span>
+<span class="line"><span>... exponential increase until packet loss</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>When loss is detected, TCP:</p>
+<ol>
+<li>Cuts the send rate in half</li>
+<li>Then increases more slowly</li>
+<li>Continues probing for available bandwidth</li>
+</ol>
+<h3 id="bufferbloat">bufferbloat</h3>
+<p>Modern networks can buffer too much data. This causes high latency even when throughput is fine:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Normal:     RTT = 20ms</span></span>
+<span class="line"><span>With bufferbloat: RTT = 2000ms (packets wait in queue)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Tools like <strong>sqm-scripts</strong> on Linux and <strong>Cake</strong> scheduler fight bufferbloat.</p>
+<h2 id="dns-the-phonebook-of-the-internet">DNS: The Phonebook of the Internet</h2>
+<p>Before any of this happens, your computer needs to know the IP address of the destination. DNS translates names to addresses:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> nslookup</span><span style="color:#9ECE6A"> example.com</span></span>
+<span class="line"><span style="color:#C0CAF5">Server:</span><span style="color:#FF9E64">    8.8.8.8</span></span>
+<span class="line"><span style="color:#C0CAF5">Address:</span><span style="color:#9ECE6A">   8.8.8.8#53</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#C0CAF5">Non-authoritative</span><span style="color:#9ECE6A"> answer:</span></span>
+<span class="line"><span style="color:#C0CAF5">Name:</span><span style="color:#9ECE6A">    example.com</span></span>
+<span class="line"><span style="color:#C0CAF5">Address:</span><span style="color:#FF9E64"> 93.184.216.34</span></span>
+<span class="line"></span></code></pre>
+<p>DNS lookups happen recursively:</p>
+<ol>
+<li>Your computer asks the configured resolver (often 8.8.8.8 or your router)</li>
+<li>If the resolver doesn’t know, it asks root nameservers</li>
+<li>Root servers point to TLD servers (.com, .net, etc.)</li>
+<li>TLD servers point to authoritative nameservers</li>
+<li>Authoritative nameservers return the answer</li>
+</ol>
+<p>Results are cached at each level. DNS entries have a TTL (Time To Live) controlling how long they’re cached.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Every packet on the internet travels a well-defined path through the TCP/IP stack:</p>
+<ol>
+<li>Application creates data (HTTP request)</li>
+<li>TCP adds port numbers, sequence numbers, and reliability</li>
+<li>IP adds source and destination IP addresses</li>
+<li>Ethernet adds MAC addresses for local delivery</li>
+<li>Routers along the path read IP headers and forward packets</li>
+<li>TTL prevents infinite loops</li>
+<li>The destination reverses the process and sends back acknowledgments</li>
+</ol>
+<p>Understanding this stack is essential for:</p>
+<ul>
+<li>Debugging connectivity issues</li>
+<li>Optimizing network performance</li>
+<li>Writing distributed applications</li>
+<li>Configuring firewalls and routers</li>
+</ul>
+<p>The next time you run <code>traceroute</code> or capture packets with <code>tcpdump</code>, you’ll know exactly what’s happening at each step.</p>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/dns-deep-dive-how-domain-resolution-works" data-astro-cid-gjtny2mx>DNS Deep Dive: How Domain Name Resolution Actually Works</a> <p data-astro-cid-gjtny2mx>A thorough look at DNS — recursive vs iterative queries, record types, DNSSEC, DoH/DoT, TTL behavior, and why your cache matters more than you think.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/ebpf-linux-observability-framework" data-astro-cid-gjtny2mx>eBPF: Linux&#39;s Most Powerful Observation Framework</a> <p data-astro-cid-gjtny2mx>What eBPF is, how it works, why it matters compared to kernel modules, and practical tools like bpftrace, tcpdump -B, and execsnoop.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/linux-memory-debugging-profiling" data-astro-cid-gjtny2mx>Linux Memory Debugging: From vmstat to Memory Leaks</a> <p data-astro-cid-gjtny2mx>Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"TCP/IP Internals: How a Packet Travels Across the Network","description":"A deep dive into the TCP/IP protocol stack, from application data to physical frames, and everything that happens in between.","datePublished":"2024-03-08T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/tcp-ip-internals-packet-journey"},"keywords":"networking, tcp, ip, protocols, linux, packet","articleSection":"networking","about":[{"@type":"Thing","name":"networking"},{"@type":"Thing","name":"tcp"},{"@type":"Thing","name":"ip"},{"@type":"Thing","name":"protocols"},{"@type":"Thing","name":"linux"},{"@type":"Thing","name":"packet"}]}</script> 

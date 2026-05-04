@@ -1,0 +1,334 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A deep dive into Raft's leader election, log replication, and safety guarantees—and why etcd, CockroachDB, and TiKV all rely on it for distributed consensus."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Raft Consensus Algorithm: How Distributed Systems Agree on Reality</title><meta property="og:title" content="Raft Consensus Algorithm: How Distributed Systems Agree on Reality"><meta property="og:description" content="A deep dive into Raft's leader election, log replication, and safety guarantees—and why etcd, CockroachDB, and TiKV all rely on it for distributed consensus."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/raft-consensus-algorithm-deep-dive"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Raft Consensus Algorithm: How Distributed Systems Agree on Reality"><meta name="twitter:description" content="A deep dive into Raft's leader election, log replication, and safety guarantees—and why etcd, CockroachDB, and TiKV all rely on it for distributed consensus."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Raft Consensus Algorithm: How Distributed Systems Agree on Reality</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-03T00:00:00.000Z" data-astro-cid-gjtny2mx>May 2, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>10 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>distributed-systems</span><span class="tag" data-astro-cid-gjtny2mx>consensus</span><span class="tag" data-astro-cid-gjtny2mx>raft</span><span class="tag" data-astro-cid-gjtny2mx>system-design</span><span class="tag" data-astro-cid-gjtny2mx>availability</span><span class="tag" data-astro-cid-gjtny2mx>fault-tolerance</span><span class="tag" data-astro-cid-gjtny2mx>etcd</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every database that spans multiple machines faces the same fundamental problem: how do you get independent computers to agree on what’s true? Not eventually, not probably—<strong>agree</strong>. This is the consensus problem, and Raft is one of the most widely deployed solutions to it.</p>
+<p>If you’ve used Kubernetes, Docker Swarm, CockroachDB, TiKV, or etcd, you’ve benefited from Raft. Understanding it is essential for system design interviews and for building any distributed system that claims correctness.</p>
+<h2 id="the-problem-why-consensus-is-hard">The Problem: Why Consensus Is Hard</h2>
+<p>Imagine two database servers, both believing they’re the primary:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Server A: "I'm the primary, writes go to me"</span></span>
+<span class="line"><span>Server B: "I'm the primary, writes go to me"</span></span>
+<span class="line"><span>Client:   "Um... which one is actually right?"</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>This is <strong>split-brain</strong>—the most dangerous failure mode in distributed systems. Both servers accept writes independently, diverge, and by the time you realize the problem, you have two incompatible copies of data with no way to merge them.</p>
+<p>The CAP theorem says you can’t have consistency and availability during a network partition. But Raft doesn’t try to defeat CAP—it tries to minimize partitions and recover fast when they happen. The goal: <strong>safety</strong> (never return wrong data) before <strong>availability</strong>.</p>
+<h3 id="the-flp-impossibility-result">The FLP Impossibility Result</h3>
+<p>Before Raft, researchers proved that no consensus algorithm can guarantee both safety and liveness if nodes can fail and networks can partition. Every consensus algorithm makes a tradeoff:</p>
+<ul>
+<li>Raft chooses <strong>safety over liveness</strong> during partitions (reject writes rather than risk divergence)</li>
+<li>Paxos makes similar guarantees but is notoriously harder to implement correctly</li>
+</ul>
+<h2 id="rafts-core-abstraction-replicated-log">Raft’s Core Abstraction: Replicated Log</h2>
+<p>Raft consensus works by maintaining a <strong>replicated log</strong>—a sequence of commands that all servers apply in the same order. If the log is identical across a majority of servers, the system is consistent.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Log entries: [cmd1, cmd2, cmd3, cmd4, ...]</span></span>
+<span class="line"><span>             ↑ committed entries (majority agreement)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Each command in the log represents a state machine transition. Committed entries are durable—even if a minority of servers crash, the system continues.</p>
+<h2 id="the-three-roles">The Three Roles</h2>
+<p>Raft servers operate in one of three states:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Role</th><th>Responsibility</th></tr></thead><tbody><tr><td><strong>Leader</strong></td><td>Handles all client requests, replicates log entries to followers</td></tr><tr><td><strong>Follower</strong></td><td>Passive, responds to requests from leader and candidates</td></tr><tr><td><strong>Candidate</strong></td><td>Temporary state during leader election</td></tr></tbody></table>
+<distributedconsensus client:load="">
+<h2 id="leader-election-choosing-who-decides">Leader Election: Choosing Who Decides</h2>
+<p>Time in Raft is divided into <strong>terms</strong>—numbered epochs of some leader’s reign:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Term 1          Term 2           Term 3</span></span>
+<span class="line"><span>┌─────────────┐ ┌─────────────┐ ┌─────────────┐</span></span>
+<span class="line"><span>│ Leader: A   │ │ Leader: B   │ │   No leader │</span></span>
+<span class="line"><span>│ Followers:  │ │ Followers:  │ │  (election) │</span></span>
+<span class="line"><span>│ B, C        │ │ A, C        │ │              │</span></span>
+<span class="line"><span>└─────────────┘ └─────────────┘ └─────────────┘</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Terms end when a leader crashes or network partition isolates the leader. A new election begins.</p>
+<h3 id="how-elections-work">How Elections Work</h3>
+<ol>
+<li>
+<p><strong>Heartbeat timeout</strong>: Followers expect periodic heartbeats from the leader. If no heartbeat arrives within the <strong>election timeout</strong> (typically 150–300ms, randomized), a follower assumes the leader is dead and becomes a candidate.</p>
+</li>
+<li>
+<p><strong>Vote request</strong>: The candidate increments the term number, votes for itself, and sends <code>RequestVote</code> RPCs to all other servers.</p>
+</li>
+<li>
+<p><strong>Vote winning</strong>: If a candidate receives votes from a <strong>majority</strong> of servers, it becomes the new leader.</p>
+</li>
+<li>
+<p><strong>Vote losing</strong>: If another leader’s heartbeat arrives before the candidate wins, the candidate reverts to follower.</p>
+</li>
+</ol>
+<h3 id="election-timeout-randomization">Election Timeout Randomization</h3>
+<p>The randomization of election timeouts is critical to avoid <strong>vote splitting</strong> (multiple candidates splitting votes repeatedly):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Each server picks a random timeout in this range</span></span>
+<span class="line"><span style="color:#FF9E64">ELECTION_TIMEOUT_MIN</span><span style="color:#89DDFF"> =</span><span style="color:#FF9E64"> 150</span><span style="color:#51597D;font-style:italic">  # ms</span></span>
+<span class="line"><span style="color:#FF9E64">ELECTION_TIMEOUT_MAX</span><span style="color:#89DDFF"> =</span><span style="color:#FF9E64"> 300</span><span style="color:#51597D;font-style:italic">  # ms</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">timeout </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> random</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">randint</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">ELECTION_TIMEOUT_MIN</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> ELECTION_TIMEOUT_MAX</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Server waits this long before starting election</span></span>
+<span class="line"></span></code></pre>
+<p>This randomization means usually one server times out first, wins the election, and sends heartbeats before others start competing.</p>
+<h3 id="leader-availability">Leader Availability</h3>
+<p>A Raft cluster remains available as long as a <strong>majority</strong> (quorum) is reachable:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Cluster Size</th><th>Quorum</th><th>Failure Tolerance</th></tr></thead><tbody><tr><td>1</td><td>1</td><td>0 nodes</td></tr><tr><td>3</td><td>2</td><td>1 node</td></tr><tr><td>5</td><td>3</td><td>2 nodes</td></tr><tr><td>7</td><td>4</td><td>3 nodes</td></tr></tbody></table>
+<p>With 5 nodes, you can lose 2 and still serve writes. This is why production etcd clusters typically run 3 or 5 nodes.</p>
+<h2 id="log-replication-making-writes-durable">Log Replication: Making Writes Durable</h2>
+<p>When a client sends a command to a Raft leader:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client → Leader: "SET x = 3"</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>         ├─ Appends entry to local log</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>         ├─ Sends AppendEntries RPC to followers</span></span>
+<span class="line"><span>         │   (in parallel, for speed)</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>         ├─ Waits for majority to acknowledge</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>         ├─ Applies entry to state machine</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>         └─ Responds to client: "Done"</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="the-appendentries-rpc">The AppendEntries RPC</h3>
+<p>The leader sends <code>AppendEntries</code> RPCs to followers to replicate log entries:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="json"><code><span class="line"><span style="color:#9ABDF5">{</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">term</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 3</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">leaderId</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">A</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">prevLogIndex</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 4</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">prevLogTerm</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 2</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">entries</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#9ABDF5"> [</span></span>
+<span class="line"><span style="color:#9ABDF5">    {</span><span style="color:#89DDFF"> "</span><span style="color:#0DB9D7">index</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 5</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#0DB9D7">term</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 3</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#0DB9D7">command</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">SET x = 3</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5"> }</span></span>
+<span class="line"><span style="color:#9ABDF5">  ]</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">leaderCommit</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 6</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span></code></pre>
+<ul>
+<li><code>prevLogIndex/prevLogTerm</code>: The entry just before the new ones. Follower verifies it has this entry.</li>
+<li><code>entries</code>: New commands to append</li>
+<li><code>leaderCommit</code>: How many entries the leader has committed</li>
+</ul>
+<p>If a follower crashes or is slow, the leader retries. Entries are always sent in order.</p>
+<h3 id="commit-index">Commit Index</h3>
+<p>The <strong>commit index</strong> is how Raft tracks which entries are safely replicated:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Log entries: [1, 2, 3, 4, 5, 6, 7]</span></span>
+<span class="line"><span>                      ↑ commit index = 4</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Only entries up to <code>commitIndex</code> can be applied to the state machine. The leader advances <code>commitIndex</code> when a majority acknowledges an entry.</p>
+<h3 id="why-committed-entries-are-safe">Why Committed Entries Are Safe</h3>
+<p>An entry is only committed when a <strong>majority</strong> of servers have written it. This means at least one server in any future quorum must have seen it. Even if the current leader crashes:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Leader A has log: [1, 2, 3, 4, 5]</span></span>
+<span class="line"><span>Followers B, C have: [1, 2, 3]</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Entry 3 is committed (majority: A, B, C all have it)</span></span>
+<span class="line"><span>If A crashes, B or C can be elected.</span></span>
+<span class="line"><span>The new leader must have entry 3 (because voters require it).</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Key property</strong>: If entry E is committed and a server becomes leader, that server must have entry E in its log.</p>
+<h2 id="safety-why-raft-never-returns-wrong-data">Safety: Why Raft Never Returns Wrong Data</h2>
+<p>Raft’s safety guarantee: <strong>if an entry is committed, no future leader can have a different entry at that index.</strong></p>
+<p>This is enforced through two rules:</p>
+<h3 id="rule-1-leader-completeness">Rule 1: Leader Completeness</h3>
+<p>A candidate can only win an election if its log is <strong>at least as up-to-date</strong> as any other voter:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="rust"><code><span class="line"><span style="color:#89DDFF">fn</span><span style="color:#7AA2F7"> can_vote_for</span><span style="color:#89DDFF">(</span><span style="color:#C0CAF5">candidate</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> voter_log</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> candidate_log</span><span style="color:#89DDFF">):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    // Candidate's last entry must have higher term</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    // OR same term but equal or longer log</span></span>
+<span class="line"><span style="color:#C0CAF5">    candidate_last</span><span style="color:#89DDFF"> =</span><span style="color:#C0CAF5"> candidate_log</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">last</span><span style="color:#89DDFF">()</span></span>
+<span class="line"><span style="color:#C0CAF5">    voter_last</span><span style="color:#89DDFF"> =</span><span style="color:#C0CAF5"> voter_log</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">last</span><span style="color:#89DDFF">()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#C0CAF5"> candidate_last</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">term </span><span style="color:#BB9AF7">></span><span style="color:#C0CAF5"> voter_last</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">term</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> true</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#C0CAF5"> candidate_last</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">term </span><span style="color:#BB9AF7">==</span><span style="color:#C0CAF5"> voter_last</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">term</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#C0CAF5"> candidate_last</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">index </span><span style="color:#BB9AF7">>=</span><span style="color:#C0CAF5"> voter_last</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">index</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#FF9E64"> false</span></span>
+<span class="line"></span></code></pre>
+<p>This ensures the new leader has all committed entries.</p>
+<h3 id="rule-2-log-matching">Rule 2: Log Matching</h3>
+<p>If two logs have an entry at the same index with the same term, all preceding entries must match. This is guaranteed by the <code>prevLogIndex/prevLogTerm</code> check in <code>AppendEntries</code>:</p>
+<ul>
+<li>If a follower’s log doesn’t match at <code>prevLogIndex</code>, the leader decrements <code>prevLogIndex</code> and retries</li>
+<li>Eventually, the logs converge</li>
+</ul>
+<h2 id="membership-changes-adding-servers-without-downtime">Membership Changes: Adding Servers Without Downtime</h2>
+<p>Raft must handle adding/removing servers without stopping the cluster. The naive approach (config change in one step) risks split-brain if two quorums coexist.</p>
+<p>Raft uses <strong>joint consensus</strong>: old and new configurations overlap during a transition.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Configuration transition:</span></span>
+<span class="line"><span>[Old] → [Old+New joint] → [New]</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Step 1: C_old (servers: A, B, C)</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>         ▼ (joint config)</span></span>
+<span class="line"><span>Step 2: C_old+new (servers: A, B, C, D, E)</span></span>
+<span class="line"><span>         Any majority of either config can commit</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>         ▼ (commit joint, then commit new)</span></span>
+<span class="line"><span>Step 3: C_new (servers: D, E)</span></span>
+<span class="line"><span>         Only majority of new config can commit</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>During the joint configuration, a partition can exist where neither side has a majority of <strong>both</strong> configs, preventing split-brain.</p>
+<h2 id="why-etcd-uses-raft">Why etcd Uses Raft</h2>
+<p>etcd is the consistency backend for Kubernetes—all API server state lives in etcd. When you deploy a pod, the API server writes to etcd; Raft ensures all control plane nodes see the same state.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Check etcd cluster health</span></span>
+<span class="line"><span style="color:#C0CAF5">kubectl</span><span style="color:#9ECE6A"> exec</span><span style="color:#E0AF68"> -n</span><span style="color:#9ECE6A"> kube-system</span><span style="color:#9ECE6A"> etcd-</span><span style="color:#89DDFF">&#x3C;</span><span style="color:#9ECE6A">po</span><span style="color:#A9B1D6">d</span><span style="color:#89DDFF">></span><span style="color:#E0AF68"> --</span><span style="color:#9ECE6A"> etcdctl</span><span style="color:#9ECE6A"> endpoint</span><span style="color:#9ECE6A"> health</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># View etcd Raft status</span></span>
+<span class="line"><span style="color:#C0CAF5">kubectl</span><span style="color:#9ECE6A"> exec</span><span style="color:#E0AF68"> -n</span><span style="color:#9ECE6A"> kube-system</span><span style="color:#9ECE6A"> etcd-</span><span style="color:#89DDFF">&#x3C;</span><span style="color:#9ECE6A">po</span><span style="color:#A9B1D6">d</span><span style="color:#89DDFF">></span><span style="color:#E0AF68"> --</span><span style="color:#9ECE6A"> etcdctl</span><span style="color:#9ECE6A"> raft</span><span style="color:#9ECE6A"> status</span></span>
+<span class="line"></span></code></pre>
+<p>Kubernetes requires <strong>linearizability</strong>—every read reflects all completed writes. Raft’s consensus guarantees this across the etcd cluster.</p>
+<h2 id="performance-characteristics">Performance Characteristics</h2>
+<p>Raft isn’t theoretically optimal (Paxos can be more efficient in some scenarios), but it’s practical:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Metric</th><th>Typical Value</th></tr></thead><tbody><tr><td>Write latency (local)</td><td>&#x3C; 1ms</td></tr><tr><td>Write latency (3-node cluster, leader on same DC)</td><td>2–5ms</td></tr><tr><td>Read latency (direct from leader)</td><td>&#x3C; 1ms</td></tr><tr><td>Recovery time after leader failure</td><td>100–500ms (election + catch-up)</td></tr><tr><td>Log replication throughput</td><td>Limited by slowest follower (typically 50–100 MB/s on SSDs)</td></tr></tbody></table>
+<p>Leader becomes the bottleneck for writes—all client traffic routes through it. For write-heavy workloads, consider sharding across multiple Raft groups (like CockroachDB does).</p>
+<h2 id="limitations">Limitations</h2>
+<ul>
+<li><strong>Leader is a bottleneck</strong>: All writes go through the leader. For very high write throughput, use multiple Raft groups (sharding).</li>
+<li><strong>Latency on cross-DC writes</strong>: Writes require a quorum, typically spanning a datacenter. Cross-DC latency is high (30–100ms RTT).</li>
+<li><strong>Jitter on elections</strong>: Randomized timeouts work well but introduce variable recovery times.</li>
+<li><strong>Log compaction needed</strong>: Without it, the log grows indefinitely. Raft uses snapshots (periodic state snapshots + log truncation) to bound storage.</li>
+</ul>
+<h2 id="comparison-raft-vs-paxos">Comparison: Raft vs Paxos</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Aspect</th><th>Raft</th><th>Paxos</th></tr></thead><tbody><tr><td>Understandability</td><td>Designed for clarity</td><td>Mathematically proven, harder to implement</td></tr><tr><td>Structure</td><td>Leader-based, more restrictive</td><td>Leaderless, more flexible</td></tr><tr><td>Implementations</td><td>etcd, CockroachDB, TiKV, Consul</td><td>Chubby (Google), Spanner</td></tr><tr><td>Election</td><td>Term-based</td><td>Ballot-based</td></tr><tr><td>Reconfiguration</td><td>Joint consensus</td><td>Single-step with careful handling</td></tr></tbody></table>
+<p>Raft’s restrictions (leader-based,AppendEntries) make it easier to implement correctly. The original Raft paper (“In Search of an Understandable Consensus Algorithm”) explicitly aimed to be easier for practitioners to reason about.</p>
+<h2 id="practical-implementation-etcds-raft-library">Practical Implementation: etcd’s Raft Library</h2>
+<p>etcd’s <a href="https://github.com/etcd-io/etcd/tree/main/raft">raft package</a> is the reference implementation:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="go"><code><span class="line"><span style="color:#51597D;font-style:italic">// Simplified Raft usage in etcd</span></span>
+<span class="line"><span style="color:#C0CAF5">r</span><span style="color:#89DDFF"> :=</span><span style="color:#C0CAF5"> raft</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">StartNode</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">peers</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> nil</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">// Propose a command (client write)</span></span>
+<span class="line"><span style="color:#C0CAF5">r</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">Propose</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">ctx</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> data</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">// Read from state machine</span></span>
+<span class="line"><span style="color:#C0CAF5">sm</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">State</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">// Read directly from leader (linearizable reads require quorum check)</span></span>
+<span class="line"><span style="color:#C0CAF5">r</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">ReadIndex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">ctx</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<p>Production considerations:</p>
+<ul>
+<li><strong>WAL (Write-Ahead Log)</strong>: Every Raft write is persisted to disk before acknowledgment</li>
+<li><strong>Snapshots</strong>: Periodic state snapshots + log truncation prevent unbounded disk usage</li>
+<li><strong>Flow control</strong>: Limiting in-flight AppendEntries prevents overwhelming slow followers</li>
+<li><strong>Check quorum on reads</strong>: Stale reads are cheap; linearizable reads require quorum confirmation</li>
+</ul>
+<h2 id="conclusion">Conclusion</h2>
+<p>Raft solves the consensus problem by combining three mechanisms:</p>
+<ol>
+<li><strong>Leader election</strong> via randomized timeouts and majority voting</li>
+<li><strong>Log replication</strong> via AppendEntries with consistency checks</li>
+<li><strong>Safety</strong> via vote restrictions that ensure the leader has all committed entries</li>
+</ol>
+<p>The result is a system that remains consistent even through network partitions, node failures, and leader changes. Understanding these mechanisms matters whether you’re designing a distributed database, preparing for system design interviews, or debugging a flaky Kubernetes cluster.</p>
+<p>The key insight: consensus isn’t about avoiding failure—it’s about defining behavior <strong>when</strong> failure happens. Raft gives you formal guarantees about what happens next, which is the foundation everything else rests on.</p>
+<hr>
+<p><strong>External Resources</strong></p>
+<ul>
+<li><a href="https://raft.github.io/raft.pdf">Raft Paper (Ongaro &#x26; Ousterhout)</a> — The original paper, surprisingly readable</li>
+<li><a href="http://thesecretlivesofdata.com/raft/">The Secret Lives of Data</a> — Beautiful interactive visualization of Raft</li>
+<li><a href="https://github.com/etcd-io/etcd/tree/main/raft">etcd Raft implementation</a> — Production-grade reference</li>
+<li><a href="https://github.com/elasticsky/raft-scope">RaftScope</a> — Visual Raft state machine explorer</li>
+<li><a href="https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroO14.pdf">CONSENSUS: Bridging Theory and Practice</a> — Extended treatment by Ongaro</li>
+</ul></distributedconsensus>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/paxos-consensus-algorithm-deep-dive" data-astro-cid-gjtny2mx>Paxos Consensus Algorithm: How Distributed Systems Reach Agreement</a> <p data-astro-cid-gjtny2mx>A deep dive into the Paxos consensus algorithm—prepare phases, accept phases, multi-Paxos, and why Google Spanner, CockroachDB, and Neo4j use it for distributed agreement.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/rate-limiter-system-design" data-astro-cid-gjtny2mx>Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse</a> <p data-astro-cid-gjtny2mx>Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/url-shortener-system-design" data-astro-cid-gjtny2mx>URL Shortener System Design: How to Handle Millions of Redirects Per Second</a> <p data-astro-cid-gjtny2mx>Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Raft Consensus Algorithm: How Distributed Systems Agree on Reality","description":"A deep dive into Raft's leader election, log replication, and safety guarantees—and why etcd, CockroachDB, and TiKV all rely on it for distributed consensus.","datePublished":"2026-05-03T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/raft-consensus-algorithm-deep-dive"},"keywords":"distributed-systems, consensus, raft, system-design, availability, fault-tolerance, etcd","articleSection":"distributed-systems","about":[{"@type":"Thing","name":"distributed-systems"},{"@type":"Thing","name":"consensus"},{"@type":"Thing","name":"raft"},{"@type":"Thing","name":"system-design"},{"@type":"Thing","name":"availability"},{"@type":"Thing","name":"fault-tolerance"},{"@type":"Thing","name":"etcd"}]}</script> 

@@ -1,0 +1,153 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="ACID properties, Read Uncommitted to Serializable isolation levels, dirty reads, non-repeatable reads, phantom reads, pessimistic vs optimistic locking, deadlock handling, and race condition prevention in SQL databases."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Database Transactions and Isolation Levels Explained</title><meta property="og:title" content="Database Transactions and Isolation Levels Explained"><meta property="og:description" content="ACID properties, Read Uncommitted to Serializable isolation levels, dirty reads, non-repeatable reads, phantom reads, pessimistic vs optimistic locking, deadlock handling, and race condition prevention in SQL databases."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/database-transactions-isolation-levels"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Database Transactions and Isolation Levels Explained"><meta name="twitter:description" content="ACID properties, Read Uncommitted to Serializable isolation levels, dirty reads, non-repeatable reads, phantom reads, pessimistic vs optimistic locking, deadlock handling, and race condition prevention in SQL databases."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Database Transactions and Isolation Levels Explained</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2024-01-28T00:00:00.000Z" data-astro-cid-gjtny2mx>January 27, 2024</time> <span class="reading-time" data-astro-cid-gjtny2mx>5 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>sql</span><span class="tag" data-astro-cid-gjtny2mx>databases</span><span class="tag" data-astro-cid-gjtny2mx>transactions</span><span class="tag" data-astro-cid-gjtny2mx>concurrency</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Race conditions aren’t just a multithreading problem. Your database has them too. Let’s talk about transactions and isolation levels.</p>
+<h2 id="the-classic-problem">The Classic Problem</h2>
+<p>Two users buy the last item simultaneously:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>User A: SELECT quantity FROM products WHERE id = 1;  -- Returns 1</span></span>
+<span class="line"><span>User B: SELECT quantity FROM products WHERE id = 1;  -- Returns 1</span></span>
+<span class="line"><span>User A: UPDATE products SET quantity = 0 WHERE id = 1;</span></span>
+<span class="line"><span>User B: UPDATE products SET quantity = 0 WHERE id = 1;</span></span>
+<span class="line"><span>-- Both users "bought" the item. You oversold.</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Transactions and proper isolation levels prevent this.</p>
+<h2 id="acid-properties">ACID Properties</h2>
+<p><strong>Atomicity</strong>: All or nothing. If any part fails, the entire transaction rolls back.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#89DDFF">BEGIN</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">UPDATE</span><span style="color:#A9B1D6"> accounts </span><span style="color:#7DCFFF">SET</span><span style="color:#A9B1D6"> balance </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> balance </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64"> 100</span><span style="color:#7DCFFF"> WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">UPDATE</span><span style="color:#A9B1D6"> accounts </span><span style="color:#7DCFFF">SET</span><span style="color:#A9B1D6"> balance </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> balance </span><span style="color:#89DDFF">+</span><span style="color:#FF9E64"> 100</span><span style="color:#7DCFFF"> WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 2</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- If either fails, both are rolled back</span></span>
+<span class="line"><span style="color:#89DDFF">COMMIT</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Consistency</strong>: Transactions move the database from one valid state to another. Constraints are enforced.</p>
+<p><strong>Isolation</strong>: Concurrent transactions don’t interfere with each other (to a degree—see below).</p>
+<p><strong>Durability</strong>: Once committed, data survives crashes.</p>
+<h2 id="isolation-levels">Isolation Levels</h2>
+<p>Here’s where it gets interesting. SQL defines four isolation levels, each trading performance for consistency:</p>
+<h3 id="read-uncommitted">Read Uncommitted</h3>
+<p>The wild west. You can see other transactions’ uncommitted changes.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SET</span><span style="color:#89DDFF"> TRANSACTION</span><span style="color:#89DDFF"> ISOLATION</span><span style="color:#89DDFF"> LEVEL</span><span style="color:#89DDFF"> READ</span><span style="color:#89DDFF"> UNCOMMITTED</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Allows:</strong> Dirty reads (seeing uncommitted data that might be rolled back)</p>
+<p><strong>Use case:</strong> Almost never. Maybe some analytics where accuracy doesn’t matter.</p>
+<h3 id="read-committed">Read Committed</h3>
+<p>You only see committed data. Default in PostgreSQL.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SET</span><span style="color:#89DDFF"> TRANSACTION</span><span style="color:#89DDFF"> ISOLATION</span><span style="color:#89DDFF"> LEVEL</span><span style="color:#89DDFF"> READ</span><span style="color:#89DDFF"> COMMITTED</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Transaction A</span></span>
+<span class="line"><span style="color:#89DDFF">BEGIN</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> balance </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> accounts </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;  </span><span style="color:#51597D;font-style:italic">-- Returns 100</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Transaction B commits: UPDATE accounts SET balance = 50 WHERE id = 1;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> balance </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> accounts </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;  </span><span style="color:#51597D;font-style:italic">-- Returns 50 (different!)</span></span>
+<span class="line"><span style="color:#89DDFF">COMMIT</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Allows:</strong> Non-repeatable reads (same query, different results within a transaction)</p>
+<p><strong>Use case:</strong> Most OLTP applications. Good balance of consistency and performance.</p>
+<h3 id="repeatable-read">Repeatable Read</h3>
+<p>Your reads are consistent within the transaction. Default in MySQL.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SET</span><span style="color:#89DDFF"> TRANSACTION</span><span style="color:#89DDFF"> ISOLATION</span><span style="color:#89DDFF"> LEVEL</span><span style="color:#89DDFF"> REPEATABLE</span><span style="color:#89DDFF"> READ</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Transaction A</span></span>
+<span class="line"><span style="color:#89DDFF">BEGIN</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> balance </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> accounts </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;  </span><span style="color:#51597D;font-style:italic">-- Returns 100</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Transaction B commits: UPDATE accounts SET balance = 50 WHERE id = 1;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> balance </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> accounts </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;  </span><span style="color:#51597D;font-style:italic">-- Still returns 100</span></span>
+<span class="line"><span style="color:#89DDFF">COMMIT</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Allows:</strong> Phantom reads (new rows can appear from other transactions)</p>
+<p><strong>Use case:</strong> When you need consistent reads but can tolerate new rows appearing.</p>
+<h3 id="serializable">Serializable</h3>
+<p>Transactions execute as if they ran one at a time.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SET</span><span style="color:#89DDFF"> TRANSACTION</span><span style="color:#89DDFF"> ISOLATION</span><span style="color:#89DDFF"> LEVEL</span><span style="color:#89DDFF"> SERIALIZABLE</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Allows:</strong> Nothing. Full isolation.</p>
+<p><strong>Use case:</strong> Financial systems, inventory management—anywhere race conditions are unacceptable.</p>
+<p><strong>Cost:</strong> Significant performance overhead. More deadlocks and retries.</p>
+<h2 id="the-inventory-problem-solved">The Inventory Problem Solved</h2>
+<p>Remember our overselling problem? Here’s how to fix it:</p>
+<h3 id="option-1-serializable-isolation">Option 1: Serializable Isolation</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SET</span><span style="color:#89DDFF"> TRANSACTION</span><span style="color:#89DDFF"> ISOLATION</span><span style="color:#89DDFF"> LEVEL</span><span style="color:#89DDFF"> SERIALIZABLE</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#89DDFF">BEGIN</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> quantity </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> products </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- If quantity > 0</span></span>
+<span class="line"><span style="color:#7DCFFF">UPDATE</span><span style="color:#A9B1D6"> products </span><span style="color:#7DCFFF">SET</span><span style="color:#A9B1D6"> quantity </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> quantity </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64"> 1</span><span style="color:#7DCFFF"> WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">INSERT INTO</span><span style="color:#A9B1D6"> orders (product_id, user_id) </span><span style="color:#7DCFFF">VALUES</span><span style="color:#A9B1D6"> (</span><span style="color:#FF9E64">1</span><span style="color:#A9B1D6">, current_user_id);</span></span>
+<span class="line"><span style="color:#89DDFF">COMMIT</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p>One transaction will succeed; the other will be rolled back with a serialization error. Retry it.</p>
+<h3 id="option-2-pessimistic-locking">Option 2: Pessimistic Locking</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#89DDFF">BEGIN</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> quantity </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> products </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF"> FOR</span><span style="color:#7DCFFF"> UPDATE</span><span style="color:#A9B1D6">;  </span><span style="color:#51597D;font-style:italic">-- Locks the row</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- If quantity > 0</span></span>
+<span class="line"><span style="color:#7DCFFF">UPDATE</span><span style="color:#A9B1D6"> products </span><span style="color:#7DCFFF">SET</span><span style="color:#A9B1D6"> quantity </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> quantity </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64"> 1</span><span style="color:#7DCFFF"> WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">INSERT INTO</span><span style="color:#A9B1D6"> orders (product_id, user_id) </span><span style="color:#7DCFFF">VALUES</span><span style="color:#A9B1D6"> (</span><span style="color:#FF9E64">1</span><span style="color:#A9B1D6">, current_user_id);</span></span>
+<span class="line"><span style="color:#89DDFF">COMMIT</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p><code>FOR UPDATE</code> locks the row until the transaction completes. Other transactions wait.</p>
+<h3 id="option-3-optimistic-locking">Option 3: Optimistic Locking</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Add a version column</span></span>
+<span class="line"><span style="color:#89DDFF">ALTER</span><span style="color:#89DDFF"> TABLE</span><span style="color:#A9B1D6"> products </span><span style="color:#89DDFF">ADD</span><span style="color:#A9B1D6"> COLUMN </span><span style="color:#89DDFF">version</span><span style="color:#BB9AF7"> INT</span><span style="color:#9D7CD8;font-style:italic"> DEFAULT</span><span style="color:#FF9E64"> 0</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Application code</span></span>
+<span class="line"><span style="color:#89DDFF">BEGIN</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> quantity, </span><span style="color:#89DDFF">version</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> products </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;  </span><span style="color:#51597D;font-style:italic">-- quantity=1, version=5</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7DCFFF">UPDATE</span><span style="color:#A9B1D6"> products </span></span>
+<span class="line"><span style="color:#7DCFFF">SET</span><span style="color:#A9B1D6"> quantity </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> quantity </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">, </span><span style="color:#89DDFF">version</span><span style="color:#BB9AF7"> =</span><span style="color:#89DDFF"> version</span><span style="color:#89DDFF"> +</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6"> </span></span>
+<span class="line"><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#7DCFFF"> AND</span><span style="color:#89DDFF"> version</span><span style="color:#BB9AF7"> =</span><span style="color:#FF9E64"> 5</span><span style="color:#A9B1D6">;  </span><span style="color:#51597D;font-style:italic">-- Only succeeds if version unchanged</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Check if UPDATE affected 1 row. If 0, someone else modified it. Retry.</span></span>
+<span class="line"><span style="color:#89DDFF">COMMIT</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p>No locks. Check at update time if data changed. Faster but requires retry logic.</p>
+<h2 id="deadlocks">Deadlocks</h2>
+<p>When two transactions wait for each other:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Transaction A: Locks row 1, wants row 2</span></span>
+<span class="line"><span>Transaction B: Locks row 2, wants row 1</span></span>
+<span class="line"><span>-- Deadlock!</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Databases detect this and kill one transaction. Your code should:</p>
+<ol>
+<li>Catch deadlock errors</li>
+<li>Retry the transaction</li>
+<li>Consider consistent ordering (always lock rows in the same order)</li>
+</ol>
+<h2 id="practical-guidelines">Practical Guidelines</h2>
+<ol>
+<li>
+<p><strong>Understand your database’s default.</strong> PostgreSQL defaults to Read Committed. MySQL to Repeatable Read.</p>
+</li>
+<li>
+<p><strong>Use the lowest isolation level that’s correct.</strong> Higher isolation = worse performance.</p>
+</li>
+<li>
+<p><strong>Prefer optimistic locking for low-contention scenarios.</strong> It scales better.</p>
+</li>
+<li>
+<p><strong>Use pessimistic locking (<code>FOR UPDATE</code>) when conflicts are common.</strong></p>
+</li>
+<li>
+<p><strong>Always handle transaction failures.</strong> Deadlocks and serialization errors happen.</p>
+</li>
+<li>
+<p><strong>Keep transactions short.</strong> Long transactions increase lock contention.</p>
+</li>
+</ol>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- ❌ Bad: Long transaction</span></span>
+<span class="line"><span style="color:#89DDFF">BEGIN</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> products;  </span><span style="color:#51597D;font-style:italic">-- User stares at page</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- ... 5 minutes later ...</span></span>
+<span class="line"><span style="color:#7DCFFF">UPDATE</span><span style="color:#A9B1D6"> products </span><span style="color:#7DCFFF">SET</span><span style="color:#A9B1D6"> quantity </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> quantity </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64"> 1</span><span style="color:#7DCFFF"> WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#89DDFF">COMMIT</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- ✅ Good: Short transaction</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Read outside transaction</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Only use transaction for the critical update</span></span>
+<span class="line"><span style="color:#89DDFF">BEGIN</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">UPDATE</span><span style="color:#A9B1D6"> products </span><span style="color:#7DCFFF">SET</span><span style="color:#A9B1D6"> quantity </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> quantity </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64"> 1</span><span style="color:#7DCFFF"> WHERE</span><span style="color:#A9B1D6"> id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 1</span><span style="color:#7DCFFF"> AND</span><span style="color:#A9B1D6"> quantity </span><span style="color:#BB9AF7">></span><span style="color:#FF9E64"> 0</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#89DDFF">COMMIT</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p>Race conditions in databases are real. Choose the right isolation level, understand the tradeoffs, and test your concurrent scenarios.</p>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/database-normalization-practical-guide" data-astro-cid-gjtny2mx>Database Normalization: When to Normalize and When to Denormalize</a> <p data-astro-cid-gjtny2mx>Database normalization forms (1NF-3NF), when to denormalize for read performance, OLTP vs OLAP design patterns, star schemas, and practical guidelines for balancing integrity and speed.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/sql-indexing-deep-dive" data-astro-cid-gjtny2mx>SQL Indexing: A Deep Dive into Database Performance</a> <p data-astro-cid-gjtny2mx>B-tree and composite indexes, covering indexes, partial indexes, EXPLAIN plan analysis, and how to diagnose and fix slow SQL queries with real examples.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/clickhouse-architecture-deep-dive" data-astro-cid-gjtny2mx>ClickHouse Architecture: How a Column-Oriented Database Processes Billions of Rows</a> <p data-astro-cid-gjtny2mx>A deep dive into ClickHouse&#39;s architecture—vectorized execution, MergeTree storage, and how it achieves sub-second queries on trillion-row datasets.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Database Transactions and Isolation Levels Explained","description":"ACID properties, Read Uncommitted to Serializable isolation levels, dirty reads, non-repeatable reads, phantom reads, pessimistic vs optimistic locking, deadlock handling, and race condition prevention in SQL databases.","datePublished":"2024-01-28T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/database-transactions-isolation-levels"},"keywords":"sql, databases, transactions, concurrency","articleSection":"sql","about":[{"@type":"Thing","name":"sql"},{"@type":"Thing","name":"databases"},{"@type":"Thing","name":"transactions"},{"@type":"Thing","name":"concurrency"}]}</script> 

@@ -1,0 +1,341 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>URL Shortener System Design: How to Handle Millions of Redirects Per Second</title><meta property="og:title" content="URL Shortener System Design: How to Handle Millions of Redirects Per Second"><meta property="og:description" content="Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/url-shortener-system-design"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="URL Shortener System Design: How to Handle Millions of Redirects Per Second"><meta name="twitter:description" content="Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>URL Shortener System Design: How to Handle Millions of Redirects Per Second</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-03T00:00:00.000Z" data-astro-cid-gjtny2mx>May 2, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>8 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>system-design</span><span class="tag" data-astro-cid-gjtny2mx>distributed-systems</span><span class="tag" data-astro-cid-gjtny2mx>architecture</span><span class="tag" data-astro-cid-gjtny2mx>scalability</span><span class="tag" data-astro-cid-gjtny2mx>interviews</span><span class="tag" data-astro-cid-gjtny2mx>high-availability</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every time you click a shortened link, you’re using one of the most elegant distributed systems running today. This post walks through designing a URL shortener from scratch—covering the decisions that matter at scale.</p>
+<h2 id="the-core-problem">The Core Problem</h2>
+<p>A URL shortener does one thing: maps a short alias to a long URL. Sounds simple. The hard part is doing it:</p>
+<ul>
+<li><strong>Fast</strong>: &#x3C;10ms redirect latency</li>
+<li><strong>Reliable</strong>: 99.99% uptime (links never “die”)</li>
+<li><strong>Scalable</strong>: Millions of redirects per minute</li>
+<li><strong>Cheap</strong>: Storage and compute at scale</li>
+</ul>
+<h2 id="the-naive-approach-and-why-it-breaks">The Naive Approach (And Why It Breaks)</h2>
+<p>The instinct is to start with a database:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#89DDFF">CREATE</span><span style="color:#89DDFF"> TABLE</span><span style="color:#7AA2F7"> urls</span><span style="color:#A9B1D6"> (</span></span>
+<span class="line"><span style="color:#A9B1D6">    id   </span><span style="color:#BB9AF7">SERIAL</span><span style="color:#9D7CD8;font-style:italic"> PRIMARY KEY</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#A9B1D6">    slug </span><span style="color:#BB9AF7">VARCHAR</span><span style="color:#A9B1D6">(</span><span style="color:#FF9E64">16</span><span style="color:#A9B1D6">) </span><span style="color:#89DDFF">UNIQUE</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#89DDFF">    url</span><span style="color:#BB9AF7">  TEXT</span><span style="color:#89DDFF"> NOT NULL</span></span>
+<span class="line"><span style="color:#A9B1D6">);</span></span>
+<span class="line"></span></code></pre>
+<p>Generate <code>slug</code> from <code>id</code> in base62 (a-z, A-Z, 0-9):</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>ID</th><th>Slug</th></tr></thead><tbody><tr><td>1</td><td>b</td></tr><tr><td>2</td><td>c</td></tr><tr><td>…</td><td>…</td></tr><tr><td>1000000000</td><td>GjKxQ0</td></tr></tbody></table>
+<p><strong>Problems at scale:</strong></p>
+<ol>
+<li><strong>Short slugs run out</strong>: base62 with 7 chars = 62^7 ≈ 3.5 trillion combinations. Fine in theory, but sequential IDs make slugs predictable and easy to enumerate.</li>
+<li><strong>Sequential slug = hot spots</strong>: All new links cluster around similar prefixes; caching is harder.</li>
+<li><strong>Database bottleneck</strong>: Every redirect is a DB lookup. At 10M RPS, you need thousands of DB connections.</li>
+</ol>
+<h2 id="step-1-choosing-a-slug-generation-strategy">Step 1: Choosing a Slug Generation Strategy</h2>
+<urlshortenerflow client:load="">
+<h3 id="option-a-hash-based-md5sha-1-of-url">Option A: Hash-Based (MD5/SHA-1 of URL)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> hashlib</span></span>
+<span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> base64</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> generate_slug</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">url</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> length</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF"> =</span><span style="color:#FF9E64"> 7</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#A9B1D6">    hash_bytes </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> hashlib</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">md5</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">url</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">encode</span><span style="color:#9ABDF5">())</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">digest</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> base64</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">urlsafe_b64encode</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">hash_bytes</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">[:</span><span style="color:#A9B1D6">length</span><span style="color:#89DDFF">].</span><span style="color:#7AA2F7">rstrip</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">=</span><span style="color:#89DDFF">'</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Problem</strong>: Collisions. Different URLs can hash to the same slug. You need a collision check—another DB lookup before inserting.</p>
+<p><strong>Mitigation</strong>: Use the URL + a random salt:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> generate_slug</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">url</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> attempt </span><span style="color:#BB9AF7">in</span><span style="color:#0DB9D7"> range</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">5</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        salt </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> secrets</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">token_hex</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">4</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        slug </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> base64</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">urlsafe_b64encode</span><span style="color:#9ABDF5">(</span></span>
+<span class="line"><span style="color:#C0CAF5">            hashlib</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">sha256</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">(</span><span style="color:#C0CAF5">url </span><span style="color:#89DDFF">+</span><span style="color:#C0CAF5"> salt</span><span style="color:#89DDFF">).</span><span style="color:#7AA2F7">encode</span><span style="color:#9ABDF5">())</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">digest</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#9ABDF5">        )</span><span style="color:#89DDFF">[:</span><span style="color:#FF9E64">7</span><span style="color:#89DDFF">].</span><span style="color:#7AA2F7">rstrip</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">=</span><span style="color:#89DDFF">'</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#BB9AF7"> not</span><span style="color:#7AA2F7"> slug_exists</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">slug</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span><span style="color:#51597D;font-style:italic">  # DB check</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#A9B1D6"> slug</span></span>
+<span class="line"><span style="color:#BB9AF7">    raise</span><span style="color:#0DB9D7"> Exception</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">Could not generate unique slug</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<h3 id="option-b-counter-based-distributed-id-generator">Option B: Counter-Based (Distributed ID Generator)</h3>
+<p>Use a service like Twitter’s Snowflake or a simple Redis INCR:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Using Redis</span></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> generate_slug</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">counter</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#7AA2F7"> base62_encode</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">counter</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Redis atomic operation</span></span>
+<span class="line"><span style="color:#A9B1D6">slug_id </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">incr</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">url:id:counter</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">slug </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> base62_encode</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">slug_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Advantages</strong>: No collisions, no pre-check needed, slug is non-sequential if you add a random offset.</p>
+<h3 id="option-c-custom-alphabet-ksuid-or-ulid">Option C: Custom Alphabet (KSuid or ULID)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> ksuid</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">slug </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> ksuid</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">random</span><span style="color:#9ABDF5">()</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">base62</span><span style="color:#9ABDF5">()</span><span style="color:#51597D;font-style:italic">  # "01ARZ3NDEKTSV4RRFFQ69G5FAV"</span></span>
+<span class="line"></span></code></pre>
+<p>KSUIDs are time-sortable, globally unique, and use a URL-safe alphabet. 27 characters gives you ~217 quintillion possible slugs.</p>
+<p><strong>Recommendation</strong>: Use KSUID or Snowflake-style IDs for production. Hash-based for read-heavy workloads where URL deduplication matters more than insert speed.</p>
+<h2 id="step-2-storage-architecture">Step 2: Storage Architecture</h2>
+<h3 id="hot-data-redis-cache">Hot Data: Redis Cache</h3>
+<p>80% of requests are popular links (bit.ly top 10% get 90% of traffic). Cache aggressively:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Key: slug</span></span>
+<span class="line"><span>Value: {"url": "https://example.com/very/long/path", "created_at": "2026-01-15"}</span></span>
+<span class="line"><span>TTL: 7 days (refresh on access)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>At 10M RPS with 1KB per entry: ~10GB RAM. Completely feasible.</p>
+<h3 id="warm-data-key-value-store-dynamodb--rocksdb">Warm Data: Key-Value Store (DynamoDB / RocksDB)</h3>
+<p>Popular but not hot enough for Redis:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- DynamoDB table design</span></span>
+<span class="line"><span style="color:#89DDFF">Table</span><span style="color:#A9B1D6">: UrlMappings</span></span>
+<span class="line"><span style="color:#89DDFF">  Partition</span><span style="color:#89DDFF"> Key</span><span style="color:#A9B1D6">: slug (String)</span></span>
+<span class="line"><span style="color:#A9B1D6">  Attributes: long_url, created_at, click_count, expires_at</span></span>
+<span class="line"><span style="color:#A9B1D6">  GSI: long_url</span><span style="color:#89DDFF">-index</span><span style="color:#A9B1D6"> (</span><span style="color:#89DDFF">for</span><span style="color:#A9B1D6"> deduplication </span><span style="color:#89DDFF">on</span><span style="color:#89DDFF"> insert</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#89DDFF">Read</span><span style="color:#A9B1D6">: </span><span style="color:#FF9E64">5</span><span style="color:#A9B1D6"> RCU per 4KB item</span></span>
+<span class="line"><span style="color:#A9B1D6">Write: </span><span style="color:#FF9E64">5</span><span style="color:#A9B1D6"> WCU per 1KB item</span></span>
+<span class="line"><span style="color:#A9B1D6">Cost: ~$</span><span style="color:#FF9E64">0</span><span style="color:#A9B1D6">.</span><span style="color:#FF9E64">25</span><span style="color:#89DDFF">/</span><span style="color:#A9B1D6">GB</span><span style="color:#89DDFF">/month</span></span>
+<span class="line"></span></code></pre>
+<h3 id="cold-data-archival-storage">Cold Data: Archival Storage</h3>
+<p>Links older than 2 years with &#x3C;100 clicks: move to S3/Glacier. Nobody’s clicking 2022’s campaign links anyway.</p>
+<h2 id="step-3-the-redirect-flow">Step 3: The Redirect Flow</h2>
+<redirectlatency client:load="">
+<p>When a user clicks <code>https://siyuan.ca/abc123</code>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>1. Browser → DNS (5ms)</span></span>
+<span class="line"><span>2. DNS → siyuan.ca IP</span></span>
+<span class="line"><span>3. Browser → Load Balancer (2ms)</span></span>
+<span class="line"><span>4. Load Balancer → Cache Layer (Redis) (1ms)</span></span>
+<span class="line"><span>5. HIT: Redis returns URL → 301 redirect → Browser</span></span>
+<span class="line"><span>   MISS: Redis → DB lookup (5ms) → 301 redirect</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Total (cache hit): ~15-25ms</span></span>
+<span class="line"><span>Total (cache miss): ~40-60ms</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Critical decision: 301 vs 302</strong></p>
+<ul>
+<li><strong>301 (Permanent)</strong>: Browser caches the redirect. SEO value passes to destination. Better for shared links.</li>
+<li><strong>302 (Temporary)</strong>: Browser does NOT cache. Better for tracking links you might change.</li>
+</ul>
+<p>Default to <strong>301</strong>. It’s better for users and passes SEO value.</p>
+<h3 id="writing-a-new-short-link">Writing a New Short Link</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>1. Validate URL (must be http/https, max 2048 chars)</span></span>
+<span class="line"><span>2. Check for duplicates (hash-based)</span></span>
+<span class="line"><span>3. Generate slug (snowflake ID)</span></span>
+<span class="line"><span>4. Write to Redis (immediate availability)</span></span>
+<span class="line"><span>5. Async write to DynamoDB (write-behind for durability)</span></span>
+<span class="line"><span>6. Return slug to user</span></span>
+<span class="line"><span></span></span></code></pre>
+<h2 id="step-4-handling-writes-at-scale">Step 4: Handling Writes at Scale</h2>
+<p>Writing is much less frequent than reading (maybe 100:1 ratio). But during viral moments, write volume spikes:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Normal day: 100 new links/second</span></span>
+<span class="line"><span>Viral moment: 50,000 new links/second</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Solution: Write buffer with async flush</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>API Server → Kafka → Consumer → Batch Write to DynamoDB</span></span>
+<span class="line"><span>                ↑</span></span>
+<span class="line"><span>         Redis (immediate read path)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Kafka buffers spikes. The consumer batches writes: 1000 links per DynamoDB batch write. This absorbs 100× traffic bursts without provisioning for peak.</p>
+<h2 id="step-5-analytics-pipeline">Step 5: Analytics Pipeline</h2>
+<clickanalyticsflow client:load="">
+<p>Every redirect is a data point. Track:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Data</th><th>Use Case</th></tr></thead><tbody><tr><td><code>referer</code></td><td>Where is traffic coming from?</td></tr><tr><td><code>user_agent</code></td><td>Browser, OS, device</td></tr><tr><td><code>geo</code></td><td>Country/city of click</td></tr><tr><td><code>timestamp</code></td><td>When did the click happen?</td></tr><tr><td><code>slug</code></td><td>Which link was clicked?</td></tr></tbody></table>
+<p><strong>Stream to Kafka → Flink/Spark → ClickHouse</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Real-time dashboard in ClickHouse</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span></span>
+<span class="line"><span style="color:#A9B1D6">    slug,</span></span>
+<span class="line"><span style="color:#BB9AF7">    date</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#0DB9D7">    count</span><span style="color:#A9B1D6">() </span><span style="color:#89DDFF">as</span><span style="color:#A9B1D6"> clicks,</span></span>
+<span class="line"><span style="color:#A9B1D6">    uniqExact(referer) </span><span style="color:#89DDFF">as</span><span style="color:#A9B1D6"> unique_referers,</span></span>
+<span class="line"><span style="color:#A9B1D6">    stateMerge(geo_state) </span><span style="color:#89DDFF">as</span><span style="color:#A9B1D6"> geo_distribution</span></span>
+<span class="line"><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> clicks</span></span>
+<span class="line"><span style="color:#7DCFFF">WHERE</span><span style="color:#BB9AF7"> date</span><span style="color:#BB9AF7"> =</span><span style="color:#A9B1D6"> today</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#7DCFFF">GROUP BY</span><span style="color:#A9B1D6"> slug, </span><span style="color:#BB9AF7">date</span></span>
+<span class="line"><span style="color:#7DCFFF">ORDER BY</span><span style="color:#A9B1D6"> clicks </span><span style="color:#89DDFF">DESC</span></span>
+<span class="line"><span style="color:#7DCFFF">LIMIT</span><span style="color:#FF9E64"> 100</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p>This is exactly what Bitly and TinyURL do. ClickHouse handles billions of events per day at sub-second query speed.</p>
+<h2 id="step-6-high-availability-design">Step 6: High Availability Design</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>                    ┌─────────────┐</span></span>
+<span class="line"><span>                    │   Route 53   │</span></span>
+<span class="line"><span>                    │   (DNS)      │</span></span>
+<span class="line"><span>                    └──────┬──────┘</span></span>
+<span class="line"><span>                           │</span></span>
+<span class="line"><span>              ┌────────────┼────────────┐</span></span>
+<span class="line"><span>              │            │            │</span></span>
+<span class="line"><span>         ┌────▼────┐ ┌────▼────┐ ┌────▼────┐</span></span>
+<span class="line"><span>         │   PoP 1  │ │   PoP 2  │ │   PoP 3  │</span></span>
+<span class="line"><span>         │ (US-East)│ │ (EU-West)│ │ (Asia-Pac)│</span></span>
+<span class="line"><span>         └────┬────┘ └────┬────┘ └────┬────┘</span></span>
+<span class="line"><span>              │            │            │</span></span>
+<span class="line"><span>         ┌────▼────┐ ┌────▼────┐ ┌────▼────┐</span></span>
+<span class="line"><span>         │  Redis  │ │  Redis  │ │  Redis  │</span></span>
+<span class="line"><span>         │ Cluster │ │ Cluster │ │ Cluster │</span></span>
+<span class="line"><span>         └────┬────┘ └────┬────┘ └────┬────┘</span></span>
+<span class="line"><span>              │            │            │</span></span>
+<span class="line"><span>         ┌────▼────────────▼────────────▼────┐</span></span>
+<span class="line"><span>         │         Global Traffic           │</span></span>
+<span class="line"><span>         │         Manager (Route 53)        │</span></span>
+<span class="line"><span>         └──────────────────────────────────┘</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Failure domains:</strong></p>
+<ul>
+<li>Redis cluster fails: fall back to DynamoDB (higher latency but functional)</li>
+<li>Entire PoP fails: Route 53 health checks shift traffic in &#x3C;30 seconds</li>
+<li>DynamoDB throttling: use local Redis as circuit breaker</li>
+</ul>
+<p><strong>SLA math:</strong></p>
+<ul>
+<li>DynamoDB: 99.999% availability (3 nines = 5 minutes/month downtime)</li>
+<li>Redis: 99.99% (52 minutes/year)</li>
+<li>Combined path: still meets 99.99% overall</li>
+</ul>
+<h2 id="step-7-preventing-abuse">Step 7: Preventing Abuse</h2>
+<p>URL shorteners are abuse targets. Protect against:</p>
+<p><strong>1. Spam URLs</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> validate_url</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">url</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> bool</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Block private IPs</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#7AA2F7"> is_private_ip</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">url</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span><span style="color:#BB9AF7"> return</span><span style="color:#FF9E64"> False</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Check against blocklist (VirusTotal API)</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#BB9AF7"> await</span><span style="color:#7AA2F7"> is_malicious</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">url</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span><span style="color:#BB9AF7"> return</span><span style="color:#FF9E64"> False</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Rate limit per user</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#BB9AF7"> await</span><span style="color:#7AA2F7"> rate_limit_exceeded</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">user_id</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span><span style="color:#BB9AF7"> return</span><span style="color:#FF9E64"> False</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#FF9E64"> True</span></span>
+<span class="line"></span></code></pre>
+<p><strong>2. Storage Exhaustion</strong></p>
+<p>Limit slug creation per account:</p>
+<ul>
+<li>Anonymous: 10/hour</li>
+<li>Authenticated: 10,000/hour</li>
+<li>Paid: unlimited</li>
+</ul>
+<p><strong>3. Redirect Loops</strong></p>
+<p>Detect and block cycles (A→B→A):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#A9B1D6">visited </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> set</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> follow_redirect_chain</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">url</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> _ </span><span style="color:#BB9AF7">in</span><span style="color:#0DB9D7"> range</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">10</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span><span style="color:#51597D;font-style:italic">  # max hops</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> url </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> visited</span><span style="color:#89DDFF">:</span><span style="color:#BB9AF7"> raise</span><span style="color:#7AA2F7"> LoopDetected</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#A9B1D6">        visited</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">add</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">url</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        url </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> resolve_redirect</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">url</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> url</span></span>
+<span class="line"></span></code></pre>
+<h2 id="the-full-request-flow">The Full Request Flow</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>User clicks https://short.ly/abc123</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>→ DNS resolves to nearest PoP (5ms)</span></span>
+<span class="line"><span>→ Load balancer routes to app server (2ms)</span></span>
+<span class="line"><span>→ Redis lookup (1ms)</span></span>
+<span class="line"><span>  → HIT: return 301 with long_url</span></span>
+<span class="line"><span>  → MISS: DynamoDB lookup (10ms), cache in Redis, return 301</span></span>
+<span class="line"><span>→ Browser follows redirect (http://long-url.com)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Parallel: click event → Kafka → analytics pipeline → ClickHouse</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>End-to-end latency: <strong>15-50ms</strong> (cache hit vs miss)</p>
+<h2 id="sizing-and-cost">Sizing and Cost</h2>
+<p>For 1B redirects/month:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Component</th><th>Spec</th><th>Monthly Cost</th></tr></thead><tbody><tr><td>Redis (hot cache)</td><td>50GB RAM, 3 replicas</td><td>~$400</td></tr><tr><td>DynamoDB (storage)</td><td>1TB data, 50K WCU, 100K RCU</td><td>~$800</td></tr><tr><td>Kafka (analytics)</td><td>3 brokers, 100MB/s throughput</td><td>~$600</td></tr><tr><td>ClickHouse (analytics)</td><td>3 nodes, 10TB storage</td><td>~$1,500</td></tr><tr><td>Compute (API servers)</td><td>20 instances, auto-scaling</td><td>~$1,000</td></tr><tr><td><strong>Total</strong></td><td></td><td><strong>~$4,300/month</strong></td></tr></tbody></table>
+<p>That’s ~$0.0000043 per redirect. At 10M RPS, you’d need roughly 20× this capacity—and pricing would drop significantly at that scale with committed use.</p>
+<hr>
+<h2 id="when-to-use-url-shortening">When to Use URL Shortening</h2>
+<p><strong>Good for:</strong></p>
+<ul>
+<li>Marketing campaigns (trackable links)</li>
+<li>SMS messages (character limits)</li>
+<li>Social media (aesthetic links)</li>
+<li>User-generated content sharing</li>
+</ul>
+<p><strong>Bad for:</strong></p>
+<ul>
+<li>Internal services (use proper DNS)</li>
+<li>Permanent document links (they break when you shut down the service)</li>
+<li>Anything where uptime is critical (add another failure point)</li>
+</ul>
+<p>The URL shortener is a simple idea that becomes complex at scale. The design above handles billions of redirects per month while keeping latency under 50ms and uptime above 99.99%.</p>
+<p>Next: <a href="/posts/database-transactions-isolation-levels">Database Transactions and Isolation Levels Explained</a> →</p></clickanalyticsflow></redirectlatency></urlshortenerflow>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/rate-limiter-system-design" data-astro-cid-gjtny2mx>Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse</a> <p data-astro-cid-gjtny2mx>Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/paxos-consensus-algorithm-deep-dive" data-astro-cid-gjtny2mx>Paxos Consensus Algorithm: How Distributed Systems Reach Agreement</a> <p data-astro-cid-gjtny2mx>A deep dive into the Paxos consensus algorithm—prepare phases, accept phases, multi-Paxos, and why Google Spanner, CockroachDB, and Neo4j use it for distributed agreement.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/raft-consensus-algorithm-deep-dive" data-astro-cid-gjtny2mx>Raft Consensus Algorithm: How Distributed Systems Agree on Reality</a> <p data-astro-cid-gjtny2mx>A deep dive into Raft&#39;s leader election, log replication, and safety guarantees—and why etcd, CockroachDB, and TiKV all rely on it for distributed consensus.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"URL Shortener System Design: How to Handle Millions of Redirects Per Second","description":"Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day.","datePublished":"2026-05-03T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/url-shortener-system-design"},"keywords":"system-design, distributed-systems, architecture, scalability, interviews, high-availability","articleSection":"system-design","about":[{"@type":"Thing","name":"system-design"},{"@type":"Thing","name":"distributed-systems"},{"@type":"Thing","name":"architecture"},{"@type":"Thing","name":"scalability"},{"@type":"Thing","name":"interviews"},{"@type":"Thing","name":"high-availability"}]}</script> 

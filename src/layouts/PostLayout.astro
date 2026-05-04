@@ -1,0 +1,157 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import { getCollection } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  post: CollectionEntry<'posts'>;
+}
+
+const { post } = Astro.props;
+const { title, description, date, tags } = post.data;
+
+const formattedDate = date.toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+
+// Reading time
+const wordCount = post.body.split(/\s+/).filter(Boolean).length;
+const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+
+// Related posts: same tags, excluding current
+const allPosts = (await getCollection('posts', ({ data }) => !data.draft))
+  .filter((p) => p.slug !== post.slug);
+
+const related = allPosts
+  .map((p) => {
+    const shared = (p.data.tags || []).filter((t) => (tags || []).includes(t));
+    return { post: p, score: shared.length };
+  })
+  .filter(({ score }) => score > 0)
+  .sort((a, b) => b.score - a.score)
+  .slice(0, 3);
+
+// JSON-LD Article schema
+const siteUrl = 'https://systeminternals.dev';
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: title,
+  description: description,
+  datePublished: date.toISOString(),
+  author: {
+    '@type': 'Person',
+    name: 'System Internals',
+    url: siteUrl,
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: 'System Internals',
+    url: siteUrl,
+  },
+  mainEntityOfPage: {
+    '@type': 'WebPage',
+    '@id': `${siteUrl}/posts/${post.slug}`,
+  },
+  keywords: tags ? tags.join(', ') : undefined,
+  ...(tags && tags.length > 0
+    ? {
+        articleSection: tags[0],
+        about: tags.map((tag) => ({ '@type': 'Thing', name: tag })),
+      }
+    : {}),
+};
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  ogTitle={title}
+  ogDescription={description}
+  ogType="article"
+  ogUrl={`https://systeminternals.dev/posts/${post.slug}`}
+  twitterTitle={title}
+  twitterDescription={description}
+>
+  <article>
+    <header>
+      <h1>{title}</h1>
+      <p class="post-meta">
+        <time datetime={date.toISOString()}>{formattedDate}</time>
+        <span class="reading-time">{readingTime} min read</span>
+      </p>
+      {tags && tags.length > 0 && (
+        <div class="tags">
+          {tags.map((tag) => (
+            <span class="tag">{tag}</span>
+          ))}
+        </div>
+      )}
+    </header>
+    <div class="prose">
+      <slot />
+    </div>
+
+    {related.length > 0 && (
+      <aside class="related-posts">
+        <h2>Related Posts</h2>
+        <ul>
+          {related.map(({ post: rp }) => (
+            <li>
+              <a href={`/posts/${rp.slug}`}>{rp.data.title}</a>
+              <p>{rp.data.description}</p>
+            </li>
+          ))}
+        </ul>
+      </aside>
+    )}
+  </article>
+</BaseLayout>
+
+<script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+
+<style>
+  .post-meta {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.75rem;
+  }
+  .reading-time {
+    color: var(--text-muted);
+  }
+  .post-meta time + .reading-time::before {
+    content: '·';
+    margin-left: 0.5rem;
+    color: var(--text-muted);
+  }
+  .related-posts {
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e5e7eb;
+  }
+  .related-posts h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .related-posts ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .related-posts li a {
+    font-weight: 600;
+    font-size: 1rem;
+  }
+  .related-posts li p {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+</style>

@@ -1,0 +1,192 @@
+---
+// Interactive Distributed Consensus Diagram
+---
+
+<div class="canvas-container">
+  <canvas id="distributed-consensus" width="700" height="280"></canvas>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('distributed-consensus');
+  const ctx = canvas.getContext('2d');
+
+  let tick = 0;
+
+  // Raft states
+  const nodes = [
+    { label: 'Leader', x: 120, y: 80, color: '#34d399', role: 'leader' },
+    { label: 'Follower', x: 340, y: 80, color: '#60a5fa', role: 'follower' },
+    { label: 'Follower', x: 560, y: 80, color: '#60a5fa', role: 'follower' },
+  ];
+
+  const rpcs = [
+    { from: 0, to: 1, label: 'AppendEntries' },
+    { from: 0, to: 2, label: 'AppendEntries' },
+  ];
+
+  const logs = [
+    { node: 0, entries: ['A', 'B', 'C', 'D', 'E'] },
+    { node: 1, entries: ['A', 'B', 'C', 'D', 'E'] },
+    { node: 2, entries: ['A', 'B', 'C', 'D'] },
+  ];
+
+  const commitIndex = 4; // E is committed
+
+  function draw() {
+    ctx.clearRect(0, 0, 700, 280);
+
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter, sans-serif';
+    ctx.fillText('Raft Consensus: Leader Replicates Log to Majority', 20, 25);
+
+    // Draw RPC arrows (animated)
+    const arrowY = 105;
+    rpcs.forEach((rpc, i) => {
+      const fromNode = nodes[rpc.from];
+      const toNode = nodes[rpc.to];
+
+      // Line
+      ctx.beginPath();
+      ctx.moveTo(fromNode.x + 40, arrowY);
+      ctx.lineTo(toNode.x - 40, arrowY);
+      ctx.strokeStyle = '#2a2a2a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Animated packet
+      const progress = ((tick / 60 + i * 0.5) % 1);
+      const packetX = fromNode.x + 40 + (toNode.x - 80) * progress;
+
+      ctx.beginPath();
+      ctx.arc(packetX, arrowY, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#34d399';
+      ctx.fill();
+
+      // Label on arrow
+      const midX = (fromNode.x + 40 + toNode.x - 40) / 2;
+      ctx.fillStyle = '#888';
+      ctx.font = '400 10px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(rpc.label, midX, arrowY - 8);
+    });
+
+    // Draw nodes
+    nodes.forEach((node, i) => {
+      // Node box
+      ctx.shadowColor = node.color;
+      ctx.shadowBlur = 10;
+
+      ctx.fillStyle = node.color + '22';
+      ctx.strokeStyle = node.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(node.x - 55, node.y - 25, 110, 50, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = node.color;
+      ctx.font = '600 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(node.label, node.x, node.y + 5);
+
+      // Role indicator
+      ctx.fillStyle = '#888';
+      ctx.font = '400 10px Inter, sans-serif';
+      ctx.fillText(node.role, node.x, node.y + 18);
+    });
+
+    // Log visualization below each node
+    const logY = 140;
+    const entryW = 22;
+    const entryH = 18;
+
+    nodes.forEach((node, ni) => {
+      const logStartX = node.x - (logs[ni].entries.length * (entryW + 3)) / 2;
+      const baseY = logY;
+
+      ctx.fillStyle = '#888';
+      ctx.font = '400 10px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Log:', node.x, baseY - 5);
+
+      logs[ni].entries.forEach((entry, ei) => {
+        const ex = logStartX + ei * (entryW + 3);
+        const isCommitted = ei <= commitIndex;
+
+        ctx.fillStyle = isCommitted ? '#34d399' + '33' : '#1e1e2e';
+        ctx.strokeStyle = isCommitted ? '#34d399' : '#2a2a2a';
+        ctx.lineWidth = isCommitted ? 1.5 : 1;
+        ctx.beginPath();
+        ctx.roundRect(ex, baseY, entryW, entryH, 3);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = isCommitted ? '#34d399' : '#888';
+        ctx.font = '400 10px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(entry, ex + entryW/2, baseY + entryH/2 + 3);
+
+        // Commit marker
+        if (ei === commitIndex) {
+          ctx.fillStyle = '#34d399';
+          ctx.font = '400 9px Inter, sans-serif';
+          ctx.fillText('✓', ex + entryW + 8, baseY + entryH/2 + 3);
+        }
+      });
+    });
+
+    // Legend
+    const legendY = 230;
+    ctx.fillStyle = '#888';
+    ctx.font = '400 10px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Entries committed by majority (green border):', 20, legendY);
+
+    ctx.fillStyle = '#34d399';
+    ctx.fillRect(280, legendY - 9, 10, 10);
+    ctx.fillStyle = '#888';
+    ctx.fillText('Committed', 296, legendY);
+
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(370, legendY - 9, 10, 10);
+    ctx.fillStyle = '#888';
+    ctx.fillText('Uncommitted', 386, legendY);
+
+    ctx.fillStyle = '#888';
+    ctx.fillText('Term:', 470, legendY);
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.fillText('T3', 505, legendY);
+
+    // Status message
+    const msgY = 255;
+    ctx.fillStyle = '#34d399';
+    ctx.font = '500 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Entry E committed: majority (Leader + 1 Follower) have it → durable even if Leader crashes', 350, msgY);
+
+    tick++;
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+</script>
+
+<style>
+.canvas-container {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+canvas {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+</style>

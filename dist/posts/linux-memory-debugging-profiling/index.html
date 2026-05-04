@@ -1,0 +1,430 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Linux Memory Debugging: From vmstat to Memory Leaks</title><meta property="og:title" content="Linux Memory Debugging: From vmstat to Memory Leaks"><meta property="og:description" content="Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/linux-memory-debugging-profiling"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Linux Memory Debugging: From vmstat to Memory Leaks"><meta name="twitter:description" content="Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Linux Memory Debugging: From vmstat to Memory Leaks</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-04T00:00:00.000Z" data-astro-cid-gjtny2mx>May 3, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>13 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>linux</span><span class="tag" data-astro-cid-gjtny2mx>memory</span><span class="tag" data-astro-cid-gjtny2mx>performance</span><span class="tag" data-astro-cid-gjtny2mx>debugging</span><span class="tag" data-astro-cid-gjtny2mx>vmstat</span><span class="tag" data-astro-cid-gjtny2mx>oom</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every running program on a Linux system needs memory. When things go wrong — a runaway process eating gigabytes, the OOM killer firing unexpectedly, or a service degrading over days — you need to know where to look. Linux provides a rich set of interfaces for observing memory, but understanding what the numbers actually mean takes some unpacking.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#how-linux-reports-memory">How Linux Reports Memory</a></li>
+<li><a href="#rss-vs-vsz-what-ps-tells-you">RSS vs VSZ: What ps Tells You</a></li>
+<li><a href="#the-core-tools-vmstat-free-and-procmeminfo">The Core Tools: vmstat, free, and /proc/meminfo</a></li>
+<li><a href="#monitoring-swap">Monitoring Swap</a></li>
+<li><a href="#procvmstat-and-page-faults">/proc/vmstat and Page Faults</a></li>
+<li><a href="#transparent-hugepages">Transparent HugePages</a></li>
+<li><a href="#the-oom-killer">The OOM Killer</a></li>
+<li><a href="#detecting-memory-leaks">Detecting Memory Leaks</a></li>
+<li><a href="#practical-tools-smem-pmap-and-memleak">Practical Tools: smem, pmap, and memleak</a></li>
+<li><a href="#memory-cgroups">Memory Cgroups</a></li>
+<li><a href="#conclusion">Conclusion</a></li>
+</ul>
+<h2 id="how-linux-reports-memory">How Linux Reports Memory</h2>
+<p>Linux exposes detailed memory information through <code>/proc/meminfo</code>. This is the canonical source — tools like <code>free</code> and <code>top</code> ultimately read from here. Let’s look at a typical output:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /proc/meminfo</span></span>
+<span class="line"><span style="color:#C0CAF5">MemTotal:</span><span style="color:#FF9E64">       32768</span><span style="color:#9ECE6A"> MiB</span></span>
+<span class="line"><span style="color:#C0CAF5">MemFree:</span><span style="color:#FF9E64">         8452</span><span style="color:#9ECE6A"> MiB</span></span>
+<span class="line"><span style="color:#C0CAF5">MemAvailable:</span><span style="color:#FF9E64">   16384</span><span style="color:#9ECE6A"> MiB</span></span>
+<span class="line"><span style="color:#C0CAF5">Buffers:</span><span style="color:#FF9E64">         2048</span><span style="color:#9ECE6A"> MiB</span></span>
+<span class="line"><span style="color:#C0CAF5">Cached:</span><span style="color:#FF9E64">          8192</span><span style="color:#9ECE6A"> MiB</span></span>
+<span class="line"><span style="color:#C0CAF5">SReclaimable:</span><span style="color:#FF9E64">    1024</span><span style="color:#9ECE6A"> MiB</span></span>
+<span class="line"><span style="color:#C0CAF5">Shmem:</span><span style="color:#FF9E64">           512</span><span style="color:#9ECE6A"> MiB</span></span>
+<span class="line"><span style="color:#C0CAF5">SReclaimable:</span><span style="color:#FF9E64">    1024</span><span style="color:#9ECE6A"> MiB</span></span>
+<span class="line"><span style="color:#89DDFF">[</span><span style="color:#A9B1D6">...</span><span style="color:#89DDFF">]</span></span>
+<span class="line"></span></code></pre>
+<p>Here’s what each field means:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody><tr><td><code>MemTotal</code></td><td>Total physical memory installed</td></tr><tr><td><code>MemFree</code></td><td>Completely unused memory (not a useful metric)</td></tr><tr><td><code>MemAvailable</code></td><td>Memory available for processes without swapping — accounts for reclaimable pages</td></tr><tr><td><code>Buffers</code></td><td>Memory used by block device buffers (raw I/O metadata)</td></tr><tr><td><code>Cached</code></td><td>Memory used as page cache for files</td></tr><tr><td><code>SReclaimable</code></td><td>Slab reclaimable portion ( dents and inodes the kernel can free)</td></tr><tr><td><code>Shmem</code></td><td>Shared memory (tmpfs, POSIX shm)</td></tr></tbody></table>
+<p>The crucial insight: <code>MemAvailable</code> is the number you care about. <code>MemFree</code> looks impressively large in <code>free</code> output, but it ignores page cache and reclaimable slab that can be freed quickly. <code>MemAvailable</code> is what the kernel actually considers available for new allocations.</p>
+<h3 id="buffers-vs-cached">Buffers vs Cached</h3>
+<p>Linux uses spare memory for two things:</p>
+<ul>
+<li><strong>Buffers</strong>: raw block device data (e.g., metadata for ext4 superblock reads)</li>
+<li><strong>Cached</strong>: page cache — copies of file contents kept in RAM for fast access</li>
+</ul>
+<p>Both reduce “available” memory, but both can be reclaimed instantly if a process needs them. Think of them as a performance accelerator, not consumption.</p>
+<h2 id="rss-vs-vsz-what-ps-tells-you">RSS vs VSZ: What ps Tells You</h2>
+<p>When you run <code>ps aux</code>, you see two memory columns:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> ps</span><span style="color:#9ECE6A"> aux</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> head</span><span style="color:#E0AF68"> -5</span></span>
+<span class="line"><span style="color:#C0CAF5">USER</span><span style="color:#9ECE6A">         PID</span><span style="color:#9ECE6A"> %CPU</span><span style="color:#9ECE6A"> %MEM</span><span style="color:#9ECE6A">    VSZ</span><span style="color:#9ECE6A">   RSS</span><span style="color:#9ECE6A"> TTY</span><span style="color:#9ECE6A">      STAT</span><span style="color:#9ECE6A"> START</span><span style="color:#9ECE6A">   COMMAND</span></span>
+<span class="line"><span style="color:#C0CAF5">root</span><span style="color:#FF9E64">           1</span><span style="color:#FF9E64">  0.0</span><span style="color:#FF9E64">  0.0</span><span style="color:#FF9E64">  8976</span><span style="color:#FF9E64">  7364</span><span style="color:#9ECE6A"> ?</span><span style="color:#9ECE6A">        Ss</span><span style="color:#FF9E64">   2024</span><span style="color:#9ECE6A">    0:35</span><span style="color:#9ECE6A"> init</span><span style="color:#A9B1D6"> [2]</span></span>
+<span class="line"></span></code></pre>
+<ul>
+<li><strong>VSZ</strong> (Virtual Set Size): total virtual memory allocated, including mapped but uncommitted pages. A process with 1GB of VSZ might only be using 100MB of physical RAM.</li>
+<li><strong>RSS</strong> (Resident Set Size): physical memory actually used. This is what matters for real system pressure. RSS includes shared library code that’s loaded into memory once and counted for every process using it.</li>
+</ul>
+<p>RSS is the number that matters for detecting leaks. If RSS grows unbounded over time, you have a leak. VSZ alone tells you almost nothing.</p>
+<p>Note that VSZ includes memory mapped with <code>mmap()</code> that hasn’t been touched yet, and it’s counted per-process — so shared libraries inflate VSZ for every process that links them, even though the physical pages are shared.</p>
+<h2 id="the-core-tools-vmstat-free-and-procmeminfo">The Core Tools: vmstat, free, and /proc/meminfo</h2>
+<h3 id="free">free</h3>
+<p>The <code>free</code> command is the quickest way to see system memory:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> free</span></span>
+<span class="line"><span style="color:#C0CAF5">               total</span><span style="color:#9ECE6A">        used</span><span style="color:#9ECE6A">        free</span><span style="color:#9ECE6A">      shared</span><span style="color:#9ECE6A">  buff/cache</span><span style="color:#9ECE6A">   available</span></span>
+<span class="line"><span style="color:#C0CAF5">Mem:</span><span style="color:#FF9E64">        32768</span><span style="color:#FF9E64">        12288</span><span style="color:#FF9E64">        8192</span><span style="color:#FF9E64">         512</span><span style="color:#FF9E64">        12288</span><span style="color:#FF9E64">       16384</span></span>
+<span class="line"><span style="color:#C0CAF5">Swap:</span><span style="color:#FF9E64">        2048</span><span style="color:#FF9E64">          256</span><span style="color:#FF9E64">        1792</span></span>
+<span class="line"></span></code></pre>
+<p>Key interpretation:</p>
+<ul>
+<li><code>free</code> column = <code>MemFree</code> from <code>/proc/meminfo</code></li>
+<li><code>available</code> = <code>MemAvailable</code></li>
+<li><code>buff/cache</code> = <code>Buffers</code> + <code>Cached</code></li>
+<li>Swap <code>used</code> > 0 means the system is under memory pressure and paging out anonymous memory</li>
+</ul>
+<p>Use <code>free -h</code> for human-readable numbers:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> free</span><span style="color:#E0AF68"> -h</span></span>
+<span class="line"><span style="color:#C0CAF5">               total</span><span style="color:#9ECE6A">        used</span><span style="color:#9ECE6A">        free</span><span style="color:#9ECE6A">      shared</span><span style="color:#9ECE6A">  buff/cache</span><span style="color:#9ECE6A">   available</span></span>
+<span class="line"><span style="color:#C0CAF5">Mem:</span><span style="color:#9ECE6A">            32Gi</span><span style="color:#9ECE6A">        12Gi</span><span style="color:#9ECE6A">         8Gi</span><span style="color:#9ECE6A">       512Mi</span><span style="color:#9ECE6A">        12Gi</span><span style="color:#9ECE6A">        16Gi</span></span>
+<span class="line"><span style="color:#C0CAF5">Swap:</span><span style="color:#9ECE6A">           2Gi</span><span style="color:#9ECE6A">       256Mi</span><span style="color:#9ECE6A">         1Gi</span></span>
+<span class="line"></span></code></pre>
+<h3 id="vmstat">vmstat</h3>
+<p><code>vmstat</code> (virtual memory statistics) is great for watching memory trends and per-category breakdowns:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> vmstat</span><span style="color:#FF9E64"> 1</span><span style="color:#FF9E64"> 5</span></span>
+<span class="line"><span style="color:#C0CAF5">procs</span><span style="color:#E0AF68"> -----------memory----------</span><span style="color:#E0AF68"> ---swap--</span><span style="color:#E0AF68"> -----io----</span><span style="color:#E0AF68"> -system--</span><span style="color:#E0AF68"> ------cpu-----</span></span>
+<span class="line"><span style="color:#C0CAF5"> r</span><span style="color:#9ECE6A">  b</span><span style="color:#9ECE6A">   swpd</span><span style="color:#9ECE6A">   free</span><span style="color:#9ECE6A">   buff</span><span style="color:#9ECE6A">  cache</span><span style="color:#9ECE6A">   si</span><span style="color:#9ECE6A">   so</span><span style="color:#9ECE6A">    bi</span><span style="color:#9ECE6A">    bo</span><span style="color:#9ECE6A">   in</span><span style="color:#9ECE6A">   cs</span><span style="color:#9ECE6A"> us</span><span style="color:#9ECE6A"> sy</span><span style="color:#9ECE6A"> id</span><span style="color:#9ECE6A"> wa</span><span style="color:#9ECE6A"> st</span></span>
+<span class="line"><span style="color:#C0CAF5"> 1</span><span style="color:#FF9E64">  0</span><span style="color:#FF9E64">      0</span><span style="color:#FF9E64"> 8388608</span><span style="color:#FF9E64"> 2097152</span><span style="color:#FF9E64"> 8388608</span><span style="color:#FF9E64">    0</span><span style="color:#FF9E64">    0</span><span style="color:#FF9E64">     0</span><span style="color:#FF9E64">     0</span><span style="color:#FF9E64">    0</span><span style="color:#FF9E64">  500</span><span style="color:#FF9E64">  0</span><span style="color:#FF9E64">  0</span><span style="color:#FF9E64"> 0</span><span style="color:#FF9E64"> 0</span><span style="color:#FF9E64">  0</span></span>
+<span class="line"></span></code></pre>
+<p>The key columns:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>swpd</code></td><td>Amount of swap used (KB)</td></tr><tr><td><code>free</code></td><td>Available memory (KB)</td></tr><tr><td><code>buff</code></td><td>Buffers (KB)</td></tr><tr><td><code>cache</code></td><td>Cache (KB)</td></tr><tr><td><code>si</code></td><td>Swap-in (KB/s) — pages read from swap back to RAM</td></tr><tr><td><code>so</code></td><td>Swap-out (KB/s) — pages written to swap</td></tr></tbody></table>
+<p>When <code>si</code> or <code>so</code> are consistently non-zero, you’re in trouble — the system is actively paging.</p>
+<p>For per-process breakdowns, use <code>vmstat -p</code>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> vmstat</span><span style="color:#E0AF68"> -p</span><span style="color:#9ECE6A"> /dev/sda1</span></span>
+<span class="line"><span style="color:#C0CAF5">procs</span><span style="color:#E0AF68"> ----memory-----</span><span style="color:#E0AF68"> ---IO---</span><span style="color:#E0AF68"> --system--</span><span style="color:#E0AF68"> ----cpu-----</span></span>
+<span class="line"><span style="color:#C0CAF5"> r</span><span style="color:#9ECE6A">  b</span><span style="color:#9ECE6A">   free</span><span style="color:#9ECE6A">  inact</span><span style="color:#9ECE6A"> si</span><span style="color:#9ECE6A"> so</span><span style="color:#9ECE6A">               us</span><span style="color:#9ECE6A">  id</span></span>
+<span class="line"><span style="color:#C0CAF5"> 1</span><span style="color:#FF9E64">  0</span><span style="color:#FF9E64"> 8388608</span><span style="color:#FF9E64"> 2097152</span><span style="color:#FF9E64">  0</span><span style="color:#FF9E64">  0</span><span style="color:#FF9E64">              0</span><span style="color:#FF9E64">   0</span></span>
+<span class="line"></span></code></pre>
+<h3 id="procmeminfo">/proc/meminfo</h3>
+<p>For detailed per-memory-type accounting, <code>/proc/meminfo</code> is the source of truth:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /proc/meminfo</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#E0AF68"> -E</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">^(Mem|Total|Active|Inactive|SReclaimable|Shmem|Huge|</span><span style="color:#89DDFF">'</span></span>
+<span class="line"><span style="color:#C0CAF5">MemTotal:</span><span style="color:#FF9E64">       33554432</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">MemFree:</span><span style="color:#FF9E64">        16777216</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">MemAvailable:</span><span style="color:#FF9E64">   20971520</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Active:</span><span style="color:#FF9E64">         10485760</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Inactive:</span><span style="color:#FF9E64">       5242880</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">SReclaimable:</span><span style="color:#FF9E64">   1048576</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Shmem:</span><span style="color:#FF9E64">          524288</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Hugepagesize:</span><span style="color:#FF9E64">       2048</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"></span></code></pre>
+<p>Important additional fields:</p>
+<ul>
+<li><strong>Active/Inactive</strong>: recently accessed (<code>Active</code>) vs. not recently (<code>Inactive</code>). Inactive memory is the first target for reclaim.</li>
+<li><strong>DirectMap2M</strong>: amount mapped with 2MB pages (related to TLB efficiency)</li>
+<li><strong>Hugepagesize</strong>: size of a huge page (typically 2MB on x86)</li>
+</ul>
+<h2 id="monitoring-swap">Monitoring Swap</h2>
+<p>Swap exists for two reasons: (1) as a safety valve when physical memory is exhausted, and (2) as a place to evict cold anonymous pages (process heap/stack) that haven’t been used recently.</p>
+<p>A non-trivial amount of swap usage is not necessarily bad — it might just mean cold pages got pushed out. But <strong>swap-in activity (<code>si</code> in vmstat)</strong> is what kills performance.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Watch swap usage in real-time</span></span>
+<span class="line"><span style="color:#C0CAF5">watch</span><span style="color:#E0AF68"> -n</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">vmstat | grep -E "swpd|si|so"</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Check which processes are using swap</span></span>
+<span class="line"><span style="color:#BB9AF7">for</span><span style="color:#C0CAF5"> f</span><span style="color:#BB9AF7"> in</span><span style="color:#9ECE6A"> /proc/*/status</span><span style="color:#89DDFF">;</span><span style="color:#BB9AF7"> do</span></span>
+<span class="line"><span style="color:#C0CAF5">  awk</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">/VmSwap/{printf "%-30s %s\n", $1, $2}</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF"> "</span><span style="color:#C0CAF5">$f</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#BB9AF7">done</span><span style="color:#89DDFF"> 2></span><span style="color:#A9B1D6">/dev/null </span><span style="color:#89DDFF">|</span><span style="color:#C0CAF5"> sort</span><span style="color:#E0AF68"> -k2</span><span style="color:#E0AF68"> -n</span><span style="color:#E0AF68"> -r</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> head</span></span>
+<span class="line"></span></code></pre>
+<p>Swap can also be per-filesystem via <code>swappiness</code>. More on that in the OOM killer section.</p>
+<h2 id="procvmstat-and-page-faults">/proc/vmstat and Page Faults</h2>
+<p><code>/proc/vmstat</code> tracks low-level virtual memory events across the whole system:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /proc/vmstat</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#E0AF68"> -E</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">pgpgin|pgpgout|pgfault|pgmajfault|pgrefill|pgsteal</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">pgpgin</span><span style="color:#FF9E64"> 1254321</span></span>
+<span class="line"><span style="color:#C0CAF5">pgpgout</span><span style="color:#FF9E64"> 987654</span></span>
+<span class="line"><span style="color:#C0CAF5">pgfault</span><span style="color:#FF9E64"> 982347123</span></span>
+<span class="line"><span style="color:#C0CAF5">pgmajfault</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"><span style="color:#C0CAF5">pgrefill</span><span style="color:#FF9E64"> 23456</span></span>
+<span class="line"><span style="color:#C0CAF5">pgsteal</span><span style="color:#FF9E64"> 78901</span></span>
+<span class="line"></span></code></pre>
+<p>What these mean:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Counter</th><th>Meaning</th></tr></thead><tbody><tr><td><code>pgfault</code></td><td>Total page faults (minor — page in memory but not yet mapped)</td></tr><tr><td><code>pgmajfault</code></td><td>Major page faults (page had to be read from disk — much more expensive)</td></tr><tr><td><code>pgpgin</code></td><td>Pages read into memory (from disk/swap)</td></tr><tr><td><code>pgpgout</code></td><td>Pages written to disk/swap</td></tr><tr><td><code>pgsteal</code></td><td>Pages reclaimed by the kernel (from any category)</td></tr></tbody></table>
+<p>A healthy system will have a high ratio of <code>pgfault</code> to <code>pgmajfault</code>. If <code>pgmajfault</code> is climbing rapidly, something is causing pages to be evicted and then accessed again — possibly too much memory pressure or poor access patterns.</p>
+<h2 id="transparent-hugepages">Transparent HugePages</h2>
+<p>Transparent HugePages (THP) are a Linux feature that allows the kernel to use 2MB pages automatically instead of the standard 4KB pages. The goal is reducing TLB pressure and improving performance for memory-heavy workloads.</p>
+<h3 id="checking-thp-status">Checking THP Status</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /sys/kernel/mm/transparent_hugepage/enabled</span></span>
+<span class="line"><span style="color:#89DDFF">[</span><span style="color:#A9B1D6">always</span><span style="color:#89DDFF">]</span><span style="color:#A9B1D6"> madvise never</span></span>
+<span class="line"></span></code></pre>
+<p>The bracketed value is the current setting. <code>always</code> means THP is enabled for all eligible allocations.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /sys/kernel/mm/transparent_hugepage/defrag</span></span>
+<span class="line"><span style="color:#89DDFF">[</span><span style="color:#A9B1D6">defer</span><span style="color:#89DDFF">]</span><span style="color:#A9B1D6"> madvise never</span></span>
+<span class="line"></span></code></pre>
+<ul>
+<li><code>always</code>: aggressively compact memory to satisfy THP requests</li>
+<li><code>madvise</code>: only use THP when explicitly requested via <code>madvise(MADV_HUGEPAGE)</code></li>
+<li><code>defer</code>: try to defragment in the background but don’t block</li>
+<li><code>never</code>: disabled</li>
+</ul>
+<h3 id="when-thp-causes-problems">When THP Causes Problems</h3>
+<p>THP can cause problems in two main ways:</p>
+<ol>
+<li><strong>Memory fragmentation</strong>: as memory gets fragmented, the kernel works harder to find contiguous 2MB chunks, which can cause latency spikes in applications like databases or Java VMs.</li>
+<li><strong>khugepaged CPU usage</strong>: the kernel daemon <code>khugepaged</code> continuously scans for pages it can collapse into huge pages, consuming CPU.</li>
+<li><strong>Unexpected RSS increases</strong>: when a 4KB page is promoted to a 2MB huge page, it stays resident. For applications with sparse access patterns, this wastes memory.</li>
+</ol>
+<p>For database workloads, it’s often recommended to disable THP:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Temporarily</span></span>
+<span class="line"><span style="color:#0DB9D7">echo</span><span style="color:#9ECE6A"> never</span><span style="color:#89DDFF"> ></span><span style="color:#9ECE6A"> /sys/kernel/mm/transparent_hugepage/enabled</span></span>
+<span class="line"><span style="color:#0DB9D7">echo</span><span style="color:#9ECE6A"> never</span><span style="color:#89DDFF"> ></span><span style="color:#9ECE6A"> /sys/kernel/mm/transparent_hugepage/defrag</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Persistently (RHEL/CentOS) — add to /etc/rc.local:</span></span>
+<span class="line"><span style="color:#BB9AF7">if</span><span style="color:#0DB9D7"> test</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> /sys/kernel/mm/transparent_hugepage/enabled</span><span style="color:#89DDFF">;</span><span style="color:#BB9AF7"> then</span></span>
+<span class="line"><span style="color:#0DB9D7">  echo</span><span style="color:#9ECE6A"> never</span><span style="color:#89DDFF"> ></span><span style="color:#9ECE6A"> /sys/kernel/mm/transparent_hugepage/enabled</span></span>
+<span class="line"><span style="color:#BB9AF7">fi</span></span>
+<span class="line"><span style="color:#BB9AF7">if</span><span style="color:#0DB9D7"> test</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> /sys/kernel/mm/transparent_hugepage/defrag</span><span style="color:#89DDFF">;</span><span style="color:#BB9AF7"> then</span></span>
+<span class="line"><span style="color:#0DB9D7">  echo</span><span style="color:#9ECE6A"> never</span><span style="color:#89DDFF"> ></span><span style="color:#9ECE6A"> /sys/kernel/mm/transparent_hugepage/defrag</span></span>
+<span class="line"><span style="color:#BB9AF7">fi</span></span>
+<span class="line"></span></code></pre>
+<h2 id="the-oom-killer">The OOM Killer</h2>
+<p>When the kernel can’t find any memory to allocate — including reclaiming pages and expanding swap — it calls the Out-of-Memory killer. This is a last-resort mechanism that selects and kills one or more processes to free memory for the system to survive.</p>
+<h3 id="how-it-selects-a-victim">How It Selects a Victim</h3>
+<p>The OOM killer uses a score stored in <code>/proc/&#x3C;pid>/oom_score_adj</code> (or the older <code>/proc/&#x3C;pid>/oom_adj</code>):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /proc/</span><span style="color:#F7768E">$$</span><span style="color:#9ECE6A">/oom_score_adj</span></span>
+<span class="line"><span style="color:#C0CAF5">0</span></span>
+<span class="line"></span></code></pre>
+<p>Values range from -1000 (never kill) to +1000 (most likely to be killed). The kernel computes this based on:</p>
+<ul>
+<li>Memory consumed by the process and its children</li>
+<li>How long the process has been running (longer = slightly lower score)</li>
+<li>Nice value (lower priority processes score higher)</li>
+<li>Root processes get a slight boost (score lower)</li>
+</ul>
+<h3 id="tuning-vmswappiness">Tuning vm.swappiness</h3>
+<p><code>vm.swappiness</code> controls how aggressively the kernel swaps out anonymous (heap/stack) memory vs. dropping page cache:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> sysctl</span><span style="color:#9ECE6A"> vm.swappiness</span></span>
+<span class="line"><span style="color:#C0CAF5">60</span></span>
+<span class="line"></span></code></pre>
+<p>Range is 0 to 100:</p>
+<ul>
+<li><strong>0</strong>: don’t swap unless absolutely necessary (only for critical allocations)</li>
+<li><strong>100</strong>: aggressively swap cold pages</li>
+</ul>
+<p>The default is 60. For most desktop/laptop workloads, lowering to 10-30 can improve performance by keeping more file-backed pages in memory. For memory-overcommitted servers, the default may be fine.</p>
+<p>To change temporarily:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> vm.swappiness=</span><span style="color:#FF9E64">30</span></span>
+<span class="line"></span></code></pre>
+<p>To persist, add to <code>/etc/sysctl.conf</code>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>vm.swappiness = 30</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="responding-to-oom-events">Responding to OOM Events</h3>
+<p>After an OOM kill, check the system log:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">dmesg</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#E0AF68"> -i</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">out of memory</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># or on systemd systems:</span></span>
+<span class="line"><span style="color:#C0CAF5">journalctl</span><span style="color:#E0AF68"> -k</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> oom</span></span>
+<span class="line"></span></code></pre>
+<p>The log will show which process was killed and the memory state at the time.</p>
+<p>To make a process nearly immune to the OOM killer:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#0DB9D7">echo</span><span style="color:#E0AF68"> -1000</span><span style="color:#89DDFF"> ></span><span style="color:#9ECE6A"> /proc/</span><span style="color:#89DDFF">&#x3C;</span><span style="color:#9ECE6A">pi</span><span style="color:#A9B1D6">d</span><span style="color:#89DDFF">></span><span style="color:#9ECE6A">/oom_score_adj</span></span>
+<span class="line"></span></code></pre>
+<p>To make it more likely to be killed (useful for containers):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#0DB9D7">echo</span><span style="color:#FF9E64"> 800</span><span style="color:#89DDFF"> ></span><span style="color:#9ECE6A"> /proc/</span><span style="color:#89DDFF">&#x3C;</span><span style="color:#9ECE6A">pi</span><span style="color:#A9B1D6">d</span><span style="color:#89DDFF">></span><span style="color:#9ECE6A">/oom_score_adj</span></span>
+<span class="line"></span></code></pre>
+<h2 id="detecting-memory-leaks">Detecting Memory Leaks</h2>
+<p>A memory leak is when a process allocates memory but fails to free it, causing RSS to grow unbounded over time. Linux is good at reclaiming clean page cache, but leaks in anonymous memory (heap, stack, mmap’d anonymous regions) persist until the process exits.</p>
+<h3 id="the-basic-technique-monitor-rss-over-time">The Basic Technique: Monitor RSS Over Time</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Sample RSS every 10 seconds, 100 samples</span></span>
+<span class="line"><span style="color:#BB9AF7">while</span><span style="color:#0DB9D7"> true</span><span style="color:#89DDFF">;</span><span style="color:#BB9AF7"> do</span></span>
+<span class="line"><span style="color:#C0CAF5">  ps</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> pid,rss,vsz,comm</span><span style="color:#E0AF68"> -p</span><span style="color:#89DDFF"> $(</span><span style="color:#C0CAF5">pgrep</span><span style="color:#E0AF68"> -d,</span><span style="color:#9ECE6A"> myprocess</span><span style="color:#89DDFF">)</span></span>
+<span class="line"><span style="color:#C0CAF5">  sleep</span><span style="color:#FF9E64"> 10</span></span>
+<span class="line"><span style="color:#BB9AF7">done</span></span>
+<span class="line"></span></code></pre>
+<p>If RSS grows linearly or stepwise over hours, you have a leak.</p>
+<h3 id="using-procsmaps_rollup-for-leak-hunting">Using /proc/<pid>/smaps_rollup for Leak Hunting</pid></h3>
+<p><code>/proc/&#x3C;pid>/smaps_rollup</code> gives a quick summary of a process’s memory mappings:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /proc/1234/smaps_rollup</span></span>
+<span class="line"><span style="color:#C0CAF5">Rss:</span><span style="color:#FF9E64">      82944</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Pss:</span><span style="color:#FF9E64">      51200</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Shared_Clean:</span><span style="color:#FF9E64">   15236</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Shared_Dirty:</span><span style="color:#FF9E64">    2048</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Private_Clean:</span><span style="color:#FF9E64">    512</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Private_Dirty:</span><span style="color:#FF9E64">   8192</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Referenced:</span><span style="color:#FF9E64">   82944</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">Anonymous:</span><span style="color:#FF9E64">   65536</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">LazyFree:</span><span style="color:#FF9E64">     16384</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">AnonHugePages:</span><span style="color:#FF9E64">  0</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">ShmemHugePages:</span><span style="color:#FF9E64"> 0</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">ShmemPmdMapped:</span><span style="color:#FF9E64"> 0</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"></span></code></pre>
+<p>Look at <code>Anonymous</code> (heap) and <code>Private_Dirty</code> (modified private pages) growth over time.</p>
+<h3 id="using-valgrind">Using valgrind</h3>
+<p>For deeper analysis, <code>valgrind</code> with its <code>memcheck</code> tool can identify leaked memory in C/C++ programs:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">valgrind</span><span style="color:#E0AF68"> --leak-check=full</span><span style="color:#E0AF68"> --show-leak-kinds=all</span><span style="color:#E0AF68"> --track-origins=yes</span><span style="color:#9ECE6A"> ./my_program</span></span>
+<span class="line"></span></code></pre>
+<p>This runs the program under instrumentation and reports all unfreed memory at exit. It has significant overhead (5-20x slower) but catches even small leaks.</p>
+<h2 id="practical-tools-smem-pmap-and-memleak">Practical Tools: smem, pmap, and memleak</h2>
+<h3 id="smem">smem</h3>
+<p><code>smem</code> reports memory consumption with proportional set size (PSS), which accounts for shared pages divided among processes that share them:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> smem</span></span>
+<span class="line"><span style="color:#C0CAF5">  PID</span><span style="color:#9ECE6A"> User</span><span style="color:#9ECE6A">     Command</span><span style="color:#9ECE6A">                         Swap</span><span style="color:#9ECE6A">      RSS</span><span style="color:#9ECE6A">      PSS</span><span style="color:#9ECE6A">    Unique</span></span>
+<span class="line"><span style="color:#C0CAF5">12345</span><span style="color:#9ECE6A"> www-data</span><span style="color:#9ECE6A"> nginx</span><span style="color:#FF9E64">                          0</span><span style="color:#9ECE6A"> KiB</span><span style="color:#FF9E64">    82</span><span style="color:#9ECE6A"> MiB</span><span style="color:#FF9E64">    48</span><span style="color:#9ECE6A"> MiB</span><span style="color:#FF9E64">    34</span><span style="color:#9ECE6A"> MiB</span></span>
+<span class="line"></span></code></pre>
+<p>PSS is often more useful than RSS because it gives a realistic per-process cost when shared libraries are involved. Install with <code>apt install smem</code> or <code>yum install smem</code>.</p>
+<h3 id="pmap">pmap</h3>
+<p><code>pmap</code> shows the memory mappings of a process — every <code>mmap()</code> region with its permissions and size:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> pmap</span><span style="color:#E0AF68"> -x</span><span style="color:#FF9E64"> 12345</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> head</span><span style="color:#E0AF68"> -20</span></span>
+<span class="line"><span style="color:#C0CAF5">12345:</span><span style="color:#9ECE6A">   nginx:</span><span style="color:#9ECE6A"> worker</span><span style="color:#9ECE6A"> process</span></span>
+<span class="line"><span style="color:#C0CAF5">Address</span><span style="color:#9ECE6A">           Kbytes</span><span style="color:#9ECE6A">     RSS</span><span style="color:#9ECE6A">   Mode</span><span style="color:#9ECE6A">  Mapping</span></span>
+<span class="line"><span style="color:#C0CAF5">0000562300000000</span><span style="color:#FF9E64">     512</span><span style="color:#FF9E64">     256</span><span style="color:#9ECE6A">  r-xp</span><span style="color:#9ECE6A">  nginx</span></span>
+<span class="line"><span style="color:#C0CAF5">0000562300800000</span><span style="color:#FF9E64">      64</span><span style="color:#FF9E64">      32</span><span style="color:#9ECE6A">  rw-p</span><span style="color:#A9B1D6">  [ </span><span style="color:#9ECE6A">anon</span><span style="color:#9ECE6A"> ]</span></span>
+<span class="line"><span style="color:#C0CAF5">0000562300810000</span><span style="color:#FF9E64">     512</span><span style="color:#FF9E64">     480</span><span style="color:#9ECE6A">  rw-p</span><span style="color:#A9B1D6">  [ </span><span style="color:#9ECE6A">anon</span><span style="color:#9ECE6A"> ]</span></span>
+<span class="line"><span style="color:#C0CAF5">00007f8a40000000</span><span style="color:#FF9E64">    8192</span><span style="color:#FF9E64">    8192</span><span style="color:#9ECE6A">  rw-s</span><span style="color:#A9B1D6">  [ </span><span style="color:#9ECE6A">anon</span><span style="color:#9ECE6A"> ]</span></span>
+<span class="line"><span style="color:#C0CAF5">00007f8a40800000</span><span style="color:#FF9E64">     512</span><span style="color:#FF9E64">       0</span><span style="color:#E0AF68">  -----</span><span style="color:#A9B1D6">  [ </span><span style="color:#9ECE6A">anon</span><span style="color:#9ECE6A"> ]</span></span>
+<span class="line"></span></code></pre>
+<p>The <code>-x</code> flag shows extended information (RSS per mapping). The <code>-X</code> flag shows even more detail including per-page flags.</p>
+<p>For a leak, you’d look for mappings that grow in size (<code>Kbytes</code>) or RSS without corresponding growth in actual program logic.</p>
+<h3 id="memleak-bpfcc-tools">memleak (bpfcc-tools)</h3>
+<p>On systems with BPF, <code>memleak</code> can attach to allocation calls and track unreleased memory in real-time:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Find the memleak tool</span></span>
+<span class="line"><span style="color:#C0CAF5">ls</span><span style="color:#9ECE6A"> /usr/share/bcc/tools/memleak</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Attach to a running process</span></span>
+<span class="line"><span style="color:#C0CAF5">/usr/share/bcc/tools/memleak</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Or trace all allocations system-wide</span></span>
+<span class="line"><span style="color:#C0CAF5">/usr/share/bcc/tools/memleak</span><span style="color:#E0AF68"> -a</span></span>
+<span class="line"></span></code></pre>
+<p>This instrumenting approach has lower overhead than valgrind and works in production without recompiling.</p>
+<h2 id="memory-cgroups">Memory Cgroups</h2>
+<p>In containerized environments, memory cgroups (cgroup v2 in modern Linux) provide hard limits on how much memory a group of processes can use. The kernel exposes cgroup memory metrics in the cgroup filesystem.</p>
+<h3 id="key-files">Key Files</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>File</th><th>Meaning</th></tr></thead><tbody><tr><td><code>memory.limit_in_bytes</code></td><td>Hard limit — process group cannot exceed this</td></tr><tr><td><code>memory.usage_in_bytes</code></td><td>Current total memory usage</td></tr><tr><td><code>memory.low_limit_in_bytes</code></td><td>Low watermark — triggers reclaim below this</td></tr><tr><td><code>memory.high_limit_in_bytes</code></td><td>High watermark — triggers throttling above this</td></tr><tr><td><code>memory.memsw.limit_in_bytes</code></td><td>Hard limit for memory+swap combined (cgroup v1 only)</td></tr></tbody></table>
+<h3 id="checking-a-containers-memory">Checking a Container’s Memory</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Show memory limits and usage for a container's cgroup</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /sys/fs/cgroup/system.slice/docker-</span><span style="color:#89DDFF">&#x3C;</span><span style="color:#9ECE6A">i</span><span style="color:#A9B1D6">d</span><span style="color:#89DDFF">></span><span style="color:#9ECE6A">.scope/memory.limit_in_bytes</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /sys/fs/cgroup/system.slice/docker-</span><span style="color:#89DDFF">&#x3C;</span><span style="color:#9ECE6A">i</span><span style="color:#A9B1D6">d</span><span style="color:#89DDFF">></span><span style="color:#9ECE6A">.scope/memory.usage_in_bytes</span></span>
+<span class="line"></span></code></pre>
+<p>On cgroup v2 (modern systems), these are under <code>/sys/fs/cgroup/memory.max</code> and <code>/sys/fs/cgroup/memory.current</code>.</p>
+<h3 id="common-cgroup-memory-misconfigurations">Common Cgroup Memory Misconfigurations</h3>
+<p>A common problem: a container with <code>memory.limit_in_bytes</code> set to a value close to <code>memory.usage_in_bytes</code> has no headroom for bursts. When the container tries to allocate beyond the limit, the OOM killer fires inside the container.</p>
+<p>Another issue: <code>memory.memsw.limit_in_bytes</code> (swap limit) set to the same as <code>memory.limit_in_bytes</code> effectively disables swap for the container. Combined with aggressive <code>vm.swappiness</code>, this can cause unexpected OOM kills.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Linux memory debugging is layered. At the surface, <code>free</code> and <code>vmstat</code> tell you the system’s overall state. Dig deeper with <code>/proc/meminfo</code> and <code>/proc/vmstat</code> for per-subsystem breakdowns. For per-process work, <code>ps</code>, <code>pmap</code>, and <code>smem</code> are your mainstays.</p>
+<p>The mental model to internalize:</p>
+<ol>
+<li>Physical memory is shared — RSS counts shared library pages for every process</li>
+<li>PSS gives the fair share cost per process</li>
+<li>Swap activity is the first sign of memory pressure problems</li>
+<li>RSS growth over time is the signature of a memory leak</li>
+<li>The OOM killer is your last resort, not your first signal</li>
+</ol>
+<p>When you’re debugging a memory issue, start with <code>vmstat 1</code> to see if you’re swapping, then narrow down with <code>ps aux --sort=-rss</code> to find the hungry process, then drill into that process with <code>pmap</code> or <code>/proc/&#x3C;pid>/smaps</code>. Only reach for <code>valgrind</code> or <code>bpfcc-tools/memleak</code> when you’ve confirmed there’s a leak and need to find the allocation site.</p>
+<p>Linux gives you all the tools — the skill is knowing which number to trust and which to ignore.</p>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/ebpf-linux-observability-framework" data-astro-cid-gjtny2mx>eBPF: Linux&#39;s Most Powerful Observation Framework</a> <p data-astro-cid-gjtny2mx>What eBPF is, how it works, why it matters compared to kernel modules, and practical tools like bpftrace, tcpdump -B, and execsnoop.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/linux-process-management-ps-top-htop" data-astro-cid-gjtny2mx>Linux Process Management: Understanding ps, top, and htop</a> <p data-astro-cid-gjtny2mx>Linux process model, /proc filesystem, ps, top, htop, process states, signals, zombie and orphan processes, CPU and memory metrics, and how the kernel tracks running programs.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/strace-debugging-linux-system-calls" data-astro-cid-gjtny2mx>strace: Debugging Linux System Calls Like a Pro</a> <p data-astro-cid-gjtny2mx>Learn how strace works under the hood, how to read its output, and how to debug real-world Linux problems with it.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Linux Memory Debugging: From vmstat to Memory Leaks","description":"Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production.","datePublished":"2026-05-04T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/linux-memory-debugging-profiling"},"keywords":"linux, memory, performance, debugging, vmstat, oom","articleSection":"linux","about":[{"@type":"Thing","name":"linux"},{"@type":"Thing","name":"memory"},{"@type":"Thing","name":"performance"},{"@type":"Thing","name":"debugging"},{"@type":"Thing","name":"vmstat"},{"@type":"Thing","name":"oom"}]}</script> 

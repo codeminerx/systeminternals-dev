@@ -1,0 +1,660 @@
+---
+// Interactive Rate Limiter Algorithm Visualizer
+---
+
+<div class="canvas-wrapper">
+  <div class="controls">
+    <div class="control-group">
+      <label for="algo-select">Algorithm:</label>
+      <select id="algo-select">
+        <option value="token-bucket">Token Bucket</option>
+        <option value="leaky-bucket">Leaky Bucket</option>
+        <option value="fixed-window">Fixed Window</option>
+        <option value="sliding-window">Sliding Window</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="rate-input">Rate (tokens/sec):</label>
+      <input type="range" id="rate-input" min="1" max="20" value="5" />
+      <span id="rate-display">5</span>
+    </div>
+    <div class="control-group">
+      <label for="capacity-input">Capacity:</label>
+      <input type="range" id="capacity-input" min="5" max="30" value="15" />
+      <span id="capacity-display">15</span>
+    </div>
+    <button id="send-request">Send Request</button>
+    <button id="reset">Reset</button>
+    <button id="auto-burst">Burst (10 requests)</button>
+  </div>
+
+  <div class="canvas-row">
+    <canvas id="bucket-canvas" width="700" height="320"></canvas>
+  </div>
+
+  <div class="status-row">
+    <div class="stat allowed">
+      <span class="stat-num" id="stat-allowed">0</span>
+      <span class="stat-label">Allowed</span>
+    </div>
+    <div class="stat rejected">
+      <span class="stat-num" id="stat-rejected">0</span>
+      <span class="stat-label">Rejected</span>
+    </div>
+    <div class="stat tokens">
+      <span class="stat-num" id="stat-tokens">15</span>
+      <span class="stat-label">Tokens / Queue</span>
+    </div>
+    <div class="stat time">
+      <span class="stat-num" id="stat-time">0.0s</span>
+      <span class="stat-label">Elapsed</span>
+    </div>
+  </div>
+
+  <div class="log" id="log">
+    <div class="log-entry">Click "Send Request" or "Burst" to start...</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('bucket-canvas');
+  const ctx = canvas.getContext('2d');
+
+  // State
+  let algo = 'token-bucket';
+  let rate = 5;
+  let capacity = 15;
+  let tokens = 15;
+  let queue = [];
+  let requests = [];
+  let startTime = null;
+  let animFrame = null;
+  let allowed = 0;
+  let rejected = 0;
+  let lastRefill = performance.now();
+  let windowStart = performance.now();
+
+  // DOM refs
+  const algoSelect = document.getElementById('algo-select');
+  const rateInput = document.getElementById('rate-input');
+  const capacityInput = document.getElementById('capacity-input');
+  const rateDisplay = document.getElementById('rate-display');
+  const capacityDisplay = document.getElementById('capacity-display');
+  const sendBtn = document.getElementById('send-request');
+  const resetBtn = document.getElementById('reset');
+  const burstBtn = document.getElementById('auto-burst');
+  const logEl = document.getElementById('log');
+  const statAllowed = document.getElementById('stat-allowed');
+  const statRejected = document.getElementById('stat-rejected');
+  const statTokens = document.getElementById('stat-tokens');
+  const statTime = document.getElementById('stat-time');
+
+  // Controls
+  algoSelect.addEventListener('change', (e) => { algo = e.target.value; reset(); });
+  rateInput.addEventListener('input', (e) => { rate = parseInt(e.target.value); rateDisplay.textContent = rate; });
+  capacityInput.addEventListener('input', (e) => { capacity = parseInt(e.target.value); capacityDisplay.textContent = capacity; reset(); });
+  sendBtn.addEventListener('click', () => sendRequest(false));
+  resetBtn.addEventListener('click', reset);
+  burstBtn.addEventListener('click', () => sendRequest(true));
+
+  function reset() {
+    tokens = capacity;
+    queue = [];
+    requests = [];
+    allowed = 0;
+    rejected = 0;
+    startTime = null;
+    lastRefill = performance.now();
+    windowStart = performance.now();
+    logEl.innerHTML = '<div class="log-entry log-reset">Reset. Ready.</div>';
+    updateStats();
+  }
+
+  function sendRequest(burst) {
+    const count = burst ? 10 : 1;
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => attemptRequest(burst ? 'burst' : 'single'), i * (burst ? 80 : 0));
+    }
+    if (!startTime) startTime = performance.now();
+  }
+
+  function attemptRequest(type) {
+    const now = performance.now();
+    if (!startTime) startTime = now;
+    const elapsed = (now - startTime) / 1000;
+
+    let result;
+    if (algo === 'token-bucket') {
+      // Refill tokens
+      const sinceLast = (now - lastRefill) / 1000;
+      tokens = Math.min(capacity, tokens + sinceLast * rate);
+      lastRefill = now;
+      result = tokens >= 1;
+      if (result) tokens -= 1;
+    } else if (algo === 'leaky-bucket') {
+      // Drain queue
+      const sinceLast = (now - lastRefill) / 1000;
+      const drained = sinceLast * rate;
+      while (queue.length > 0 && queue[0] < drained) {
+        queue.shift();
+      }
+      queue = queue.map(t => t - drained);
+      lastRefill = now;
+      result = queue.length < capacity;
+      if (result) queue.push(0); // add to queue
+    } else if (algo === 'fixed-window') {
+      const windowMs = 6000; // 6-second window for visualization
+      const currentWindow = Math.floor((now - windowStart) / windowMs);
+      const count = requests.filter(r => r.window === currentWindow && r.allowed).length;
+      const rejectedInWindow = requests.filter(r => r.window === currentWindow && !r.allowed).length;
+      result = count < capacity;
+      requests.push({ allowed: result, window: currentWindow, time: now });
+      // Reset if new window
+      if (currentWindow > 0 && requests[0]?.window === 0) {
+        // auto-clean old windows
+      }
+    } else if (algo === 'sliding-window') {
+      const windowMs = 6000;
+      const cutoff = now - windowMs;
+      const recentAllowed = requests.filter(r => r.allowed && r.time > cutoff).length;
+      result = recentAllowed < capacity;
+      requests.push({ allowed: result, time: now });
+    }
+
+    if (result) {
+      allowed++;
+      addLog(`✅ Request allowed (${algo.replace('-', ' ')})`, 'allowed');
+    } else {
+      rejected++;
+      addLog(`❌ Request rejected — ${algo.replace('-', ' ')} full`, 'rejected');
+    }
+    updateStats();
+  }
+
+  function updateStats() {
+    statAllowed.textContent = allowed;
+    statRejected.textContent = rejected;
+    if (algo === 'leaky-bucket') {
+      statTokens.textContent = queue.length + '/' + capacity;
+    } else {
+      statTokens.textContent = tokens.toFixed(1) + '/' + capacity;
+    }
+    if (startTime) {
+      statTime.textContent = ((performance.now() - startTime) / 1000).toFixed(1) + 's';
+    }
+  }
+
+  function addLog(msg, type) {
+    const div = document.createElement('div');
+    div.className = `log-entry log-${type}`;
+    div.textContent = msg;
+    logEl.prepend(div);
+    if (logEl.children.length > 12) logEl.lastChild.remove();
+  }
+
+  function draw() {
+    const W = 700, H = 320;
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 15px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    const algoLabels = {
+      'token-bucket': 'Token Bucket — Tokens fill at rate, requests consume tokens',
+      'leaky-bucket': 'Leaky Bucket — Queue drains at constant rate',
+      'fixed-window': 'Fixed Window — Counter resets every window',
+      'sliding-window': 'Sliding Window — Counts requests in rolling time window'
+    };
+    ctx.fillText(algoLabels[algo], W/2, 22);
+
+    const cx = W / 2;
+
+    if (algo === 'token-bucket' || algo === 'leaky-bucket') {
+      drawBucketVisual(ctx, cx, H);
+    } else {
+      drawWindowVisual(ctx, W, H);
+    }
+
+    animFrame = requestAnimationFrame(draw);
+  }
+
+  function drawBucketVisual(ctx, cx, H) {
+    const by = 70, bh = 200, bw = 120;
+    const bx = cx - bw/2;
+
+    // Bucket outline
+    ctx.strokeStyle = '#60a5fa';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(bx - 10, by + bh);
+    ctx.lineTo(bx + bw + 10, by + bh);
+    ctx.lineTo(bx + bw, by);
+    ctx.stroke();
+
+    // Fill level
+    const fillH = algo === 'token-bucket'
+      ? (tokens / capacity) * bh
+      : (1 - queue.length / capacity) * bh;
+
+    if (fillH > 0) {
+      ctx.fillStyle = algo === 'token-bucket' ? '#34d39955' : '#f59e0b55';
+      ctx.beginPath();
+      ctx.moveTo(bx + 2, by + bh - fillH);
+      ctx.lineTo(bx - 8, by + bh);
+      ctx.lineTo(bx + bw + 8, by + bh);
+      ctx.lineTo(bx + bw - 2, by + bh - fillH);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Tokens visualization (token bucket)
+    if (algo === 'token-bucket') {
+      const tokenR = 8;
+      const cols = 5;
+      let drawn = 0;
+      const rows = Math.ceil(capacity / cols);
+      for (let r = 0; r < rows && drawn < tokens; r++) {
+        for (let c = 0; c < cols && drawn < tokens; c++) {
+          const tx = bx + 15 + c * (bw - 20) / (cols - 1);
+          const ty = by + bh - 25 - r * 22;
+          ctx.beginPath();
+          ctx.arc(tx, ty, tokenR, 0, Math.PI * 2);
+          ctx.fillStyle = '#34d399';
+          ctx.fill();
+          ctx.strokeStyle = '#34d39988';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          drawn++;
+        }
+      }
+    }
+
+    // Queue visualization (leaky bucket)
+    if (algo === 'leaky-bucket') {
+      const qR = 8;
+      const cols = 4;
+      queue.forEach((_, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const tx = bx + 15 + col * (bw - 20) / (cols - 1);
+        const ty = by + bh - 25 - row * 22;
+        ctx.beginPath();
+        ctx.arc(tx, ty, qR, 0, Math.PI * 2);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fill();
+        ctx.strokeStyle = '#f59e0b88';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+    }
+
+    // Labels
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#888';
+    ctx.font = '400 11px Inter, sans-serif';
+
+    if (algo === 'token-bucket') {
+      ctx.fillText(`Tokens: ${tokens.toFixed(1)} / ${capacity}`, bx, by + bh + 20);
+      ctx.fillText(`Rate: ${rate} tokens/sec`, bx, by + bh + 36);
+      ctx.fillText(`Burst: ${tokens >= 1 ? 'YES' : 'NO'}`, bx, by + bh + 52);
+    } else {
+      ctx.fillText(`Queue: ${queue.length} / ${capacity}`, bx, by + bh + 20);
+      ctx.fillText(`Rate: ${rate} req/sec drained`, bx, by + bh + 36);
+      ctx.fillText(`Overflow: ${queue.length >= capacity ? 'YES' : 'NO'}`, bx, by + bh + 52);
+    }
+
+    // Request animation (falling tokens for token bucket, queued for leaky)
+    const now = performance.now();
+    requests.slice(-8).forEach((req, i) => {
+      if (req.allowed && now - req.time < 1000) {
+        const age = (now - req.time) / 1000;
+        const y = by + bh - age * 60;
+        if (y > by && algo === 'leaky-bucket') {
+          ctx.fillStyle = '#f59e0b88';
+          ctx.beginPath();
+          ctx.arc(cx, y, 6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    });
+
+    // Legend
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#888';
+    ctx.fillText('Capacity: ' + capacity, bx + bw, by + bh + 20);
+
+    // Arrow showing refill rate (token bucket)
+    if (algo === 'token-bucket') {
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bx + bw + 25, by + 20);
+      ctx.lineTo(bx + bw + 25, by + 60);
+      ctx.lineTo(bx + bw + 20, by + 55);
+      ctx.moveTo(bx + bw + 25, by + 60);
+      ctx.lineTo(bx + bw + 30, by + 55);
+      ctx.stroke();
+      ctx.fillStyle = '#34d399';
+      ctx.font = '400 10px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(`+${rate}/s`, bx + bw + 25, by + 12);
+    }
+
+    // Arrow showing drain rate (leaky bucket)
+    if (algo === 'leaky-bucket') {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bx + bw + 25, by + bh - 20);
+      ctx.lineTo(bx + bw + 25, by + bh - 60);
+      ctx.lineTo(bx + bw + 20, by + bh - 55);
+      ctx.moveTo(bx + bw + 25, by + bh - 60);
+      ctx.lineTo(bx + bw + 30, by + bh - 55);
+      ctx.stroke();
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '400 10px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(`-${rate}/s`, bx + bw + 25, by + bh - 8);
+    }
+
+    // Interactive note
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '500 11px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Click "Send Request" to simulate one request — "Burst" for 10 rapid requests', cx, H - 10);
+  }
+
+  function drawWindowVisual(ctx, W, H) {
+    const marginX = 40;
+    const graphY = 40;
+    const graphH = 200;
+    const graphW = W - 2 * marginX;
+
+    // Time axis
+    const now = startTime || performance.now();
+    const windowMs = 6000;
+    const elapsed = now - (startTime || now);
+    const tStart = now - elapsed - 2000;
+    const tEnd = tStart + 7000;
+
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(marginX, graphY + graphH);
+    ctx.lineTo(marginX + graphW, graphY + graphH);
+    ctx.stroke();
+
+    // Window markers
+    const numWindows = 4;
+    for (let i = 0; i <= numWindows; i++) {
+      const x = marginX + (i / numWindows) * graphW;
+      ctx.fillStyle = '#888';
+      ctx.font = '400 10px Inter';
+      ctx.textAlign = 'center';
+      const t = tStart + (i / numWindows) * 7000;
+      ctx.fillText(((t - tStart) / 1000).toFixed(1) + 's', x, graphY + graphH + 15);
+      ctx.strokeStyle = '#2a2a2a';
+      ctx.beginPath();
+      ctx.moveTo(x, graphY + graphH);
+      ctx.lineTo(x, graphY + graphH + 5);
+      ctx.stroke();
+    }
+
+    // Window background for fixed window
+    if (algo === 'fixed-window') {
+      const currentWindowIdx = Math.floor((now - windowStart) / windowMs);
+      for (let w = currentWindowIdx - 1; w <= currentWindowIdx; w++) {
+        const wStart = windowStart + w * windowMs - (startTime || windowStart);
+        const wEnd = wStart + windowMs;
+        const x1 = marginX + (wStart / 7000) * graphW;
+        const x2 = marginX + (wEnd / 7000) * graphW;
+        ctx.fillStyle = '#60a5fa15';
+        ctx.fillRect(Math.max(marginX, x1), graphY, Math.min(graphW, x2 - Math.max(0, x1)), graphH);
+
+        // Count requests in this window
+        const count = requests.filter(r => r.window === w && r.allowed).length;
+        ctx.fillStyle = count >= capacity ? '#ef444488' : '#34d39988';
+        const barH = (count / capacity) * graphH;
+        ctx.fillRect(x1, graphY + graphH - barH, x2 - x1 - 1, barH);
+      }
+    }
+
+    // Sliding window: show recent requests as dots
+    if (algo === 'sliding-window') {
+      const cutoff = now - windowMs;
+      const recentRequests = requests.filter(r => r.time > cutoff);
+
+      // Window band
+      const windowX = marginX + graphW * 0.6;
+      ctx.fillStyle = '#60a5fa18';
+      ctx.fillRect(windowX, graphY, graphW - (graphW * 0.6), graphH);
+
+      recentRequests.forEach(req => {
+        const age = (now - req.time) / 1000;
+        const x = windowX + ((windowMs / 1000 - age) / (windowMs / 1000)) * (graphW - (graphW * 0.6));
+        if (x >= windowX && x <= marginX + graphW) {
+          ctx.beginPath();
+          ctx.arc(x, graphY + graphH - 10, 4, 0, Math.PI * 2);
+          ctx.fillStyle = req.allowed ? '#34d399' : '#ef4444';
+          ctx.fill();
+        }
+      });
+
+      // Sliding window line
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(windowX, graphY);
+      ctx.lineTo(windowX, graphY + graphH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#60a5fa';
+      ctx.font = '400 10px Inter';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Sliding window (${(windowMs/1000).toFixed(0)}s)`, windowX + 5, graphY + 15);
+    }
+
+    // Axes labels
+    ctx.fillStyle = '#888';
+    ctx.font = '400 10px Inter';
+    ctx.textAlign = 'left';
+    ctx.fillText('0', marginX, graphY + graphH + 25);
+    ctx.textAlign = 'right';
+    ctx.fillText(capacity + ' reqs', marginX, graphY + 10);
+
+    // Counter
+    const totalAllowed = requests.filter(r => r.allowed).length;
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 13px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Requests in window: ${totalAllowed} / ${capacity}`, W/2, graphY - 10);
+
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '500 11px Inter';
+    ctx.fillText('Click "Send Request" or "Burst" to simulate requests', W/2, H - 10);
+  }
+
+  // Periodic update of token count display
+  setInterval(() => {
+    if (startTime && algo === 'token-bucket') {
+      const now = performance.now();
+      const sinceLast = (now - lastRefill) / 1000;
+      const currentTokens = Math.min(capacity, tokens + sinceLast * rate);
+      statTokens.textContent = currentTokens.toFixed(1) + '/' + capacity;
+    }
+    if (startTime) {
+      statTime.textContent = ((performance.now() - startTime) / 1000).toFixed(1) + 's';
+    }
+  }, 100);
+
+  draw();
+})();
+</script>
+
+<style>
+.canvas-wrapper {
+  margin: 2.5rem 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-group label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.control-group select,
+.control-group input[type="range"] {
+  background: var(--code-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+}
+
+.control-group input[type="range"] {
+  width: 100px;
+  accent-color: var(--accent);
+}
+
+#algo-select {
+  min-width: 160px;
+}
+
+button {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+#reset {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+#reset:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+#auto-burst {
+  background: #34d399;
+}
+
+#auto-burst:hover {
+  background: #6ee7b7;
+}
+
+.canvas-row {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+canvas {
+  display: block;
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.status-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.stat {
+  flex: 1;
+  min-width: 80px;
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.stat-num {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.stat-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+}
+
+.stat.allowed .stat-num { color: #34d399; }
+.stat.rejected .stat-num { color: #ef4444; }
+.stat.tokens .stat-num { color: #60a5fa; }
+.stat.time .stat-num { color: #a78bfa; }
+
+.log {
+  max-height: 140px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.log-entry {
+  padding: 0.2rem 0;
+  border-bottom: 1px solid #1a1a1a;
+  color: #888;
+}
+
+.log-entry:last-child { border-bottom: none; }
+.log-allowed { color: #34d399; }
+.log-rejected { color: #ef4444; }
+.log-reset { color: #60a5fa; }
+</style>

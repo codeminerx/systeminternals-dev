@@ -1,0 +1,458 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse</title><meta property="og:title" content="Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse"><meta property="og:description" content="Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/rate-limiter-system-design"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse"><meta name="twitter:description" content="Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-04T00:00:00.000Z" data-astro-cid-gjtny2mx>May 3, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>10 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>system-design</span><span class="tag" data-astro-cid-gjtny2mx>distributed-systems</span><span class="tag" data-astro-cid-gjtny2mx>redis</span><span class="tag" data-astro-cid-gjtny2mx>api</span><span class="tag" data-astro-cid-gjtny2mx>scalability</span><span class="tag" data-astro-cid-gjtny2mx>interviews</span><span class="tag" data-astro-cid-gjtny2mx>rate-limiting</span><span class="tag" data-astro-cid-gjtny2mx>algorithms</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every API you’ve ever called is protected by a rate limiter—even if you’ve never thought about it. Without one, a single client can exhaust your servers, a buggy script can take down your service, and your cloud bill can multiply overnight. This post walks through designing a rate limiter from first principles to production-grade distributed architecture.</p>
+<h2 id="why-rate-limiting-matters">Why Rate Limiting Matters</h2>
+<p>Rate limiting solves four concrete problems:</p>
+<ol>
+<li><strong>Cost control</strong>: An AI API charging $0.01 per request needs limits to prevent runaway bills</li>
+<li><strong>DoS protection</strong>: Malicious actors or buggy scripts can send thousands of requests/second</li>
+<li><strong>Fairness</strong>: All users deserve consistent performance; one abuser shouldn’t degrade everyone</li>
+<li><strong>Infrastructure stability</strong>: Sudden traffic spikes can crash databases and backend services</li>
+</ol>
+<p>Without rate limiting, you’re one viral tweet away from an infrastructure incident.</p>
+<h2 id="the-four-rate-limiting-algorithms">The Four Rate Limiting Algorithms</h2>
+<p>Before designing the system, you need to understand the algorithms. Each has distinct trade-offs between precision, memory cost, and burst handling.</p>
+<ratelimitercanvas client:load="">
+<h3 id="1-token-bucket">1. Token Bucket</h3>
+<p>The most common algorithm. Each user gets a bucket that fills with tokens at a steady rate:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> TokenBucket</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> rate</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> float</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> capacity</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">rate </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> rate          </span><span style="color:#51597D;font-style:italic"># tokens added per second</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">capacity </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> capacity  </span><span style="color:#51597D;font-style:italic"># max tokens (bucket size)</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">tokens </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> capacity    </span><span style="color:#51597D;font-style:italic"># current tokens</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">last_refill </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">monotonic</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> allow_request</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> tokens</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF"> =</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> bool</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Refill tokens based on elapsed time</span></span>
+<span class="line"><span style="color:#A9B1D6">        now </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">monotonic</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#A9B1D6">        elapsed </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> now </span><span style="color:#89DDFF">-</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">last_refill</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">tokens </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> min</span><span style="color:#9ABDF5">(</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">capacity</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">tokens </span><span style="color:#89DDFF">+</span><span style="color:#C0CAF5"> elapsed </span><span style="color:#89DDFF">*</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">rate</span></span>
+<span class="line"><span style="color:#9ABDF5">        )</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">last_refill </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> now</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">tokens </span><span style="color:#BB9AF7">>=</span><span style="color:#A9B1D6"> tokens</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">tokens </span><span style="color:#89DDFF">-=</span><span style="color:#A9B1D6"> tokens</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#FF9E64"> True</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> False</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Key property</strong>: Allows bursts up to <code>capacity</code> size, then throttles to the steady rate. A user with <code>rate=10, capacity=100</code> can make 100 requests instantly, then sustains 10/second.</p>
+<h3 id="2-leaky-bucket">2. Leaky Bucket</h3>
+<p>The opposite of token bucket: requests enter a queue that drains at a constant rate:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> LeakyBucket</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> rate</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> float</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> capacity</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">rate </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> rate          </span><span style="color:#51597D;font-style:italic"># requests drained per second</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">capacity </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> capacity </span><span style="color:#51597D;font-style:italic"># queue size</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">queue </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> deque</span><span style="color:#9ABDF5">()</span><span style="color:#51597D;font-style:italic">      # pending requests with timestamps</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">last_drain </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">monotonic</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> allow_request</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> bool</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        now </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">monotonic</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Drain processed requests</span></span>
+<span class="line"><span style="color:#A9B1D6">        elapsed </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> (</span><span style="color:#A9B1D6">now </span><span style="color:#89DDFF">-</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">last_drain</span><span style="color:#89DDFF">)</span><span style="color:#89DDFF"> *</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">rate</span></span>
+<span class="line"><span style="color:#BB9AF7">        while</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">queue </span><span style="color:#BB9AF7">and</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">queue</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">0</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">[</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">time</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">]</span><span style="color:#BB9AF7"> &#x3C;</span><span style="color:#A9B1D6"> elapsed</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">queue</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">popleft</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">last_drain </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> now</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#0DB9D7"> len</span><span style="color:#9ABDF5">(</span><span style="color:#F7768E">self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">queue</span><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7"> &#x3C;</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">capacity</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">queue</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">append</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">{</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">time</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">:</span><span style="color:#C0CAF5"> now</span><span style="color:#89DDFF">}</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#FF9E64"> True</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> False</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Key property</strong>: Smooths output to a constant rate. A burst of 1000 requests gets metered out at exactly <code>rate</code> requests/second—no burst capability at all.</p>
+<h3 id="3-fixed-window-counter">3. Fixed Window Counter</h3>
+<p>Divide time into fixed windows (e.g., 1-minute buckets):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> FixedWindow</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> limit</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> window_sec</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">limit </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> limit        </span><span style="color:#51597D;font-style:italic"># max requests per window</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">window_sec </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> window_sec</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> allow_request</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> bool</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        now </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">time</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#A9B1D6">        window </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">now </span><span style="color:#89DDFF">//</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">window_sec</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">        count </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"fw:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">window</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7"> or</span><span style="color:#FF9E64"> 0</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> count </span><span style="color:#BB9AF7">>=</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">limit</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#FF9E64"> False</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">        redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">incr</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"fw:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">window</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">expire</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"fw:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">window</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">window_sec </span><span style="color:#89DDFF">*</span><span style="color:#FF9E64"> 2</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">  # prevent leak</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> True</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Problem</strong>: Boundary collision. A user can make <code>limit</code> requests at 11:59:59 and <code>limit</code> more at 12:00:00—effectively 2× the limit in a short window.</p>
+<h3 id="4-sliding-window-log">4. Sliding Window Log</h3>
+<p>Record the timestamp of every request, then check how many fell in the last window:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> SlidingWindowLog</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> limit</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> window_sec</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">limit </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> limit</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">window_sec </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> window_sec</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> allow_request</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> bool</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        now </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">time</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#A9B1D6">        window_start </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> now </span><span style="color:#89DDFF">-</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">window_sec</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">        pipe </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">pipeline</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#A9B1D6">        pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">zremrangebyscore</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"swl:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> window_start</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">zcard</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"swl:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">zadd</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"swl:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> {</span><span style="color:#0DB9D7">str</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">now</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span><span style="color:#C0CAF5"> now</span><span style="color:#89DDFF">}</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">expire</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"swl:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">window_sec </span><span style="color:#89DDFF">+</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        results </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">execute</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">        count </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> results</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">1</span><span style="color:#9ABDF5">]</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> count </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">limit</span></span>
+<span class="line"></span></code></pre>
+<p>Uses a Redis sorted set (<code>ZREMRANGEBYSCORE</code> + <code>ZCARD</code> + <code>ZADD</code>). Exact counting but memory grows with request volume.</p>
+<h3 id="5-sliding-window-counter-production-favorite">5. Sliding Window Counter (Production Favorite)</h3>
+<p>Combines fixed window precision with sliding window smoothness:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> SlidingWindowCounter</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    """</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    Combines two fixed windows (previous + current) weighted by elapsed time.</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    Memory: O(1) per key. Precision: good enough for production.</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    """</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> allow_request</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> bool</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        now </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">time</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#A9B1D6">        window </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">now </span><span style="color:#89DDFF">//</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">window_sec</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        prev_window </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> window </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64"> 1</span></span>
+<span class="line"><span style="color:#A9B1D6">        elapsed </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> (</span><span style="color:#A9B1D6">now </span><span style="color:#89DDFF">%</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">window_sec</span><span style="color:#89DDFF">)</span><span style="color:#89DDFF"> /</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">window_sec  </span><span style="color:#51597D;font-style:italic"># 0.0 to 1.0</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">        prev_count </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"swc:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">prev_window</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7"> or</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        curr_count </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"swc:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">window</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7"> or</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">        weighted </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> prev_count </span><span style="color:#89DDFF">*</span><span style="color:#89DDFF"> (</span><span style="color:#FF9E64">1</span><span style="color:#89DDFF"> -</span><span style="color:#A9B1D6"> elapsed</span><span style="color:#89DDFF">)</span><span style="color:#89DDFF"> +</span><span style="color:#A9B1D6"> curr_count</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> weighted </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">limit</span></span>
+<span class="line"></span></code></pre>
+<p>This is what most production systems use: Redis counters with TTL, no sorted set overhead, minimal memory.</p>
+<h2 id="algorithm-comparison">Algorithm Comparison</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Algorithm</th><th>Burst Handling</th><th>Memory</th><th>Precision</th><th>Use Case</th></tr></thead><tbody><tr><td>Token Bucket</td><td>✅ Full bucket burst</td><td>O(1)</td><td>Exact</td><td>API gateways, user quotas</td></tr><tr><td>Leaky Bucket</td><td>❌ No burst</td><td>O(1)</td><td>Exact</td><td>Steady-rate APIs, payment throttling</td></tr><tr><td>Fixed Window</td><td>✅ Full window burst</td><td>O(1)</td><td>~2× at boundaries</td><td>Simple limits, non-critical</td></tr><tr><td>Sliding Window Log</td><td>✅ 1-window burst</td><td>O(window×users)</td><td>Exact</td><td>Strict enforcement</td></tr><tr><td>Sliding Window Counter</td><td>✅ Partial burst</td><td>O(1)</td><td>Near-exact</td><td>Production rate limits</td></tr></tbody></table>
+<h2 id="high-level-system-design">High-Level System Design</h2>
+<p>At scale, the rate limiter lives as a <strong>middleware</strong> or <strong>sidecar</strong> that intercepts requests before they hit your API servers:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client</span></span>
+<span class="line"><span>   │</span></span>
+<span class="line"><span>   ▼</span></span>
+<span class="line"><span>┌─────────────────────┐</span></span>
+<span class="line"><span>│  Rate Limiter       │  ← Nginx / Envoy / Custom middleware</span></span>
+<span class="line"><span>│  Middleware        │</span></span>
+<span class="line"><span>└────────┬────────────┘</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>    ┌────▼────┐</span></span>
+<span class="line"><span>    │  Redis  │  ← Shared state across all limiter instances</span></span>
+<span class="line"><span>    │ Cluster │</span></span>
+<span class="line"><span>    └────┬────┘</span></span>
+<span class="line"><span>         │</span></span>
+<span class="line"><span>┌────────▼─────────┐</span></span>
+<span class="line"><span>│  API Servers    │</span></span>
+<span class="line"><span>│  (Business Logic)│</span></span>
+<span class="line"><span>└─────────────────┘</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="single-node-rate-limiter">Single-Node Rate Limiter</h3>
+<p>For small scale, keep it simple:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="nginx"><code><span class="line"><span style="color:#51597D;font-style:italic"># Nginx rate limiting (built-in)</span></span>
+<span class="line"><span style="color:#BB9AF7">limit_req_zone </span><span style="color:#89DDFF">$</span><span style="color:#C0CAF5">binary_remote_addr</span><span style="color:#A9B1D6"> zone=api:10m rate=10r/s</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">server</span><span style="color:#A9B1D6"> {</span></span>
+<span class="line"><span style="color:#BB9AF7">    location</span><span style="color:#C0CAF5"> /api/ </span><span style="color:#A9B1D6">{</span></span>
+<span class="line"><span style="color:#BB9AF7">        limit_req </span><span style="color:#A9B1D6">zone=api burst=20 nodelay</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">        proxy_pass </span><span style="color:#A9B1D6">http://backend</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#A9B1D6">    }</span></span>
+<span class="line"><span style="color:#A9B1D6">}</span></span>
+<span class="line"></span></code></pre>
+<h3 id="distributed-rate-limiter-redis-based">Distributed Rate Limiter (Redis-based)</h3>
+<p>For multi-instance deployments, you need shared state:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="go"><code><span class="line"><span style="color:#BB9AF7">type</span><span style="color:#C0CAF5"> DistributedLimiter</span><span style="color:#BB9AF7"> struct</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#7DCFFF">    redis</span><span style="color:#89DDFF">  *</span><span style="color:#C0CAF5">redis</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">Client</span></span>
+<span class="line"><span style="color:#7DCFFF">    rate</span><span style="color:#BB9AF7">   float64</span><span style="color:#51597D;font-style:italic">   // tokens per second</span></span>
+<span class="line"><span style="color:#7DCFFF">    burst</span><span style="color:#BB9AF7">  int</span><span style="color:#51597D;font-style:italic">       // bucket capacity</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">func</span><span style="color:#9ABDF5"> (</span><span style="color:#E0AF68">l </span><span style="color:#89DDFF">*</span><span style="color:#C0CAF5">DistributedLimiter</span><span style="color:#9ABDF5">)</span><span style="color:#7AA2F7"> Allow</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">ctx</span><span style="color:#C0CAF5"> context</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">Context</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#BB9AF7"> string</span><span style="color:#9ABDF5">)</span><span style="color:#9ABDF5"> (</span><span style="color:#BB9AF7">bool</span><span style="color:#89DDFF">,</span><span style="color:#BB9AF7"> error</span><span style="color:#9ABDF5">)</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    // Lua script for atomic token bucket in Redis</span></span>
+<span class="line"><span style="color:#C0CAF5">    script</span><span style="color:#89DDFF"> :=</span><span style="color:#C0CAF5"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">NewScript</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">`</span></span>
+<span class="line"><span style="color:#9ECE6A">        local tokens = tonumber(redis.call('GET', KEYS[1]) or ARGV[1])</span></span>
+<span class="line"><span style="color:#9ECE6A">        local now = tonumber(ARGV[2])</span></span>
+<span class="line"><span style="color:#9ECE6A">        local elapsed = now - tonumber(redis.call('GET', KEYS[1]..':ts') or now)</span></span>
+<span class="line"><span style="color:#9ECE6A">        tokens = math.min(tonumber(ARGV[1]), tokens + elapsed * tonumber(ARGV[3]))</span></span>
+<span class="line"><span style="color:#9ECE6A">        if tokens >= 1 then</span></span>
+<span class="line"><span style="color:#9ECE6A">            redis.call('SET', KEYS[1], tokens - 1)</span></span>
+<span class="line"><span style="color:#9ECE6A">            redis.call('SET', KEYS[1]..':ts', now)</span></span>
+<span class="line"><span style="color:#9ECE6A">            return 1</span></span>
+<span class="line"><span style="color:#9ECE6A">        end</span></span>
+<span class="line"><span style="color:#9ECE6A">        return 0</span></span>
+<span class="line"><span style="color:#89DDFF">    `</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    // ...</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span></code></pre>
+<p>The Lua script ensures atomicity—critical because concurrent requests can race in Redis otherwise.</p>
+<h2 id="the-redis-key-design">The Redis Key Design</h2>
+<p>For production, partition your keys by the dimension you want to limit:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Key Pattern</th><th>Limits</th><th>Use Case</th></tr></thead><tbody><tr><td><code>ratelimit:user:{id}</code></td><td>Per user</td><td>Fairness, abuse prevention</td></tr><tr><td><code>ratelimit:ip:{ip}</code></td><td>Per IP address</td><td>DDoS protection</td></tr><tr><td><code>ratelimit:api:{key}:{endpoint}</code></td><td>Per API key + endpoint</td><td>Tiered API plans</td></tr><tr><td><code>ratelimit:global</code></td><td>Entire service</td><td>Infrastructure protection</td></tr></tbody></table>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Multi-dimensional limiting: both user AND IP must pass</span></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> check_rate_limit</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">redis</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ip</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> limit</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> bool</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#A9B1D6">    user_key </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"rl:user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span></span>
+<span class="line"><span style="color:#A9B1D6">    ip_key </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"rl:ip:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">ip</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">    pipe </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">pipeline</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#A9B1D6">    pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">incr</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">user_key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">expire</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">user_key</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 60</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">incr</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">ip_key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">expire</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">ip_key</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 60</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    results </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> pipe</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">execute</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> results</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">0</span><span style="color:#9ABDF5">]</span><span style="color:#BB9AF7"> &#x3C;=</span><span style="color:#A9B1D6"> limit </span><span style="color:#BB9AF7">and</span><span style="color:#A9B1D6"> results</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">2</span><span style="color:#9ABDF5">]</span><span style="color:#BB9AF7"> &#x3C;=</span><span style="color:#A9B1D6"> limit</span></span>
+<span class="line"></span></code></pre>
+<h2 id="handling-rate-limit-violations">Handling Rate Limit Violations</h2>
+<p>When a request is rejected, you must communicate this clearly:</p>
+<h3 id="http-status-codes">HTTP Status Codes</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody><tr><td><code>429 Too Many Requests</code></td><td>Rate limit exceeded</td></tr><tr><td><code> Retry-After</code> header</td><td>Seconds until the client can retry</td></tr></tbody></table>
+<h3 id="response-headers">Response Headers</h3>
+<p>Good clients honor these, so always include them:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>HTTP/1.1 429 Too Many Requests</span></span>
+<span class="line"><span>Retry-After: 13</span></span>
+<span class="line"><span>X-RateLimit-Limit: 100</span></span>
+<span class="line"><span>X-RateLimit-Remaining: 0</span></span>
+<span class="line"><span>X-RateLimit-Reset: 1714843200</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="graceful-degradation">Graceful Degradation</h3>
+<p>Don’t just reject—offer degraded service:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#89DDFF">@</span><span style="color:#7AA2F7">app</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">/api/data</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_data</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">rate_limited</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> bool</span><span style="color:#89DDFF"> =</span><span style="color:#7AA2F7"> Depends</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">check_rate_limit</span><span style="color:#9ABDF5">)):</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> rate_limited</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Return cached/stale data instead of error</span></span>
+<span class="line"><span style="color:#A9B1D6">        cached </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">cached:data</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> cached</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#7AA2F7"> Response</span><span style="color:#9ABDF5">(</span></span>
+<span class="line"><span style="color:#E0AF68">                content</span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5">cached</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#E0AF68">                headers</span><span style="color:#89DDFF">={</span></span>
+<span class="line"><span style="color:#89DDFF">                    "</span><span style="color:#9ECE6A">X-RateLimit-Limit</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">100</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">                    "</span><span style="color:#9ECE6A">X-RateLimit-Remaining</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">0</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">                    "</span><span style="color:#9ECE6A">X-Served-From</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">cache</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">                }</span></span>
+<span class="line"><span style="color:#9ABDF5">            )</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> database</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">SELECT * FROM data</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<h2 id="distributed-race-conditions">Distributed Race Conditions</h2>
+<p>The hardest part of distributed rate limiting: <strong>Redis isn’t atomic enough without Lua</strong>.</p>
+<p>The naive approach fails:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># BROKEN: Race condition between GET and INCR</span></span>
+<span class="line"><span style="color:#A9B1D6">tokens </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">  # Thread A reads 5, Thread B reads 5</span></span>
+<span class="line"><span style="color:#BB9AF7">if</span><span style="color:#A9B1D6"> tokens </span><span style="color:#BB9AF7">></span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">:</span><span style="color:#51597D;font-style:italic">          # Both see tokens > 0</span></span>
+<span class="line"><span style="color:#A9B1D6">    redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">decr</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">     # Both decrement → over-allowing</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#FF9E64"> True</span></span>
+<span class="line"></span></code></pre>
+<p>Solution: use Lua scripts for atomicity, or use Redis Modules like RedisCell (GCRA algorithm built-in):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># RedisCell: single command, atomic</span></span>
+<span class="line"><span style="color:#C0CAF5">CL.THROTTLE</span><span style="color:#9ECE6A"> user:123</span><span style="color:#FF9E64"> 15</span><span style="color:#FF9E64"> 30</span><span style="color:#FF9E64"> 60</span><span style="color:#FF9E64"> 1</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">#                    ↑  ↑  ↑  ↑</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">#               key  lm  bm  sb 1 req</span></span>
+<span class="line"></span></code></pre>
+<h2 id="global-vs-per-instance-rate-limiting">Global vs Per-Instance Rate Limiting</h2>
+<p>For very high throughput, consider a hybrid:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Edge rate limit (per-instance):  Very fast, catches 99% of abuse</span></span>
+<span class="line"><span>  → Nginx/Envoy running locally, no network hop</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Global rate limit (Redis):         Catches coordinated attacks across instances</span></span>
+<span class="line"><span>  → Redis cluster, Lua script, 1-2ms overhead</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>At Cloudflare scale, they use a combination of in-memory counters (LRU cache) + Redis for global synchronization, achieving sub-microsecond decisions for most traffic.</p>
+<h2 id="storage-backends-compared">Storage Backends Compared</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Backend</th><th>Speed</th><th>Persistence</th><th>Cluster Support</th><th>Best For</th></tr></thead><tbody><tr><td>Redis</td><td>&#x3C;1ms</td><td>Optional</td><td>✅ Native</td><td>Production, multi-node</td></tr><tr><td>Memcached</td><td>&#x3C;1ms</td><td>None</td><td>✅ Native</td><td>Read-heavy, stateless</td></tr><tr><td>In-memory (process)</td><td>&#x3C;0.1ms</td><td>None</td><td>❌ None</td><td>Single instance, testing</td></tr><tr><td>Redis + Lua</td><td>&#x3C;2ms</td><td>Optional</td><td>✅ Native</td><td>Production, complex logic</td></tr><tr><td>Rate limit service (sidecar)</td><td>1-5ms</td><td>Yes</td><td>✅ Yes</td><td>Microservices, independent scaling</td></tr></tbody></table>
+<h2 id="production-considerations">Production Considerations</h2>
+<h3 id="1-rate-limits-by-user-tier">1. Rate Limits by User Tier</h3>
+<p>Different users get different quotas:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#FF9E64">TIERS</span><span style="color:#89DDFF"> =</span><span style="color:#89DDFF"> {</span></span>
+<span class="line"><span style="color:#89DDFF">    "</span><span style="color:#9ECE6A">free</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF">     {</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">requests</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 100</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF">  "</span><span style="color:#9ECE6A">window</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 3600</span><span style="color:#89DDFF">},</span></span>
+<span class="line"><span style="color:#89DDFF">    "</span><span style="color:#9ECE6A">pro</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF">      {</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">requests</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 1000</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">window</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 3600</span><span style="color:#89DDFF">},</span></span>
+<span class="line"><span style="color:#89DDFF">    "</span><span style="color:#9ECE6A">enterprise</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> {</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">requests</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> -</span><span style="color:#FF9E64">1</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">window</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">},</span><span style="color:#51597D;font-style:italic">  # unlimited</span></span>
+<span class="line"><span style="color:#89DDFF">}</span></span>
+<span class="line"></span></code></pre>
+<h3 id="2-include-the-client-in-error-messages">2. Include the Client in Error Messages</h3>
+<p>Don’t just say “rate limited”—tell them what happened:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="json"><code><span class="line"><span style="color:#9ABDF5">{</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">error</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">rate_limit_exceeded</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">message</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">You have exceeded your API rate limit</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">limit</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 100</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">remaining</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">reset_at</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">2026-05-04T03:00:00Z</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">  "</span><span style="color:#7AA2F7">upgrade_url</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">https://api.example.com/pricing</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span></code></pre>
+<h3 id="3-monitor-your-rate-limiter">3. Monitor Your Rate Limiter</h3>
+<p>If rate limiting fails, you have no protection. Track:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span># Prometheus metrics</span></span>
+<span class="line"><span>ratelimit_requests_total{status="allowed"}</span></span>
+<span class="line"><span>ratelimit_requests_total{status="rejected"}</span></span>
+<span class="line"><span>ratelimit_latency_seconds{backend="redis"}</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="4-graceful-degradation-for-redis-failure">4. Graceful Degradation for Redis Failure</h3>
+<p>If Redis goes down, don’t hard-fail all requests:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> allow_request_redis_fails_open</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> bool</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    try</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> redis_rate_limiter</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">allow</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    except</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">RedisError</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Fails open: allow the request but log heavily</span></span>
+<span class="line"><span style="color:#A9B1D6">        logger</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">error</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">Rate limiter Redis unreachable, failing open</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> True</span></span>
+<span class="line"></span></code></pre>
+<p>This is a trade-off: availability over consistency during outages.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>A production rate limiter combines:</p>
+<ol>
+<li><strong>Algorithm</strong>: Sliding window counter for most cases, token bucket for bursty APIs</li>
+<li><strong>Storage</strong>: Redis with Lua scripts for atomic operations</li>
+<li><strong>Architecture</strong>: Middleware at the edge, shared state across instances</li>
+<li><strong>Client communication</strong>: 429 status, <code>Retry-After</code> header, response headers</li>
+<li><strong>Fail-open</strong>: Degrade gracefully when the limiter itself has issues</li>
+</ol>
+<p>The key insight: rate limiting is a trade-off between precision, performance, and implementation cost. Start simple (fixed window), upgrade to sliding window counter when you hit edge cases, and add Redis Lua scripts only when you need atomicity across distributed instances.</p>
+<hr>
+<p><strong>External Resources</strong></p>
+<ul>
+<li><a href="https://bytebytego.com/courses/system-design-interview/design-a-rate-limiter">ByteByteGo: Design a Rate Limiter</a> — Excellent visual walkthrough</li>
+<li><a href="https://redis.io/docs/functions/patterns/rate-limiting/">Redis Rate Limiting Patterns</a> — Official Redis patterns</li>
+<li><a href="https://blog.cloudflare.com/rate-limiting-policies/">Cloudflare Rate Limiting Architecture</a> — How they do it at scale</li>
+<li><a href="https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm">GCRA: Generalized Cell Rate Algorithm</a> — The math behind token bucket</li>
+<li><a href="https://github.com/brandur/redis-cell">RedisCell Module</a> — Native Redis rate limiting with GCRA</li>
+</ul>
+<hr>
+<ratelimitercanvas client:load=""></ratelimitercanvas></ratelimitercanvas>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/url-shortener-system-design" data-astro-cid-gjtny2mx>URL Shortener System Design: How to Handle Millions of Redirects Per Second</a> <p data-astro-cid-gjtny2mx>Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/paxos-consensus-algorithm-deep-dive" data-astro-cid-gjtny2mx>Paxos Consensus Algorithm: How Distributed Systems Reach Agreement</a> <p data-astro-cid-gjtny2mx>A deep dive into the Paxos consensus algorithm—prepare phases, accept phases, multi-Paxos, and why Google Spanner, CockroachDB, and Neo4j use it for distributed agreement.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/raft-consensus-algorithm-deep-dive" data-astro-cid-gjtny2mx>Raft Consensus Algorithm: How Distributed Systems Agree on Reality</a> <p data-astro-cid-gjtny2mx>A deep dive into Raft&#39;s leader election, log replication, and safety guarantees—and why etcd, CockroachDB, and TiKV all rely on it for distributed consensus.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse","description":"Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns.","datePublished":"2026-05-04T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/rate-limiter-system-design"},"keywords":"system-design, distributed-systems, redis, api, scalability, interviews, rate-limiting, algorithms","articleSection":"system-design","about":[{"@type":"Thing","name":"system-design"},{"@type":"Thing","name":"distributed-systems"},{"@type":"Thing","name":"redis"},{"@type":"Thing","name":"api"},{"@type":"Thing","name":"scalability"},{"@type":"Thing","name":"interviews"},{"@type":"Thing","name":"rate-limiting"},{"@type":"Thing","name":"algorithms"}]}</script> 

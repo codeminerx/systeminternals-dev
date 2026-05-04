@@ -1,0 +1,169 @@
+---
+// Interactive Click Analytics Flow
+---
+
+<div class="canvas-container">
+  <canvas id="click-analytics" width="700" height="250"></canvas>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('click-analytics');
+  const ctx = canvas.getContext('2d');
+
+  let tick = 0;
+
+  function draw() {
+    ctx.clearRect(0, 0, 700, 250);
+
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter, sans-serif';
+    ctx.fillText('Click Analytics Pipeline: From Event to Dashboard', 20, 25);
+
+    // Pipeline stages
+    const stages = [
+      { x: 20, y: 55, w: 90, h: 60, label: 'Redirect\nEvent', sublabel: 'slug, ts, geo,\nreferer, ua', color: '#60a5fa' },
+      { x: 140, y: 55, w: 90, h: 60, label: 'Kafka\nTopic', sublabel: 'clicks partition=32', color: '#ec4899' },
+      { x: 260, y: 55, w: 110, h: 60, label: 'Flink\nProcessor', sublabel: 'dedup, enrich\ngeoIP, session', color: '#a78bfa' },
+      { x: 400, y: 55, w: 110, h: 60, label: 'ClickHouse\nWrites', sublabel: '300K events/sec\nbatch insert', color: '#f97316' },
+      { x: 540, y: 55, w: 140, h: 60, label: 'Grafana\nDashboard', sublabel: 'real-time KPIs\ntrending', color: '#34d399' },
+    ];
+
+    const connectors = [
+      { x1: 110, y1: 85, x2: 140, y2: 85 },
+      { x1: 230, y1: 85, x2: 260, y2: 85 },
+      { x1: 370, y1: 85, x2: 400, y2: 85 },
+      { x1: 510, y1: 85, x2: 540, y2: 85 },
+    ];
+
+    // Draw connectors
+    connectors.forEach((c, i) => {
+      const progress = (tick / 60 + i * 0.25) % 1;
+      const pulse = Math.sin(progress * Math.PI);
+
+      ctx.beginPath();
+      ctx.moveTo(c.x1, c.y1);
+      ctx.lineTo(c.x2 - 6, c.y2);
+      ctx.strokeStyle = '#2a2a2a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Moving dot
+      const dotX = c.x1 + (c.x2 - c.x1 - 6) * progress;
+      ctx.beginPath();
+      ctx.arc(dotX, c.y1, 4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(236, 72, 153, ${0.5 + pulse * 0.5})`;
+      ctx.fill();
+    });
+
+    // Draw stages
+    stages.forEach((s) => {
+      // Glow
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 8;
+
+      ctx.fillStyle = s.color + '22';
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(s.x, s.y, s.w, s.h, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = s.color;
+      ctx.font = '600 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      const lines = s.label.split('\n');
+      lines.forEach((l, i) => {
+        ctx.fillText(l, s.x + s.w/2, s.y + 22 + i * 16);
+      });
+
+      ctx.fillStyle = '#888';
+      ctx.font = '400 9px Inter, sans-serif';
+      const sublines = s.sublabel.split('\n');
+      sublines.forEach((l, i) => {
+        ctx.fillText(l, s.x + s.w/2, s.y + s.h - 8);
+      });
+    });
+
+    // Metrics panel
+    const panelY = 140;
+
+    ctx.fillStyle = '#888';
+    ctx.font = '500 11px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Live Metrics:', 20, panelY);
+
+    const metrics = [
+      { label: 'Events/sec', value: '312,847', color: '#ec4899' },
+      { label: 'P99 Latency', value: '4.2ms', color: '#a78bfa' },
+      { label: 'Deduplication', value: '1.4%', color: '#f97316' },
+      { label: 'Storage Rate', value: '1.2 GB/hr', color: '#34d399' },
+    ];
+
+    let mx = 20;
+    metrics.forEach(m => {
+      ctx.fillStyle = m.color;
+      ctx.fillRect(mx, panelY + 8, 8, 8);
+
+      ctx.fillStyle = '#e5e5e5';
+      ctx.font = '700 14px Inter, sans-serif';
+      ctx.fillText(m.value, mx + 16, panelY + 18);
+
+      ctx.fillStyle = '#888';
+      ctx.font = '400 10px Inter, sans-serif';
+      ctx.fillText(m.label, mx + 16 + 55, panelY + 18);
+
+      mx += 155;
+    });
+
+    // Storage path
+    const storageY = 185;
+    ctx.fillStyle = '#888';
+    ctx.font = '500 11px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Data Flow:', 20, storageY);
+
+    const pathY = storageY + 20;
+
+    // Hot tier
+    ctx.fillStyle = '#34d399';
+    ctx.font = '400 10px Inter, sans-serif';
+    ctx.fillText('Hot: ClickHouse (90 days)', 20, pathY);
+
+    // Warm tier
+    ctx.fillStyle = '#f97316';
+    ctx.fillText('Warm: S3 Parquet (1 year)', 180, pathY);
+
+    // Cold tier
+    ctx.fillStyle = '#888';
+    ctx.fillText('Cold: Glacier (7 years)', 360, pathY);
+
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '400 10px Inter, sans-serif';
+    ctx.fillText('→ S3 Intelligent-Tiering auto-migrates based on access patterns', 500, pathY);
+
+    tick++;
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+</script>
+
+<style>
+.canvas-container {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+canvas {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+</style>

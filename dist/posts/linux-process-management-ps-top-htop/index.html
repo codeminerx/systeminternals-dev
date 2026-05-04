@@ -1,0 +1,366 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Linux process model, /proc filesystem, ps, top, htop, process states, signals, zombie and orphan processes, CPU and memory metrics, and how the kernel tracks running programs."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Linux Process Management: Understanding ps, top, and htop</title><meta property="og:title" content="Linux Process Management: Understanding ps, top, and htop"><meta property="og:description" content="Linux process model, /proc filesystem, ps, top, htop, process states, signals, zombie and orphan processes, CPU and memory metrics, and how the kernel tracks running programs."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/linux-process-management-ps-top-htop"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Linux Process Management: Understanding ps, top, and htop"><meta name="twitter:description" content="Linux process model, /proc filesystem, ps, top, htop, process states, signals, zombie and orphan processes, CPU and memory metrics, and how the kernel tracks running programs."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Linux Process Management: Understanding ps, top, and htop</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2024-03-01T00:00:00.000Z" data-astro-cid-gjtny2mx>February 29, 2024</time> <span class="reading-time" data-astro-cid-gjtny2mx>9 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>linux</span><span class="tag" data-astro-cid-gjtny2mx>processes</span><span class="tag" data-astro-cid-gjtny2mx>performance</span><span class="tag" data-astro-cid-gjtny2mx>system-administration</span><span class="tag" data-astro-cid-gjtny2mx>ps</span><span class="tag" data-astro-cid-gjtny2mx>top</span><span class="tag" data-astro-cid-gjtny2mx>htop</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every running program on a Linux system is a process. Understanding how to inspect, monitor, and manage these processes is fundamental to being an effective system administrator or developer. The <code>/proc</code> filesystem, <code>ps</code>, <code>top</code>, and <code>htop</code> are your primary tools for this work.</p>
+<h2 id="the-proc-filesystem-where-process-data-lives">The /proc Filesystem: Where Process Data Lives</h2>
+<p>Before we talk about commands, let’s understand where the data comes from. Linux presents processes as a virtual filesystem at <code>/proc</code>. Each running process has a numeric directory:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>/proc/1/     # The init/systemd process</span></span>
+<span class="line"><span>/proc/1234/  # Some other process with PID 1234</span></span>
+<span class="line"><span>/proc/self/  # Symlink to the current process</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Inside each directory you’ll find:</p>
+<ul>
+<li><code>cmdline</code> — the full command line (null-separated)</li>
+<li><code>environ</code> — environment variables</li>
+<li><code>fd/</code> — file descriptors (symlinks to open files)</li>
+<li><code>status</code> — human-readable process status</li>
+<li><code>stat</code> — machine-readable process info (used by <code>ps</code>)</li>
+</ul>
+<p>When you run <code>ps</code>, it’s essentially reading and parsing these <code>/proc/&#x3C;pid>/</code> directories. That’s why <code>ps</code> can be so fast—even on systems with thousands of processes.</p>
+<h2 id="ps-the-classic-process-viewer">ps: The Classic Process Viewer</h2>
+<p><code>ps</code> is the oldest and most portable. The output format depends on which flags you use.</p>
+<h3 id="bsd-syntax-no-leading-dash">BSD Syntax (no leading dash)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#9ECE6A"> aux</span></span>
+<span class="line"></span></code></pre>
+<p>This is probably the most common usage:</p>
+<ul>
+<li><code>a</code> — all processes with a terminal (tty)</li>
+<li><code>u</code> — user-oriented format (shows CPU%, MEM%, VSZ, RSS)</li>
+<li><code>x</code> — processes without a terminal</li>
+</ul>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> ps</span><span style="color:#9ECE6A"> aux</span></span>
+<span class="line"><span style="color:#C0CAF5">USER</span><span style="color:#9ECE6A">         PID</span><span style="color:#9ECE6A"> %CPU</span><span style="color:#9ECE6A"> %MEM</span><span style="color:#9ECE6A">    VSZ</span><span style="color:#9ECE6A">   RSS</span><span style="color:#9ECE6A"> TTY</span><span style="color:#9ECE6A">      STAT</span><span style="color:#9ECE6A"> START</span><span style="color:#9ECE6A">   TIME</span><span style="color:#9ECE6A"> COMMAND</span></span>
+<span class="line"><span style="color:#C0CAF5">root</span><span style="color:#FF9E64">           1</span><span style="color:#FF9E64">  0.0</span><span style="color:#FF9E64">  0.1</span><span style="color:#FF9E64">  8976</span><span style="color:#FF9E64">  7364</span><span style="color:#9ECE6A"> ?</span><span style="color:#9ECE6A">        Ss</span><span style="color:#FF9E64">   2024</span><span style="color:#9ECE6A">    0:35</span><span style="color:#9ECE6A"> init</span><span style="color:#A9B1D6"> [2]</span></span>
+<span class="line"><span style="color:#C0CAF5">root</span><span style="color:#FF9E64">         234</span><span style="color:#FF9E64">  0.0</span><span style="color:#FF9E64">  0.0</span><span style="color:#FF9E64">  1234</span><span style="color:#FF9E64">   456</span><span style="color:#9ECE6A"> ?</span><span style="color:#9ECE6A">        S</span><span style="color:#FF9E64">    2024</span><span style="color:#9ECE6A">    0:01</span><span style="color:#9ECE6A"> some-daemon</span></span>
+<span class="line"></span></code></pre>
+<h3 id="linuxsystem-v-syntax-leading-dash">Linux/System V Syntax (leading dash)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#E0AF68"> -ef</span></span>
+<span class="line"></span></code></pre>
+<ul>
+<li><code>-e</code> — all processes</li>
+<li><code>-f</code> — full format</li>
+</ul>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> ps</span><span style="color:#E0AF68"> -ef</span></span>
+<span class="line"><span style="color:#C0CAF5">UID</span><span style="color:#9ECE6A">          PID</span><span style="color:#9ECE6A">    PPID</span><span style="color:#9ECE6A">    C</span><span style="color:#9ECE6A"> STIME</span><span style="color:#9ECE6A"> TTY</span><span style="color:#9ECE6A">          TIME</span><span style="color:#9ECE6A"> CMD</span></span>
+<span class="line"><span style="color:#C0CAF5">root</span><span style="color:#FF9E64">           1</span><span style="color:#FF9E64">      0</span><span style="color:#FF9E64">      0</span><span style="color:#FF9E64"> 2024</span><span style="color:#9ECE6A"> ?</span><span style="color:#9ECE6A">        00:00:35</span><span style="color:#9ECE6A"> /sbin/init</span></span>
+<span class="line"><span style="color:#C0CAF5">root</span><span style="color:#FF9E64">         234</span><span style="color:#FF9E64">      1</span><span style="color:#FF9E64">      0</span><span style="color:#FF9E64"> 2024</span><span style="color:#9ECE6A"> ?</span><span style="color:#9ECE6A">        00:00:01</span><span style="color:#9ECE6A"> /usr/sbin/sshd</span></span>
+<span class="line"></span></code></pre>
+<h3 id="custom-output-with-ps">Custom Output with ps</h3>
+<p>You can customize columns with <code>-o</code>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#E0AF68"> -eo</span><span style="color:#9ECE6A"> pid,user,comm,%cpu,%mem,etime</span></span>
+<span class="line"></span></code></pre>
+<p>Common columns:</p>
+<ul>
+<li><code>pid</code> — process ID</li>
+<li><code>ppid</code> — parent PID</li>
+<li><code>user</code> — effective user</li>
+<li><code>comm</code> — command name (no path)</li>
+<li><code>args</code> — full command with arguments</li>
+<li><code>%cpu</code> — CPU utilization</li>
+<li><code>%mem</code> — memory utilization</li>
+<li><code>etime</code> — elapsed time since process started</li>
+<li><code>stat</code> — process state (R/S/D/Z/T/X)</li>
+</ul>
+<h3 id="filtering-processes">Filtering Processes</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Show only processes for a specific user</span></span>
+<span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#E0AF68"> -u</span><span style="color:#9ECE6A"> username</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show a specific process by PID</span></span>
+<span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 1234</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show processes matching a command name</span></span>
+<span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#E0AF68"> -C</span><span style="color:#9ECE6A"> nginx</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Combine filters</span></span>
+<span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#E0AF68"> -u</span><span style="color:#9ECE6A"> username</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> pid,comm,%cpu</span></span>
+<span class="line"></span></code></pre>
+<h3 id="the-stat-column-explained">The STAT Column Explained</h3>
+<p>The <code>STAT</code> column shows process state codes:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody><tr><td><code>R</code></td><td>Running or runnable</td></tr><tr><td><code>S</code></td><td>Sleeping (interruptible)</td></tr><tr><td><code>D</code></td><td>Uninterruptible sleep (usually I/O)</td></tr><tr><td><code>Z</code></td><td>Zombie</td></tr><tr><td><code>T</code></td><td>Stopped (suspended)</td></tr><tr><td><code>X</code></td><td>Dead (shouldn’t be visible)</td></tr></tbody></table>
+<p>Multi-character codes add info:</p>
+<ul>
+<li><code>&#x3C;</code> — high priority (nice &#x3C; -20)</li>
+<li><code>N</code> — low priority (nice > 0)</li>
+<li><code>L</code> — locked pages in memory</li>
+<li><code>s</code> — session leader</li>
+<li><code>l</code> — multi-threaded</li>
+<li><code>+</code> — in foreground process group</li>
+</ul>
+<h2 id="top-real-time-process-monitoring">top: Real-Time Process Monitoring</h2>
+<p>While <code>ps</code> gives you a snapshot, <code>top</code> gives you a continuous view. By default it refreshes every 3 seconds.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">top</span></span>
+<span class="line"></span></code></pre>
+<h3 id="tops-display">top’s Display</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>top - 14:32:01 up 45 days,  3:22,  2 users,  load average: 0.52, 0.48, 0.41</span></span>
+<span class="line"><span>Tasks: 287 total,   1 running, 286 sleeping,   0 stopped,   0 zombie</span></span>
+<span class="line"><span>%Cpu(s):  4.2 us,  1.3 sy,  0.0 ni, 94.5 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st</span></span>
+<span class="line"><span>MiB Mem :  32678.4 total,   8423.2 free,  18453.2 used,   5802.0 buff/cache</span></span>
+<span class="line"><span>MiB Swap:   2048.0 total,   1536.0 free,    512.0 used.  18765.3 avail Mem</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>  PID USER      PR  NI   VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND</span></span>
+<span class="line"><span>12345 www-data  20   0  512344  82944  15236 S   2.1  0.3   0:12.34 nginx</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The header shows:</p>
+<ul>
+<li><strong>Load average</strong>: 1, 5, and 15-minute averages (number of processes waiting for CPU)</li>
+<li><strong>Cpu(s)</strong>: user (<code>us</code>), system (<code>sy</code>), nice (<code>ni</code>), idle (<code>id</code>), iowait (<code>wa</code>)</li>
+<li><strong>Mem</strong>: total, free, used, buffers/cache</li>
+</ul>
+<h3 id="interactive-top-commands">Interactive top Commands</h3>
+<p>Inside <code>top</code>, press:</p>
+<ul>
+<li><code>q</code> — quit</li>
+<li><code>1</code> — toggle per-CPU view</li>
+<li><code>h</code> — help</li>
+<li><code>k</code> — kill a process</li>
+<li><code>r</code> — renice a process</li>
+<li><code>P</code> — sort by CPU (default)</li>
+<li><code>M</code> — sort by memory</li>
+<li><code>N</code> — sort by PID</li>
+<li><code>T</code> — sort by time+</li>
+<li><code>u</code> — filter by user</li>
+<li><code>f</code> — configure fields/columns</li>
+</ul>
+<h3 id="field-selection">Field Selection</h3>
+<p>Press <code>f</code> to enter the field management screen. You can:</p>
+<ul>
+<li>Move fields with arrow keys</li>
+<li>Toggle fields with <code>space</code></li>
+<li>Sort with <code>s</code></li>
+</ul>
+<p>Press <code>o</code> (lowercase) to change sort field directly.</p>
+<h3 id="batch-mode">Batch Mode</h3>
+<p><code>top</code> is also useful for scripting:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Run 5 iterations, show processes sorted by CPU</span></span>
+<span class="line"><span style="color:#C0CAF5">top</span><span style="color:#E0AF68"> -b</span><span style="color:#E0AF68"> -n</span><span style="color:#FF9E64"> 5</span><span style="color:#E0AF68"> -d</span><span style="color:#FF9E64"> 1</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> %CPU</span></span>
+<span class="line"></span></code></pre>
+<h2 id="htop-a-better-top">htop: A Better top</h2>
+<p><code>htop</code> is a more user-friendly alternative to <code>top</code>. It requires installation (<code>apt install htop</code> or <code>yum install htop</code>).</p>
+<h3 id="why-htop">Why htop?</h3>
+<ol>
+<li><strong>Color-coded</strong> —一眼就看出 CPU, MEM usage</li>
+<li><strong>Scrollable process list</strong> — navigate with arrow keys</li>
+<li><strong>Progress bars</strong> — easier to read than numbers</li>
+<li><strong>Kill/renice without entering PID</strong> — just select and press key</li>
+<li><strong>Tree view</strong> — see parent-child relationships</li>
+</ol>
+<h3 id="htop-interface">htop Interface</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>  CPU[||             12.3%]    Tasks: 87, 143 thr; 1 running</span></span>
+<span class="line"><span>  Mem[|||||||||||  48.3%]    Load average: 0.52</span></span>
+<span class="line"><span>  Swp[||             5.1%]    Uptime: 45 days, 3:22</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>  PID   USER   PRI  NI  VIRT   RES   SHR S  %CPU %MEM    TIME+</span></span>
+<span class="line"><span> 12345 www     20   0   512M  82M   15M S   2.1  0.3    0:12.34 nginx</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Press <code>F2</code> to see the setup menu where you can customize columns and display options.</p>
+<h3 id="htop-keybindings">htop Keybindings</h3>
+<ul>
+<li><code>h</code> — help</li>
+<li><code>Up/Down</code> — select process</li>
+<li><code>Left/Right</code> — scroll columns</li>
+<li><code>Space</code> — tag/select process</li>
+<li><code>u</code> — show processes for a specific user</li>
+<li><code>t</code> — toggle tree view</li>
+<li><code>F5</code> — refresh display</li>
+<li><code>F6</code> — sort by column (select with arrow keys)</li>
+<li><code>F9</code> — kill selected process</li>
+<li><code>F7/F8</code> — decrease/increase nice value</li>
+</ul>
+<h3 id="htop-color-schemes">htop Color Schemes</h3>
+<p>Press <code>F2</code> → Display options → Colour → choose scheme. Options include:</p>
+<ul>
+<li><code>Default</code> — basic monochrome</li>
+<li><code>Midnight</code> — dark theme</li>
+<li><code>Sweet</code> — pastel colors</li>
+<li><code>Monochromatic</code></li>
+</ul>
+<h3 id="htop-customization">htop Customization</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Start with specific options</span></span>
+<span class="line"><span style="color:#C0CAF5">htop</span><span style="color:#E0AF68"> -d</span><span style="color:#FF9E64"> 5</span><span style="color:#51597D;font-style:italic">          # 5 second refresh instead of default</span></span>
+<span class="line"><span style="color:#C0CAF5">htop</span><span style="color:#E0AF68"> -u</span><span style="color:#9ECE6A"> www-data</span><span style="color:#51597D;font-style:italic">   # show only www-data processes</span></span>
+<span class="line"><span style="color:#C0CAF5">htop</span><span style="color:#E0AF68"> -p</span><span style="color:#9ECE6A"> 1234,5678</span><span style="color:#51597D;font-style:italic">  # monitor specific PIDs</span></span>
+<span class="line"><span style="color:#C0CAF5">htop</span><span style="color:#E0AF68"> -t</span><span style="color:#51597D;font-style:italic">            # start in tree view</span></span>
+<span class="line"></span></code></pre>
+<h2 id="understanding-process-states-under-the-hood">Understanding Process States Under the Hood</h2>
+<p>Let’s look at what the kernel actually tracks. Each process has a <code>task_struct</code> in the kernel:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> task_struct </span><span style="color:#9ABDF5">{</span></span>
+<span class="line"><span style="color:#BB9AF7">    pid_t</span><span style="color:#9ABDF5">                pid</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">           // Process ID</span></span>
+<span class="line"><span style="color:#BB9AF7">    pid_t</span><span style="color:#9ABDF5">                tgid</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">          // Thread group ID</span></span>
+<span class="line"><span style="color:#BB9AF7">    struct</span><span style="color:#9ABDF5"> task_struct   </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">parent</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">       // Parent process</span></span>
+<span class="line"><span style="color:#BB9AF7">    struct</span><span style="color:#9ABDF5"> list_head     children</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">      // Child processes</span></span>
+<span class="line"><span style="color:#BB9AF7">    struct</span><span style="color:#9ABDF5"> files_struct  </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">files</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">        // Open files</span></span>
+<span class="line"><span style="color:#BB9AF7">    struct</span><span style="color:#9ABDF5"> mm_struct     </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">mm</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">           // Memory layout</span></span>
+<span class="line"><span style="color:#BB9AF7">    int</span><span style="color:#9ABDF5">                  prio</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">          // Scheduling priority</span></span>
+<span class="line"><span style="color:#BB9AF7">    int</span><span style="color:#9ABDF5">                  static_prio</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">   // Static priority</span></span>
+<span class="line"><span style="color:#BB9AF7">    int</span><span style="color:#9ABDF5">                  normal_prio</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">   // Normal priority</span></span>
+<span class="line"><span style="color:#BB9AF7">    unsigned</span><span style="color:#BB9AF7"> int</span><span style="color:#9ABDF5">         rt_priority</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">   // Real-time priority</span></span>
+<span class="line"><span style="color:#BB9AF7">    unsigned</span><span style="color:#9ABDF5">             policy</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">        // Scheduling policy</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    // ... many more fields</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span></code></pre>
+<p>The kernel maintains a red-black tree of all processes, indexed by PID. This allows O(log n) lookup by PID.</p>
+<h3 id="process-creation-flow">Process Creation Flow</h3>
+<p>When you run a command:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>fork() → copy process descriptor → execve() → replace memory space → schedule()</span></span>
+<span class="line"><span></span></span></code></pre>
+<ol>
+<li><strong>fork()</strong> creates a child process that’s a copy of the parent</li>
+<li><strong>execve()</strong> replaces the child’s memory with the new program</li>
+<li><strong>schedule()</strong> decides when the process gets CPU time</li>
+</ol>
+<h2 id="signal-handling">Signal Handling</h2>
+<p>Processes communicate via signals. Common signals:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Signal</th><th>Number</th><th>Meaning</th><th>Default Action</th></tr></thead><tbody><tr><td><code>SIGTERM</code></td><td>15</td><td>Polite termination request</td><td>Terminate</td></tr><tr><td><code>SIGKILL</code></td><td>9</td><td>Force kill (cannot be caught)</td><td>Terminate</td></tr><tr><td><code>SIGINT</code></td><td>2</td><td>Interrupt (Ctrl+C)</td><td>Terminate</td></tr><tr><td><code>SIGSTOP</code></td><td>19</td><td>Stop process (Ctrl+Z)</td><td>Stop</td></tr><tr><td><code>SIGCONT</code></td><td>18</td><td>Continue stopped process</td><td>Continue</td></tr><tr><td><code>SIGHUP</code></td><td>1</td><td>Hangup (often means “reload config”)</td><td>Terminate</td></tr></tbody></table>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Send SIGTERM to process</span></span>
+<span class="line"><span style="color:#0DB9D7">kill</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Send SIGKILL</span></span>
+<span class="line"><span style="color:#0DB9D7">kill</span><span style="color:#E0AF68"> -9</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Send SIGHUP (reload)</span></span>
+<span class="line"><span style="color:#0DB9D7">kill</span><span style="color:#E0AF68"> -HUP</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Send to process by name</span></span>
+<span class="line"><span style="color:#C0CAF5">pkill</span><span style="color:#9ECE6A"> nginx</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Send to all processes by name</span></span>
+<span class="line"><span style="color:#C0CAF5">killall</span><span style="color:#9ECE6A"> nginx</span></span>
+<span class="line"></span></code></pre>
+<h2 id="process-priority-nice-values">Process Priority: Nice Values</h2>
+<p>The kernel schedules processes based on priority. <code>nice</code> values range from -20 (highest priority) to +19 (lowest priority):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Run a process with lower priority</span></span>
+<span class="line"><span style="color:#C0CAF5">nice</span><span style="color:#E0AF68"> -n</span><span style="color:#FF9E64"> 10</span><span style="color:#9ECE6A"> ./my-script.sh</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Change priority of running process</span></span>
+<span class="line"><span style="color:#C0CAF5">renice</span><span style="color:#FF9E64"> 10</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Make process run first (requires root)</span></span>
+<span class="line"><span style="color:#C0CAF5">renice</span><span style="color:#E0AF68"> -20</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span></code></pre>
+<p>For real-time processes, you need <code>chrt</code>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Run with FIFO scheduling at priority 50</span></span>
+<span class="line"><span style="color:#C0CAF5">chrt</span><span style="color:#E0AF68"> -f</span><span style="color:#FF9E64"> 50</span><span style="color:#9ECE6A"> ./my-realtime-app</span></span>
+<span class="line"></span></code></pre>
+<h2 id="practical-examples">Practical Examples</h2>
+<h3 id="find-processes-using-most-cpu">Find processes using most CPU</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#9ECE6A"> aux</span><span style="color:#E0AF68"> --sort=-%cpu</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> head</span><span style="color:#E0AF68"> -11</span></span>
+<span class="line"></span></code></pre>
+<h3 id="find-memory-hogs">Find memory hogs</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#9ECE6A"> aux</span><span style="color:#E0AF68"> --sort=-%mem</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> head</span><span style="color:#E0AF68"> -11</span></span>
+<span class="line"></span></code></pre>
+<h3 id="find-zombie-processes">Find zombie processes</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#9ECE6A"> aux</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#9ECE6A"> Z</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Or more reliably</span></span>
+<span class="line"><span style="color:#C0CAF5">ps</span><span style="color:#9ECE6A"> aux</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> awk</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">$8 ~ /^Z/</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span></code></pre>
+<h3 id="watch-a-specific-process-in-real-time">Watch a specific process in real-time</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">watch</span><span style="color:#E0AF68"> -n</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">ps -p 1234 -o %cpu,%mem,cmd</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span></code></pre>
+<h3 id="find-process-by-port">Find process by port</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">lsof</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> :8080</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Or</span></span>
+<span class="line"><span style="color:#C0CAF5">ss</span><span style="color:#E0AF68"> -tlnp</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#9ECE6A"> :8080</span></span>
+<span class="line"></span></code></pre>
+<h3 id="debug-a-runaway-process">Debug a runaway process</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># See what files it has open</span></span>
+<span class="line"><span style="color:#C0CAF5">lsof</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># See its network connections</span></span>
+<span class="line"><span style="color:#C0CAF5">lsof</span><span style="color:#E0AF68"> -i</span><span style="color:#E0AF68"> -a</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># See what system calls it's making</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span><span style="color:#E0AF68"> -f</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># See which library calls (lighter weight)</span></span>
+<span class="line"><span style="color:#C0CAF5">ltrace</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span></code></pre>
+<h2 id="conclusion">Conclusion</h2>
+<p>Linux process management is built on the <code>/proc</code> filesystem and a set of tools that let you inspect what’s running. <code>ps</code> gives you snapshots, <code>top</code> gives you live updates, and <code>htop</code> makes the whole experience more pleasant.</p>
+<p>The key concepts:</p>
+<ul>
+<li>Every process has a PID and a parent</li>
+<li>The kernel maintains process state (running, sleeping, zombie, etc.)</li>
+<li>Signals are the primary inter-process communication mechanism</li>
+<li>Nice values control CPU scheduling priority</li>
+<li><code>/proc/&#x3C;pid>/</code> contains all the per-process data</li>
+</ul>
+<p>Master these tools and you’ll be able to debug almost any performance issue on a Linux system.</p>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/ebpf-linux-observability-framework" data-astro-cid-gjtny2mx>eBPF: Linux&#39;s Most Powerful Observation Framework</a> <p data-astro-cid-gjtny2mx>What eBPF is, how it works, why it matters compared to kernel modules, and practical tools like bpftrace, tcpdump -B, and execsnoop.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/linux-memory-debugging-profiling" data-astro-cid-gjtny2mx>Linux Memory Debugging: From vmstat to Memory Leaks</a> <p data-astro-cid-gjtny2mx>Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/clickhouse-architecture-deep-dive" data-astro-cid-gjtny2mx>ClickHouse Architecture: How a Column-Oriented Database Processes Billions of Rows</a> <p data-astro-cid-gjtny2mx>A deep dive into ClickHouse&#39;s architecture—vectorized execution, MergeTree storage, and how it achieves sub-second queries on trillion-row datasets.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Linux Process Management: Understanding ps, top, and htop","description":"Linux process model, /proc filesystem, ps, top, htop, process states, signals, zombie and orphan processes, CPU and memory metrics, and how the kernel tracks running programs.","datePublished":"2024-03-01T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/linux-process-management-ps-top-htop"},"keywords":"linux, processes, performance, system-administration, ps, top, htop","articleSection":"linux","about":[{"@type":"Thing","name":"linux"},{"@type":"Thing","name":"processes"},{"@type":"Thing","name":"performance"},{"@type":"Thing","name":"system-administration"},{"@type":"Thing","name":"ps"},{"@type":"Thing","name":"top"},{"@type":"Thing","name":"htop"}]}</script> 

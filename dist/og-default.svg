@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#0d0d0d"/>
+  <rect x="40" y="40" width="1120" height="550" rx="16" fill="#161616" stroke="#2a2a2a" stroke-width="2"/>
+  <text x="600" y="300" font-family="system-ui, sans-serif" font-size="72" font-weight="700" fill="#60a5fa" text-anchor="middle">SYSTEM INTERNALS</text>
+  <text x="600" y="380" font-family="system-ui, sans-serif" font-size="28" fill="#888" text-anchor="middle">A minimal tech blog</text>
+</svg>
