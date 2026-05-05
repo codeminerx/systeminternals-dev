@@ -176,9 +176,23 @@ declare module 'astro:content' {
   collection: "posts";
   data: InferEntrySchema<"posts">
 } & { render(): Render[".md"] };
+"gdb-debugging-core-dumps-live-processes.md": {
+	id: "gdb-debugging-core-dumps-live-processes.md";
+  slug: "gdb-debugging-core-dumps-live-processes";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
 "linux-memory-debugging-profiling.md": {
 	id: "linux-memory-debugging-profiling.md";
   slug: "linux-memory-debugging-profiling";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
+"linux-proc-filesystem-deep-dive.md": {
+	id: "linux-proc-filesystem-deep-dive.md";
+  slug: "linux-proc-filesystem-deep-dive";
   body: string;
   collection: "posts";
   data: InferEntrySchema<"posts">

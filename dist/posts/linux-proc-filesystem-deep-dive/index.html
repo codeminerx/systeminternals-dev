@@ -1,0 +1,257 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Explore the Linux /proc filesystem to monitor processes, inspect memory, CPU info, and understand how tools like ps and top read kernel data."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Linux /proc Filesystem: A Deep Dive into Process Information</title><meta property="og:title" content="Linux /proc Filesystem: A Deep Dive into Process Information"><meta property="og:description" content="Explore the Linux /proc filesystem to monitor processes, inspect memory, CPU info, and understand how tools like ps and top read kernel data."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/linux-proc-filesystem-deep-dive"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Linux /proc Filesystem: A Deep Dive into Process Information"><meta name="twitter:description" content="Explore the Linux /proc filesystem to monitor processes, inspect memory, CPU info, and understand how tools like ps and top read kernel data."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Linux /proc Filesystem: A Deep Dive into Process Information</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-04T00:00:00.000Z" data-astro-cid-gjtny2mx>May 3, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>7 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>linux</span><span class="tag" data-astro-cid-gjtny2mx>proc</span><span class="tag" data-astro-cid-gjtny2mx>systems-programming</span><span class="tag" data-astro-cid-gjtny2mx>observability</span><span class="tag" data-astro-cid-gjtny2mx>debugging</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>The <code>/proc</code> filesystem is one of Linux’s most elegant abstractions: a living window into the running kernel, exposed as a hierarchy of files and directories. Whether you’re debugging a runaway process, profiling memory usage, or just trying to understand what <code>ps</code> is really doing under the hood, <code>/proc</code> is the source of truth.</p>
+<p>This post is a practical deep dive into <code>/proc</code> — what lives there, how to read it, and how the tools you already use depend on it.</p>
+<h2 id="what-is-proc">What Is /proc?</h2>
+<p><code>/proc</code> is a <strong>virtual filesystem</strong> — it doesn’t exist on disk. The kernel creates it dynamically at boot. Every file and directory under <code>/proc</code> is generated on-the-fly by the kernel in response to a <code>read()</code> or <code>stat()</code> call. No storage backs it.</p>
+<p>It’s organized around two main categories:</p>
+<ul>
+<li><strong>Process-specific entries</strong> — one directory per running process, identified by PID</li>
+<li><strong>System-wide entries</strong> — global kernel and hardware information</li>
+</ul>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>/proc/</span></span>
+<span class="line"><span>├── [pid]/              # One subdirectory per process</span></span>
+<span class="line"><span>├── self/               # Symlink to current process's /proc/[pid]</span></span>
+<span class="line"><span>├── 1/                   # init/systemd process</span></span>
+<span class="line"><span>├── meminfo              # System memory usage</span></span>
+<span class="line"><span>├── cpuinfo              # CPU identification and features</span></span>
+<span class="line"><span>├── diskstats            # Block device I/O statistics</span></span>
+<span class="line"><span>├── net/                 # Network stack statistics</span></span>
+<span class="line"><span>└── sys/                 # Kernel tunable parameters</span></span>
+<span class="line"><span></span></span></code></pre>
+<h2 id="process-specific-entries-procpid">Process-Specific Entries: /proc/[pid]/</h2>
+<p>Each running process gets a directory under <code>/proc</code>. As a developer or SRE, this is where most of your debugging work happens.</p>
+<h3 id="cmdline--command-line-arguments">cmdline — Command Line Arguments</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>$ cat /proc/$(pgrep -x nginx)/cmdline | tr '\0' ' '; echo</span></span>
+<span class="line"><span>nginx: worker process (nginx)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The file contains the null-terminated argument list. <code>tr</code> replaces <code>\0</code> with spaces for readability.</p>
+<h3 id="environ--environment-variables">environ — Environment Variables</h3>
+<p>Same format as <code>cmdline</code> — null-separated. Useful for checking what environment a process actually sees:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># See the full environment of process 1234</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/1234/environ</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> tr</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">\0</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">\n</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Security note:</strong> Non-root users can read their own process’s environment, but not other users’ processes’ environment. Root can read anything.</p>
+<h3 id="status--process-state-in-human-readable-form">status — Process State in Human-Readable Form</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /proc/</span><span style="color:#F7768E">$$</span><span style="color:#9ECE6A">/status</span></span>
+<span class="line"><span style="color:#C0CAF5">Name:</span><span style="color:#9ECE6A">   zsh</span></span>
+<span class="line"><span style="color:#C0CAF5">State:</span><span style="color:#9ECE6A">  S</span><span style="color:#A9B1D6"> (sleeping)</span></span>
+<span class="line"><span style="color:#C0CAF5">Tgid:</span><span style="color:#FF9E64">   12345</span></span>
+<span class="line"><span style="color:#C0CAF5">Pid:</span><span style="color:#FF9E64">    12345</span></span>
+<span class="line"><span style="color:#C0CAF5">PPid:</span><span style="color:#FF9E64">   12340</span></span>
+<span class="line"><span style="color:#C0CAF5">TracerPid:</span><span style="color:#FF9E64">      0</span></span>
+<span class="line"><span style="color:#C0CAF5">Uid:</span><span style="color:#FF9E64">    1000</span><span style="color:#FF9E64">    1000</span><span style="color:#FF9E64">    1000</span><span style="color:#FF9E64">    1000</span></span>
+<span class="line"><span style="color:#C0CAF5">Gid:</span><span style="color:#FF9E64">    1000</span><span style="color:#FF9E64">    1000</span><span style="color:#FF9E64">    1000</span><span style="color:#FF9E64">    1000</span></span>
+<span class="line"><span style="color:#C0CAF5">Threads:</span><span style="color:#FF9E64">        1</span></span>
+<span class="line"><span style="color:#C0CAF5">VmRSS:</span><span style="color:#FF9E64">     8924</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">VmSize:</span><span style="color:#FF9E64">    23120</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">VmData:</span><span style="color:#FF9E64">    6020</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">VmStk:</span><span style="color:#FF9E64">       136</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">RssAnon:</span><span style="color:#FF9E64">    6780</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">RssFile:</span><span style="color:#FF9E64">    1424</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"><span style="color:#C0CAF5">RssShmem:</span><span style="color:#FF9E64">     720</span><span style="color:#9ECE6A"> kB</span></span>
+<span class="line"></span></code></pre>
+<p>Key fields:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>VmRSS</code></td><td>Resident Set Size — pages currently in RAM</td></tr><tr><td><code>VmSize</code></td><td>Total virtual address space</td></tr><tr><td><code>VmData</code></td><td>Data segment size (heap)</td></tr><tr><td><code>VmStk</code></td><td>Stack size</td></tr><tr><td><code>Uid/Gid</code></td><td>Real, effective, saved, and filesystem UIDs</td></tr></tbody></table>
+<h3 id="fd--open-file-descriptors">fd/ — Open File Descriptors</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>$ ls -la /proc/$$/fd/</span></span>
+<span class="line"><span>total 0</span></span>
+<span class="line"><span>lr-x------ 1 siyuan staff 64 May  4 10:00 0 -> /dev/pts/0</span></span>
+<span class="line"><span>lrwx------ 1 siyuan staff 64 May  4 10:00 1 -> /dev/pts/0</span></span>
+<span class="line"><span>lrwx------ 1 siyuan staff 64 May  4 10:00 2 -> /dev/pts/0</span></span>
+<span class="line"><span>lr-x------ 1 siyuan staff 64 May  4 10:00 255 -> /Users/siyuan/.zshrc</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>This is invaluable for debugging:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Find processes with open files matching a pattern</span></span>
+<span class="line"><span style="color:#C0CAF5">lsof</span><span style="color:#9ECE6A"> +D</span><span style="color:#9ECE6A"> /var/log</span><span style="color:#51597D;font-style:italic">          # All processes with open files under /var/log</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Find a specific file's descriptor</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Given inode, find which process holds it</span></span>
+<span class="line"><span style="color:#C0CAF5">find</span><span style="color:#9ECE6A"> /proc/</span><span style="color:#F7768E">*</span><span style="color:#9ECE6A">/fd</span><span style="color:#E0AF68"> -lname</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">*secret.txt*</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF"> 2></span><span style="color:#9ECE6A">/dev/null</span></span>
+<span class="line"></span></code></pre>
+<h3 id="maps-smaps-smaps_rollup--memory-regions">maps, smaps, smaps_rollup — Memory Regions</h3>
+<ul>
+<li><code>/proc/[pid]/maps</code> — memory mappings with permissions, offset, device, inode, and pathname</li>
+</ul>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>$ cat /proc/$$/maps</span></span>
+<span class="line"><span>55a1b2c000-55a1b2d000 r-xp 00000000 00:2e 12345678                /bin/zsh</span></span>
+<span class="line"><span>7fff8a400000-7fff8a600000 r--p 00000000 00:00 0                    [vvar]</span></span>
+<span class="line"><span>7fff8a600000-7fff8a800000 r-xp 00000000 00:00 0                    [vdso]</span></span>
+<span class="line"><span></span></span></code></pre>
+<ul>
+<li><code>/proc/[pid]/smaps</code> — detailed size and resident page counts per mapping (slower, as it reads page tables)</li>
+<li><code>/proc/[pid]/smaps_rollup</code> — aggregated summary</li>
+</ul>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># See total PSS (Proportional Set Size) for a process</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/</span><span style="color:#F7768E">$$</span><span style="color:#9ECE6A">/smaps_rollup</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#9ECE6A"> Pss</span></span>
+<span class="line"></span></code></pre>
+<h2 id="system-wide-entries">System-Wide Entries</h2>
+<h3 id="procmeminfo--memory-overview">/proc/meminfo — Memory Overview</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /proc/meminfo</span></span>
+<span class="line"><span style="color:#C0CAF5">MemTotal:</span><span style="color:#FF9E64">        32768</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"><span style="color:#C0CAF5">MemFree:</span><span style="color:#FF9E64">          8192</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"><span style="color:#C0CAF5">MemAvailable:</span><span style="color:#FF9E64">    16384</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"><span style="color:#C0CAF5">Buffers:</span><span style="color:#FF9E64">          1024</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"><span style="color:#C0CAF5">Cached:</span><span style="color:#FF9E64">           8192</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"><span style="color:#C0CAF5">SwapCached:</span><span style="color:#FF9E64">         64</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"><span style="color:#C0CAF5">Active:</span><span style="color:#FF9E64">          12288</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"><span style="color:#C0CAF5">Inactive:</span><span style="color:#FF9E64">         4096</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"><span style="color:#C0CAF5">Shmem:</span><span style="color:#FF9E64">            2048</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"><span style="color:#C0CAF5">SReclaimable:</span><span style="color:#FF9E64">     1024</span><span style="color:#9ECE6A"> MB</span></span>
+<span class="line"></span></code></pre>
+<p><code>MemAvailable</code> is the useful one — it’s what the kernel considers available for allocation without swapping. <code>free</code> uses this:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>$ free -h</span></span>
+<span class="line"><span>               total        used        free      shared  buff/cache   available</span></span>
+<span class="line"><span>Mem:            32Gi        14Gi       8.4Gi       2.0Gi       7.2Gi        16Gi</span></span>
+<span class="line"><span>Swap:           2.0Gi       128Mi       1.9Gi</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="proccpuinfo--cpu-identification">/proc/cpuinfo — CPU Identification</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> cat</span><span style="color:#9ECE6A"> /proc/cpuinfo</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#E0AF68"> -E</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">model name|cpu cores|siblings</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> sort</span><span style="color:#E0AF68"> -u</span></span>
+<span class="line"><span style="color:#C0CAF5">model</span><span style="color:#9ECE6A"> name</span><span style="color:#9ECE6A">      :</span><span style="color:#9ECE6A"> Apple</span><span style="color:#9ECE6A"> M2</span><span style="color:#9ECE6A"> Pro</span></span>
+<span class="line"><span style="color:#C0CAF5">cpu</span><span style="color:#9ECE6A"> cores</span><span style="color:#9ECE6A">       :</span><span style="color:#FF9E64"> 12</span></span>
+<span class="line"><span style="color:#C0CAF5">siblings</span><span style="color:#9ECE6A">        :</span><span style="color:#FF9E64"> 12</span></span>
+<span class="line"></span></code></pre>
+<h3 id="procdiskstats--block-device-io">/proc/diskstats — Block Device I/O</h3>
+<p>The raw data that <code>iostat</code> and <code>iotop</code> consume:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># 8 fields per device:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># reads completed, reads merged, sectors read, read ms,</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># writes completed, writes merged, sectors written, write ms, ...</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/diskstats</span></span>
+<span class="line"></span></code></pre>
+<h3 id="procnet--network-stack">/proc/net/ — Network Stack</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>/proc/net/tcp         # IPv4 TCP connections (hex format!)</span></span>
+<span class="line"><span>/proc/net/tcp6        # IPv6 TCP connections</span></span>
+<span class="line"><span>/proc/net/udp         # IPv4 UDP sockets</span></span>
+<span class="line"><span>/proc/net/dev         # Per-interface byte/packet counts</span></span>
+<span class="line"><span>/proc/net/snmp        # SNMP counters (InErrors, etc.)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The TCP/UDP files use hex addresses and ports. Convert with:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> socket</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> hex_to_addr</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">hex_ip</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> hex_port</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#A9B1D6">    ip </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> socket</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">inet_ntoa</span><span style="color:#9ABDF5">(</span><span style="color:#0DB9D7">bytes</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">fromhex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">hex_ip</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">[::-</span><span style="color:#FF9E64">1</span><span style="color:#89DDFF">]</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    port </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">hex_port</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 16</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">ip</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">port</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Example: local address from /proc/net/tcp</span></span>
+<span class="line"><span style="color:#A9B1D6">hex_ip</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> hex_port </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">AC100102</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">01BB</span><span style="color:#89DDFF">"</span><span style="color:#51597D;font-style:italic">  # 172.16.1.2, port 443</span></span>
+<span class="line"><span style="color:#0DB9D7">print</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">hex_to_addr</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">hex_ip</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> hex_port</span><span style="color:#9ABDF5">))</span><span style="color:#51597D;font-style:italic">  # 172.16.1.2:443</span></span>
+<span class="line"></span></code></pre>
+<h2 id="how-ps-top-and-free-use-proc">How ps, top, and free Use /proc</h2>
+<p>Understanding <code>/proc</code> makes you better at using these tools.</p>
+<h3 id="ps"><code>ps</code></h3>
+<p><code>ps</code> iterates over directories in <code>/proc</code>, reading <code>stat</code> and <code>status</code> for each PID. The command you see in <code>cmdline</code> is reconstructed by reading <code>comm</code> (bare executable name) and <code>cmdline</code> (full args).</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># The raw data ps reads:</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/1234/stat</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># pid (comm) state ppid pgrp session tty_nr ...</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/1234/cmdline</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> tr</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">\0</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF"> '</span><span style="color:#89DDFF"> '</span></span>
+<span class="line"></span></code></pre>
+<h3 id="top"><code>top</code></h3>
+<p><code>top</code> reads per-process <code>stat</code> (for CPU% and memory) plus <code>/proc/stat</code> for global CPU steal ticks. The CPU% formula:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>CPU% = (utime + stime - delta) / (total_time) * 100</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Where <code>utime</code> and <code>stime</code> come from <code>/proc/[pid]/stat</code>, and <code>total_time</code> is derived from <code>/proc/stat</code> (sum of all CPUs’ <code>utime</code> + <code>stime</code> + <code>idle</code> + <code>iowait</code>…).</p>
+<h3 id="free"><code>free</code></h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># free reads MemAvailable from /proc/meminfo, calculates:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">#   available = MemAvailable</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">#   used = total - available - buffers - cached</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">#   shared = Shmem</span></span>
+<span class="line"></span></code></pre>
+<h2 id="practical-examples">Practical Examples</h2>
+<h3 id="find-the-biggest-memory-consumers">Find the biggest memory consumers</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># One-liner to find top 5 by VmRSS</span></span>
+<span class="line"><span style="color:#BB9AF7">for</span><span style="color:#C0CAF5"> pid</span><span style="color:#BB9AF7"> in</span><span style="color:#89DDFF"> $(</span><span style="color:#C0CAF5">ls</span><span style="color:#9ECE6A"> /proc</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">^[0-9]*$</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">);</span><span style="color:#BB9AF7"> do</span></span>
+<span class="line"><span style="color:#C0CAF5">    name</span><span style="color:#89DDFF">=$(</span><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/</span><span style="color:#C0CAF5">$pid</span><span style="color:#9ECE6A">/comm</span><span style="color:#89DDFF"> 2></span><span style="color:#9ECE6A">/dev/null</span><span style="color:#89DDFF">)</span></span>
+<span class="line"><span style="color:#C0CAF5">    rss</span><span style="color:#89DDFF">=$(</span><span style="color:#C0CAF5">grep</span><span style="color:#9ECE6A"> VmRSS</span><span style="color:#9ECE6A"> /proc/</span><span style="color:#C0CAF5">$pid</span><span style="color:#9ECE6A">/status</span><span style="color:#89DDFF"> 2></span><span style="color:#9ECE6A">/dev/null</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> awk</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">{print $2}</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">)</span></span>
+<span class="line"><span style="color:#0DB9D7">    echo</span><span style="color:#89DDFF"> "</span><span style="color:#C0CAF5">$rss</span><span style="color:#C0CAF5"> $pid</span><span style="color:#C0CAF5"> $name</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#BB9AF7">done</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> sort</span><span style="color:#E0AF68"> -rn</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> head</span><span style="color:#E0AF68"> -5</span></span>
+<span class="line"></span></code></pre>
+<h3 id="debug-a-segfaulting-process">Debug a segfaulting process</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Find a stuck/hanging process</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/[pid]/wchan</span><span style="color:#51597D;font-style:italic">   # What kernel function it's sleeping in</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/[pid]/stack</span><span style="color:#51597D;font-style:italic">   # Full kernel stack trace</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/[pid]/syscall</span><span style="color:#51597D;font-style:italic"> # Current syscall number and args</span></span>
+<span class="line"></span></code></pre>
+<h3 id="check-if-a-process-is-leaking-file-descriptors">Check if a process is leaking file descriptors</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">ls</span><span style="color:#9ECE6A"> /proc/[pid]/fd</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> wc</span><span style="color:#E0AF68"> -l</span><span style="color:#51597D;font-style:italic">    # Count open FDs</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Compare to /proc/[pid]/limits (Max open files)</span></span>
+<span class="line"></span></code></pre>
+<h2 id="security-considerations">Security Considerations</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>What</th><th>Who Can Read</th></tr></thead><tbody><tr><td><code>/proc/[pid]/cmdline</code></td><td>Owner or root</td></tr><tr><td><code>/proc/[pid]/environ</code></td><td>Owner or root</td></tr><tr><td><code>/proc/[pid]/maps</code>, <code>smaps</code></td><td>Owner or root</td></tr><tr><td><code>/proc/[pid]/fd/*</code></td><td>Owner or root (with <code>ptrace</code> restrictions)</td></tr><tr><td><code>/proc/[pid]/status</code> (UID/Gid)</td><td>Anyone (but no actual env or memory)</td></tr><tr><td><code>/proc/meminfo</code>, <code>/proc/cpuinfo</code></td><td>Anyone</td></tr><tr><td><code>/proc/net/*</code></td><td>Configured by <code>net.ipv4.ip_local_port_range</code>, etc.</td></tr></tbody></table>
+<p><strong>ptrace scope:</strong> Since Linux 4.5, non-root processes cannot <code>ptrace</code> other processes unless they have <code>CAP_SYS_PTRACE</code> or <code>/proc/sys/kernel/yama/ptrace_scope</code> is set to 0. This limits some debugging capabilities by default.</p>
+<h2 id="further-reading">Further Reading</h2>
+<ul>
+<li><code>man proc</code> — The official reference for <code>/proc</code> filesystem entries</li>
+<li><code>man 5 proc</code> — Kernel source documentation (<code>Documentation/filesystems/proc.txt</code>)</li>
+<li><code>/proc/sys/</code> entries — Kernel tunable parameters, documented in <code>man sysctl</code></li>
+<li><code>strace</code> source — See how it uses <code>/proc/[pid]/syscall</code> for syscall interception</li>
+<li>BPF Tools (<code>bpftrace</code>, <code>bcc</code>) — Modern eBPF-based tools that read <code>/proc</code> efficiently at scale</li>
+</ul>
+<p>The <code>/proc</code> filesystem is the foundation of Linux observability. Every monitoring tool, container runtime, and container orchestrator depends on it. Now you know what’s actually happening when you run <code>ps</code> or <code>top</code>.</p>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/ebpf-linux-observability-framework" data-astro-cid-gjtny2mx>eBPF: Linux&#39;s Most Powerful Observation Framework</a> <p data-astro-cid-gjtny2mx>What eBPF is, how it works, why it matters compared to kernel modules, and practical tools like bpftrace, tcpdump -B, and execsnoop.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/gdb-debugging-core-dumps-live-processes" data-astro-cid-gjtny2mx>GDB Debugging: From Core Dumps to Live Processes</a> <p data-astro-cid-gjtny2mx>Master GDB for debugging C/C++ programs — set breakpoints, inspect memory, analyze core dumps, and attach to live processes for production debugging.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/strace-debugging-linux-system-calls" data-astro-cid-gjtny2mx>strace: Debugging Linux System Calls Like a Pro</a> <p data-astro-cid-gjtny2mx>Learn how strace works under the hood, how to read its output, and how to debug real-world Linux problems with it.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Linux /proc Filesystem: A Deep Dive into Process Information","description":"Explore the Linux /proc filesystem to monitor processes, inspect memory, CPU info, and understand how tools like ps and top read kernel data.","datePublished":"2026-05-04T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/linux-proc-filesystem-deep-dive"},"keywords":"linux, proc, systems-programming, observability, debugging","articleSection":"linux","about":[{"@type":"Thing","name":"linux"},{"@type":"Thing","name":"proc"},{"@type":"Thing","name":"systems-programming"},{"@type":"Thing","name":"observability"},{"@type":"Thing","name":"debugging"}]}</script> 
