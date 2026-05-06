@@ -1,0 +1,411 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Complete strace reference with examples for every common syscall, must-know flags like -e, -c, -f, and advanced techniques like following forks and tracing attached processes."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>strace Cheat Sheet: Every Syscall, Flag, and Trick You Need</title><meta property="og:title" content="strace Cheat Sheet: Every Syscall, Flag, and Trick You Need"><meta property="og:description" content="Complete strace reference with examples for every common syscall, must-know flags like -e, -c, -f, and advanced techniques like following forks and tracing attached processes."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/strace-cheat-sheet"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="strace Cheat Sheet: Every Syscall, Flag, and Trick You Need"><meta name="twitter:description" content="Complete strace reference with examples for every common syscall, must-know flags like -e, -c, -f, and advanced techniques like following forks and tracing attached processes."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/strace-cheat-sheet"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>strace Cheat Sheet: Every Syscall, Flag, and Trick You Need</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-05T00:00:00.000Z" data-astro-cid-gjtny2mx>May 4, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>10 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>linux</span><span class="tag" data-astro-cid-gjtny2mx>strace</span><span class="tag" data-astro-cid-gjtny2mx>debugging</span><span class="tag" data-astro-cid-gjtny2mx>system-calls</span><span class="tag" data-astro-cid-gjtny2mx>cheat-sheet</span><span class="tag" data-astro-cid-gjtny2mx>troubleshooting</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p><code>strace</code> is the first tool to reach for when a Linux program misbehaves. It intercepts every system call, letting you see exactly what a program asks of the kernel and what the kernel sends back. This is a dense, complete reference — everything you need in one place.</p>
+<!-- more -->
+<h2 id="installation">Installation</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Debian/Ubuntu</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> apt</span><span style="color:#9ECE6A"> install</span><span style="color:#9ECE6A"> strace</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># RHEL/CentOS/Fedora</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> dnf</span><span style="color:#9ECE6A"> install</span><span style="color:#9ECE6A"> strace</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Alpine</span></span>
+<span class="line"><span style="color:#C0CAF5">apk</span><span style="color:#9ECE6A"> add</span><span style="color:#9ECE6A"> strace</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># macOS (limited — uses DTrace instead)</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> dtrace</span><span style="color:#E0AF68"> -p</span><span style="color:#9ECE6A"> PID</span><span style="color:#51597D;font-style:italic">   # native macOS alternative</span></span>
+<span class="line"></span></code></pre>
+<h2 id="basic-syntax">Basic Syntax</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#A9B1D6"> [options] </span><span style="color:#89DDFF">&#x3C;</span><span style="color:#A9B1D6">command</span><span style="color:#89DDFF">></span><span style="color:#51597D;font-style:italic">           # Trace a new process</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -p</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">PI</span><span style="color:#A9B1D6">D</span><span style="color:#89DDFF">></span><span style="color:#A9B1D6"> [options]           </span><span style="color:#51597D;font-style:italic"># Attach to running process</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -p</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">PI</span><span style="color:#A9B1D6">D</span><span style="color:#89DDFF">></span><span style="color:#E0AF68"> -p</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">PID</span><span style="color:#89DDFF">2></span><span style="color:#51597D;font-style:italic">           # Trace multiple processes</span></span>
+<span class="line"></span></code></pre>
+<p>Output format: <code>syscall(arg1, arg2, ...) = result</code> or <code>syscall(...) = -1 ERRNO (message)</code>.</p>
+<hr>
+<h2 id="process-attachment">Process Attachment</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Attach to a running process by PID</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Attach to multiple PIDs</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12346</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12347</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Trace a new process with args</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> ./my_program</span><span style="color:#E0AF68"> --config</span><span style="color:#9ECE6A"> /etc/app.conf</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Kill the traced process on strace exit (default: process continues)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -b</span><span style="color:#9ECE6A"> kill</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Detach without killing (default behavior)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span></span>
+<span class="line"></span></code></pre>
+<hr>
+<h2 id="syscall-filtering-with--e">Syscall Filtering with <code>-e</code></h2>
+<p>This is the most important flag. Don’t trace everything — filter to what matters.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Trace specific syscalls (comma-separated)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=open,openat,read,write,close</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Trace by category</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=file</span><span style="color:#51597D;font-style:italic">          # File I/O: open, read, write, close, stat, etc.</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=network</span><span style="color:#51597D;font-style:italic">       # Network: socket, connect, accept, send, recv, etc.</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=signal</span><span style="color:#51597D;font-style:italic">        # Signals: kill, sigaction, signal, etc.</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=process</span><span style="color:#51597D;font-style:italic">       # Process: fork, clone, execve, wait, exit, etc.</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=ipc</span><span style="color:#51597D;font-style:italic">           # IPC: msgget, msgsnd, msgrcv, semget, etc.</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=desc</span><span style="color:#51597D;font-style:italic">          # All file descriptor ops (read, write, open, close, etc.)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=memory</span><span style="color:#51597D;font-style:italic">        # mmap, mprotect, munmap, brk, etc.</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Trace everything EXCEPT certain syscalls</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=</span><span style="color:#89DDFF">\!</span><span style="color:#9ECE6A">inotify_init,inotify_add_watch</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Trace by syscall name (alternative syntax)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=write</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Use a regex pattern (newer strace versions)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=/poll,select,epoll_</span><span style="color:#F7768E">*</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span></code></pre>
+<h3 id="real-example--find-which-config-file-a-program-reads">Real example — find which config file a program reads:</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=open,openat</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#89DDFF"> 2>&#x26;1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">\.conf</span><span style="color:#89DDFF">'</span></span>
+<span class="line"><span style="color:#C0CAF5">openat(AT_FDCWD,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">/etc/myapp/config.conf</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">,</span><span style="color:#9ECE6A"> O_RDONLY</span><span style="color:#A9B1D6">) = 3</span></span>
+<span class="line"><span style="color:#C0CAF5">openat(AT_FDCWD,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">/home/user/.myapprc</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">,</span><span style="color:#9ECE6A"> O_RDONLY</span><span style="color:#A9B1D6">) = -1 ENOENT (</span><span style="color:#C0CAF5">No</span><span style="color:#9ECE6A"> such</span><span style="color:#9ECE6A"> file</span><span style="color:#9ECE6A"> or</span><span style="color:#9ECE6A"> directory</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"></span></code></pre>
+<hr>
+<h2 id="counting-and-profiling-with--c">Counting and Profiling with <code>-c</code></h2>
+<p>Summary of syscalls made, sorted by time or call count.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Count syscalls, show time spent</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -c</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Count only, suppress per-call output</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -c</span><span style="color:#E0AF68"> -q</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show syscalls + summary (print both trace and counts)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -c</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#89DDFF"> 2>&#x26;1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> tail</span><span style="color:#E0AF68"> -20</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Example output:</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>$ strace -c find /usr -name "*.conf" 2>&#x26;1</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>% time     seconds  usecs/call     calls    errors syscall</span></span>
+<span class="line"><span>------ ----------- ----------- --------- --------- ------------------</span></span>
+<span class="line"><span> 38.21    0.000298           1       412           getdents64</span></span>
+<span class="line"><span> 21.55    0.000169           0      2410           newfstatat</span></span>
+<span class="line"><span> 15.80    0.000124           0       410      195 openat</span></span>
+<span class="line"><span> 12.37    0.000097           0       412           close</span></span>
+<span class="line"><span>  6.87    0.000054           0       778           read</span></span>
+<span class="line"><span>  2.94    0.000023           0       128           write</span></span>
+<span class="line"><span>  1.26    0.000010           0        14            mprotect</span></span>
+<span class="line"><span>  1.00    0.000008           2         4            getdents</span></span>
+<span class="line"><span>------ ----------- ----------- ----------- --------- ------------------</span></span>
+<span class="line"><span>total             0.000780                 4568      195 total</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Interpretation:</strong> <code>getdents64</code> dominates — this <code>find</code> is doing heavy directory traversal. 195 <code>openat</code> calls returned errors (likely permission denied on <code>/proc</code> or similar). This is your optimization target.</p>
+<hr>
+<h2 id="following-child-processes-with--f-and--ff">Following Child Processes with <code>-f</code> and <code>-ff</code></h2>
+<p>By default, strace only traces the main thread. Multi-process programs need <code>-f</code>.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Follow forks/clones</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> ./mydaemon</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Follow and write separate files per PID</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -ff</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> /tmp/trace</span><span style="color:#9ECE6A"> ./mydaemon</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Creates: trace.12345, trace.12346, ...</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Combine -f and -c for a count across all children</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -fc</span><span style="color:#9ECE6A"> ./mydaemon</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Follow with verbose fork info</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -v</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> ./mydaemon</span></span>
+<span class="line"></span></code></pre>
+<h3 id="real-example--trace-a-forking-server">Real example — trace a forking server:</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> strace</span><span style="color:#E0AF68"> -f</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=clone,execve</span><span style="color:#E0AF68"> -p</span><span style="color:#89DDFF"> $(</span><span style="color:#C0CAF5">pgrep</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> myserver</span><span style="color:#89DDFF">)</span><span style="color:#89DDFF"> 2>&#x26;1</span></span>
+<span class="line"><span style="color:#89DDFF">[</span><span style="color:#A9B1D6">pid 23789</span><span style="color:#89DDFF">]</span><span style="color:#A9B1D6"> clone(</span><span style="color:#C0CAF5">child_stack</span><span style="color:#89DDFF">=</span><span style="color:#9ECE6A">0x7f9a4d4a2000,</span><span style="color:#C0CAF5"> flags</span><span style="color:#89DDFF">=</span><span style="color:#9ECE6A">CLONE_VM</span><span style="color:#89DDFF">|</span><span style="color:#C0CAF5">CLONE_FS</span><span style="color:#89DDFF">|</span><span style="color:#C0CAF5">CLONE_SIG...</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#9ECE6A">             =</span><span style="color:#FF9E64"> 23790</span></span>
+<span class="line"><span style="color:#89DDFF">[</span><span style="color:#A9B1D6">pid 23790</span><span style="color:#89DDFF">]</span><span style="color:#A9B1D6"> execve(</span><span style="color:#C0CAF5">"/usr/sbin/myserver-worker"</span><span style="color:#C0CAF5">,</span><span style="color:#A9B1D6"> [</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">myserver-worker</span><span style="color:#89DDFF">"</span><span style="color:#A9B1D6">, </span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">--pool=2</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">],</span><span style="color:#9ECE6A"> ...</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#9ECE6A">             =</span><span style="color:#FF9E64"> 0</span></span>
+<span class="line"></span></code></pre>
+<hr>
+<h2 id="output-format-flags">Output Format Flags</h2>
+<h3 id="timestamps">Timestamps</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Relative time since previous call (microsecond precision)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -r</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Absolute timestamp per line</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -t</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Timestamp with microseconds</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -tt</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Timestamp with seconds since epoch</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -T</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Example output with <code>-tt</code>:</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>10:23:45.123456 write(1, "Starting up\n", 13)   = 13</span></span>
+<span class="line"><span>10:23:45.124102 open("/etc/app.conf", O_RDONLY) = 3</span></span>
+<span class="line"><span>10:23:45.124891 read(3, "[config]\ntimeout=30\n"..., 512) = 47</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="color-and-readable-strings">Color and Readable Strings</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Colorize output (auto-detects TTY)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -y</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Print pathnames for file descriptors</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -y</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Suppress the "Syscall entered/exited" prefix noise</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#51597D;font-style:italic">          # Show instruction pointer</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -n</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#51597D;font-style:italic">          # Indent continuation lines</span></span>
+<span class="line"></span></code></pre>
+<h3 id="string-printing">String Printing</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Decode errno names to human-readable strings</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=none</span><span style="color:#E0AF68"> -r</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#51597D;font-style:italic">   # Show only timing</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Force string decoding for unknown fd types</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -s</span><span style="color:#FF9E64"> 1024</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#51597D;font-style:italic">   # Truncate strings at 1024 chars (default: 32)</span></span>
+<span class="line"></span></code></pre>
+<h3 id="qualified-output-qualification">Qualified Output Qualification</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Print the calling instruction pointer</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show verbose output for ambiguous structures</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -v</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show raw syscall numbers (useful for debugging strace itself)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -P</span><span style="color:#9ECE6A"> /path/to/file</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#51597D;font-style:italic">   # Only trace calls accessing this path</span></span>
+<span class="line"></span></code></pre>
+<hr>
+<h2 id="following-specific-file-descriptors">Following Specific File Descriptors</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Trace only interactions with a specific file descriptor</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=read,write</span><span style="color:#E0AF68"> -P</span><span style="color:#FF9E64"> 3</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Trace only calls touching a specific file or directory</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -P</span><span style="color:#9ECE6A"> /etc/passwd</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Trace multiple paths</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -P</span><span style="color:#9ECE6A"> /etc/passwd</span><span style="color:#E0AF68"> -P</span><span style="color:#9ECE6A"> /var/log/app.log</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=openat</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span></code></pre>
+<p>Real example — see what a process reads from stdin (fd 0):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=read</span><span style="color:#E0AF68"> -P</span><span style="color:#FF9E64"> 0</span><span style="color:#E0AF68"> -p</span><span style="color:#FF9E64"> 12345</span><span style="color:#89DDFF"> 2>&#x26;1</span></span>
+<span class="line"><span style="color:#0DB9D7">read</span><span style="color:#A9B1D6">(</span><span style="color:#9ECE6A">0,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">SELECT * FROM users\n</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">,</span><span style="color:#FF9E64"> 1024</span><span style="color:#A9B1D6">) = 23</span></span>
+<span class="line"></span></code></pre>
+<hr>
+<h2 id="timing-analysis">Timing Analysis</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Relative timestamps (time since last call) — best for finding latency</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -r</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Wall-clock timestamps</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -t</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Syscall duration (shown in angle brackets after each line)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -T</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Combined: timestamps + duration</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -ttT</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Example with <code>-T</code> (duration):</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>openat(AT_FDCWD, "/etc/app.conf", O_RDONLY) = 3 &#x3C;0.000041></span></span>
+<span class="line"><span>read(3, "[config]\nhost=localhost\n", 512) = 47 &#x3C;0.000012></span></span>
+<span class="line"><span>write(1, "Config loaded OK\n", 16) = 16 &#x3C;0.000008></span></span>
+<span class="line"><span></span></span></code></pre>
+<p>That <code>0.000041</code> on the <code>openat</code> is how long the call took. Find the outliers and you’ve found your latency.</p>
+<hr>
+<h2 id="filtering-by-result-error-detection">Filtering by Result (Error Detection)</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Show only failed calls (any non-zero or negative result)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -z</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#51597D;font-style:italic">          # Only calls with return = 0</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -Z</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#51597D;font-style:italic">          # Only calls with return != 0 (errors)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Equivalent manual filter</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#89DDFF"> 2>&#x26;1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">= -1</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show failed calls of specific types</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -Z</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=open,openat</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Count only failed calls</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -c</span><span style="color:#E0AF68"> -Z</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=open,openat</span><span style="color:#9ECE6A"> ./myapp</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Real example — find all “permission denied” errors:</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=open,openat,access</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#89DDFF"> 2>&#x26;1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#E0AF68"> -E</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">EACCES|Permission denied</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">openat(AT_FDCWD,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">/root/.myapp.conf</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">,</span><span style="color:#9ECE6A"> O_RDONLY</span><span style="color:#A9B1D6">) = -1 EACCES (</span><span style="color:#C0CAF5">Permission</span><span style="color:#9ECE6A"> denied</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#C0CAF5">access(</span><span style="color:#C0CAF5">"/etc/shadow"</span><span style="color:#C0CAF5">,</span><span style="color:#9ECE6A"> R_OK</span><span style="color:#A9B1D6">)                       = -1 EACCES (</span><span style="color:#C0CAF5">Permission</span><span style="color:#9ECE6A"> denied</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"></span></code></pre>
+<hr>
+<h2 id="interpreting-common-syscalls">Interpreting Common Syscalls</h2>
+<h3 id="file-operations">File Operations</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#7AA2F7">openat</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">/path</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> flags</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> mode</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6"> → fd</span><span style="color:#51597D;font-style:italic">        // fd: file descriptor or AT_FDCWD</span></span>
+<span class="line"><span style="color:#7AA2F7">read</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> buf</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> count</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">          → bytes_read</span><span style="color:#51597D;font-style:italic">  // returns 0 on EOF</span></span>
+<span class="line"><span style="color:#7AA2F7">write</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> buf</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> count</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">         → bytes_written</span></span>
+<span class="line"><span style="color:#7AA2F7">close</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">                      → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"><span style="color:#7AA2F7">newfstatat</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> path</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> stats</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">   → </span><span style="color:#FF9E64">0</span><span style="color:#51597D;font-style:italic">            // stat() replacement; fd=AT_FDCWD for absolute</span></span>
+<span class="line"><span style="color:#7AA2F7">getdents64</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> dirp</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> count</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">   → bytes_read</span><span style="color:#51597D;font-style:italic">  // read directory entries</span></span>
+<span class="line"><span style="color:#7AA2F7">lseek</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> offset</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> whence</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">     → new_offset</span></span>
+<span class="line"></span></code></pre>
+<h3 id="process-creation">Process Creation</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#7AA2F7">clone</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">flags</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> child_stack</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> ...</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">        → pid</span><span style="color:#51597D;font-style:italic">      // fork replacement; check flags for threads</span></span>
+<span class="line"><span style="color:#7AA2F7">fork</span><span style="color:#9ABDF5">()</span><span style="color:#A9B1D6">                               → pid</span></span>
+<span class="line"><span style="color:#7AA2F7">vfork</span><span style="color:#9ABDF5">()</span><span style="color:#A9B1D6">                              → pid</span></span>
+<span class="line"><span style="color:#7AA2F7">execve</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">path</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> argv</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> envp</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">             → </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64">1</span><span style="color:#51597D;font-style:italic">        // never returns on success</span></span>
+<span class="line"><span style="color:#7AA2F7">wait4</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">pid</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> status</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> options</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> rusage</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">   → pid</span><span style="color:#51597D;font-style:italic">       // wait for child</span></span>
+<span class="line"><span style="color:#7AA2F7">exit_group</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">status</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">                   → </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64">1</span><span style="color:#51597D;font-style:italic">        // terminate all threads</span></span>
+<span class="line"></span></code></pre>
+<h3 id="memory-operations">Memory Operations</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#7AA2F7">mmap</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">addr</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> length</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> prot</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> flags</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> offset</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">  → addr</span></span>
+<span class="line"><span style="color:#7AA2F7">mprotect</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">addr</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> length</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> prot</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">                → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"><span style="color:#7AA2F7">munmap</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">addr</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> length</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">                        → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"><span style="color:#7AA2F7">brk</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">addr</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">                                  → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"><span style="color:#7AA2F7">madvise</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">addr</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> length</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> advice</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">              → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"></span></code></pre>
+<h3 id="network-operations">Network Operations</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#7AA2F7">socket</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">domain</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> type</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> protocol</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">       → fd</span><span style="color:#51597D;font-style:italic">     // domain: AF_INET, AF_UNIX; type: SOCK_STREAM, SOCK_DGRAM</span></span>
+<span class="line"><span style="color:#7AA2F7">bind</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> addr</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> addrlen</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">              → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"><span style="color:#7AA2F7">listen</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> backlog</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">                  → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"><span style="color:#7AA2F7">accept</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> addr</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> addrlen</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">           → client_fd</span></span>
+<span class="line"><span style="color:#7AA2F7">connect</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> addr</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> addrlen</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">          → </span><span style="color:#FF9E64">0</span><span style="color:#A9B1D6"> or </span><span style="color:#89DDFF">-</span><span style="color:#FF9E64">1</span><span style="color:#9ABDF5"> (</span><span style="color:#A9B1D6">non</span><span style="color:#89DDFF">-</span><span style="color:#A9B1D6">blocking may </span><span style="color:#BB9AF7">return</span><span style="color:#A9B1D6"> EINPROGRESS</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#7AA2F7">sendto</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> buf</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> len</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> flags</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> dest</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> addrlen</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">   → bytes_sent</span></span>
+<span class="line"><span style="color:#7AA2F7">recvfrom</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> buf</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> len</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> flags</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> src</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> addrlen</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6"> → bytes_received</span></span>
+<span class="line"><span style="color:#7AA2F7">shutdown</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> how</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">                   → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"></span></code></pre>
+<h3 id="signal-operations">Signal Operations</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#7AA2F7">rt_sigaction</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">signum</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> act</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> oldact</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> sigsetsize</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6"> → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"><span style="color:#7AA2F7">kill</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">pid</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> sig</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">                     → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"><span style="color:#7AA2F7">sigaltstack</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">ss</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> old_ss</span><span style="color:#9ABDF5">)</span><span style="color:#A9B1D6">           → </span><span style="color:#FF9E64">0</span></span>
+<span class="line"></span></code></pre>
+<hr>
+<h2 id="debugging-scenarios">Debugging Scenarios</h2>
+<h3 id="a-program-hangs">A Program Hangs</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Find what's blocking — attach and filter to network + file</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -p</span><span style="color:#9ECE6A"> PID</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=network,file,desc</span><span style="color:#E0AF68"> -r</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Or trace all and look for the last call before silence</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -p</span><span style="color:#9ECE6A"> PID</span><span style="color:#E0AF68"> -f</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Press Ctrl-C after a few seconds — the last line is your hang point</span></span>
+<span class="line"></span></code></pre>
+<h3 id="permission-denied-errors">Permission Denied Errors</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=open,openat,access,stat,statx</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#89DDFF"> 2>&#x26;1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#E0AF68"> -E</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">EACCES|Permission denied</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span></code></pre>
+<h3 id="file-descriptor-leaks">File Descriptor Leaks</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -c</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=open,openat,close</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> ./myapp</span><span style="color:#89DDFF"> 2>&#x26;1</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># If opens >> closes, you have a leak</span></span>
+<span class="line"></span></code></pre>
+<h3 id="too-many-open-files-errors">”Too Many Open Files” Errors</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=open,openat,socket,accept,pipe</span><span style="color:#E0AF68"> -f</span><span style="color:#E0AF68"> -c</span><span style="color:#E0AF68"> -p</span><span style="color:#9ECE6A"> PID</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Check if FDs are accumulating without being closed</span></span>
+<span class="line"></span></code></pre>
+<h3 id="reverse-engineering-an-unknown-binary">Reverse-Engineering an Unknown Binary</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Full trace with timestamps → file</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -f</span><span style="color:#E0AF68"> -t</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> /tmp/strace.log</span><span style="color:#9ECE6A"> ./unknown_binary</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Look for interesting patterns</span></span>
+<span class="line"><span style="color:#C0CAF5">grep</span><span style="color:#E0AF68"> -E</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">execve| socket\(2,</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A"> /tmp/strace.log</span><span style="color:#51597D;font-style:italic">       # what's it running / who is it talking to?</span></span>
+<span class="line"><span style="color:#C0CAF5">grep</span><span style="color:#E0AF68"> -E</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">connect\(2[3-9]</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A"> /tmp/strace.log</span><span style="color:#51597D;font-style:italic">          # connect to IPs 23-29 (hint: IRC bots)</span></span>
+<span class="line"><span style="color:#C0CAF5">grep</span><span style="color:#E0AF68"> -E</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">^  open.*\/etc\/</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A"> /tmp/strace.log</span><span style="color:#51597D;font-style:italic">          # what config files does it read?</span></span>
+<span class="line"></span></code></pre>
+<h3 id="debugging-shared-library-loads">Debugging Shared Library Loads</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Not strace, but often used alongside it</span></span>
+<span class="line"><span style="color:#C0CAF5">LD_DEBUG</span><span style="color:#89DDFF">=</span><span style="color:#9ECE6A">libs</span><span style="color:#C0CAF5"> ./myapp</span><span style="color:#89DDFF"> 2>&#x26;1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> head</span><span style="color:#E0AF68"> -30</span></span>
+<span class="line"><span style="color:#C0CAF5">LD_DEBUG</span><span style="color:#89DDFF">=</span><span style="color:#9ECE6A">bindings</span><span style="color:#C0CAF5"> ./myapp</span><span style="color:#89DDFF"> 2>&#x26;1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">symbol not found</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span></code></pre>
+<h3 id="slow-system-calls-in-production">Slow System Calls in Production</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Attach with timing, filter to slow calls (>1ms shown as flagged)</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -T</span><span style="color:#E0AF68"> -f</span><span style="color:#E0AF68"> -p</span><span style="color:#9ECE6A"> PID</span><span style="color:#89DDFF"> 2>&#x26;1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#E0AF68"> -v</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A"> &#x3C;0.0001></span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Or pipe to a file and analyze</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -T</span><span style="color:#E0AF68"> -f</span><span style="color:#E0AF68"> -p</span><span style="color:#9ECE6A"> PID</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> /tmp/slow_calls.log</span></span>
+<span class="line"></span></code></pre>
+<hr>
+<h2 id="performance-impact-and-best-practices">Performance Impact and Best Practices</h2>
+<p><code>strace</code> adds significant overhead — every syscall becomes two context switches (enter + exit). A program making 10 million calls might run 5–10x slower under strace.</p>
+<p><strong>Rules of thumb:</strong></p>
+<ul>
+<li>Use <code>-c</code> first to summarize before detailed tracing</li>
+<li>Filter with <code>-e trace=</code> to the minimum needed syscalls</li>
+<li>Attach to running processes with <code>-p</code> for production debugging</li>
+<li>For continuous low-overhead tracing in production, use eBPF tools instead</li>
+</ul>
+<hr>
+<h2 id="quick-reference-card">Quick Reference Card</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Flag</th><th>What it does</th></tr></thead><tbody><tr><td><code>-e trace=syscall,..</code></td><td>Filter to specific syscalls</td></tr><tr><td><code>-e trace=file|network|signal|process</code></td><td>Filter by category</td></tr><tr><td><code>-e trace=\!syscall</code></td><td>Exclude syscall</td></tr><tr><td><code>-c</code></td><td>Count syscalls and time</td></tr><tr><td><code>-f</code></td><td>Follow child processes</td></tr><tr><td><code>-ff</code></td><td>Follow, write separate files</td></tr><tr><td><code>-p PID</code></td><td>Attach to running process</td></tr><tr><td><code>-r</code></td><td>Relative timestamps</td></tr><tr><td><code>-t</code></td><td>Absolute timestamps</td></tr><tr><td><code>-T</code></td><td>Show call duration</td></tr><tr><td><code>-i</code></td><td>Print instruction pointer</td></tr><tr><td><code>-s N</code></td><td>String print length (default 32)</td></tr><tr><td><code>-o file</code></td><td>Write output to file</td></tr><tr><td><code>-P path</code></td><td>Only trace calls touching path</td></tr><tr><td><code>-y</code></td><td>Show fd pathnames</td></tr><tr><td><code>-z</code></td><td>Only zero-return calls</td></tr><tr><td><code>-Z</code></td><td>Only non-zero return calls</td></tr><tr><td><code>-v</code></td><td>Verbose (full structures)</td></tr><tr><td><code>-q</code></td><td>Quiet (suppress attach messages)</td></tr><tr><td><code>-b kill</code></td><td>Kill process on detach</td></tr></tbody></table>
+<hr>
+<p><code>strace</code> won’t tell you your logic is wrong, but it shows you exactly what your code asked the kernel to do. Master the filters (<code>-e</code>), learn <code>-f</code> for multi-process work, and always check <code>-c</code> before diving deep.</p>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/strace-debugging-linux-system-calls" data-astro-cid-gjtny2mx>strace: Debugging Linux System Calls Like a Pro</a> <p data-astro-cid-gjtny2mx>Learn how strace works under the hood, how to read its output, and how to debug real-world Linux problems with it.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/ebpf-linux-observability-framework" data-astro-cid-gjtny2mx>eBPF: Linux Observability That Will Change How You Debug</a> <p data-astro-cid-gjtny2mx>A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/gdb-debugging-core-dumps-live-processes" data-astro-cid-gjtny2mx>GDB Debugging: From Core Dumps to Live Processes</a> <p data-astro-cid-gjtny2mx>Master GDB for debugging C/C++ programs — set breakpoints, inspect memory, analyze core dumps, and attach to live processes for production debugging.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"strace Cheat Sheet: Every Syscall, Flag, and Trick You Need","description":"Complete strace reference with examples for every common syscall, must-know flags like -e, -c, -f, and advanced techniques like following forks and tracing attached processes.","datePublished":"2026-05-05T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/strace-cheat-sheet"},"keywords":"linux, strace, debugging, system-calls, cheat-sheet, troubleshooting","articleSection":"linux","about":[{"@type":"Thing","name":"linux"},{"@type":"Thing","name":"strace"},{"@type":"Thing","name":"debugging"},{"@type":"Thing","name":"system-calls"},{"@type":"Thing","name":"cheat-sheet"},{"@type":"Thing","name":"troubleshooting"}]}</script> 

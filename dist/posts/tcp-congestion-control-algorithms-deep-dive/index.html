@@ -1,0 +1,444 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A deep dive into TCP congestion control algorithms — Slow Start, AIMD, Reno, CUBIC, and BBR — with packet diagrams, ASCII charts, and Linux sysctl commands for practical tuning."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>TCP Congestion Control: How TCP Slow Start, AIMD, and BBR Actually Work</title><meta property="og:title" content="TCP Congestion Control: How TCP Slow Start, AIMD, and BBR Actually Work"><meta property="og:description" content="A deep dive into TCP congestion control algorithms — Slow Start, AIMD, Reno, CUBIC, and BBR — with packet diagrams, ASCII charts, and Linux sysctl commands for practical tuning."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/tcp-congestion-control-algorithms-deep-dive"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="TCP Congestion Control: How TCP Slow Start, AIMD, and BBR Actually Work"><meta name="twitter:description" content="A deep dive into TCP congestion control algorithms — Slow Start, AIMD, Reno, CUBIC, and BBR — with packet diagrams, ASCII charts, and Linux sysctl commands for practical tuning."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/tcp-congestion-control-algorithms-deep-dive"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>TCP Congestion Control: How TCP Slow Start, AIMD, and BBR Actually Work</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-04T00:00:00.000Z" data-astro-cid-gjtny2mx>May 3, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>15 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>networking</span><span class="tag" data-astro-cid-gjtny2mx>tcp</span><span class="tag" data-astro-cid-gjtny2mx>congestion-control</span><span class="tag" data-astro-cid-gjtny2mx>performance</span><span class="tag" data-astro-cid-gjtny2mx>linux</span><span class="tag" data-astro-cid-gjtny2mx>kernel</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>TCP congestion control is the reason the internet doesn’t collapse under its own weight. Without it, every connection would greedily max out its bandwidth, causing packet losses that trigger even more retransmissions — a vicious cycle called <strong>congestion collapse</strong>. The 1986 internet collapse, where throughput dropped from 32 Kbps to 40 bps, was the wake-up call that led to the algorithms we rely on today.</p>
+<p>This post dissects every major congestion control algorithm with the depth needed to actually tune, debug, and reason about TCP performance in production systems.</p>
+<h2 id="the-congestion-collapse-problem">The Congestion Collapse Problem</h2>
+<p>Before congestion control, TCP simply sent as fast as possible and relied on retransmission timeouts to recover from loss. In a shared network, this creates a <strong>positive feedback loop</strong>:</p>
+<ol>
+<li>Router queues fill up → packets drop</li>
+<li>Senders retransmit lost packets</li>
+<li>More packets in the network → more drops</li>
+<li>Repeat until throughput approaches zero</li>
+</ol>
+<p>The fix required treating <strong>packet loss not as a random event, but as a signal</strong> — evidence that the network is overloaded and the sender needs to back off.</p>
+<h2 id="the-tcp-header-where-congestion-lives">The TCP Header: Where Congestion Lives</h2>
+<p>TCP’s header includes fields that carry congestion state between sender and receiver:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span> 0                   1                   2                   3</span></span>
+<span class="line"><span> 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|          Source Port          |        Destination Port       |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|                       Sequence Number                         |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|                   Acknowledgment Number                       |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>| Offset|  Flags     |               Window                      |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span>|           Checksum            |         Urgent Pointer        |</span></span>
+<span class="line"><span>+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Congestion-relevant fields:</strong></p>
+<ul>
+<li><strong>Sequence Number</strong> — Tracks the byte position of every segment; helps detect losses</li>
+<li><strong>ACK Number</strong> — Cumulative acknowledgment; tells the sender what was received</li>
+<li><strong>Window</strong> — The receive window (rwnd), advertised by the receiver to cap unacknowledged data</li>
+<li><strong>Flags</strong>: <code>ACK</code> (acknowledgment), <code>ECE</code> (ECN-Echo, signals network congestion), <code>CWR</code> (Congestion Window Reduced, confirms throttle)</li>
+</ul>
+<p>The congestion window (cwnd) is <strong>not in the TCP header</strong> — it’s a sender-side state variable maintained by the kernel. This is a critical point: only the sender knows cwnd. The receiver has no idea how aggressively the sender is transmitting.</p>
+<h2 id="slow-start-starting-fast-carefully">Slow Start: Starting Fast, Carefully</h2>
+<p>TCP slow start is the <strong>initial ramp-up phase</strong>. Despite the name, it’s anything but slow — it starts conservatively but accelerates exponentially.</p>
+<h3 id="how-it-works">How It Works</h3>
+<p>The sender begins with a small <strong>congestion window</strong> (cwnd) and <strong>slow start threshold</strong> (ssthresh):</p>
+<ul>
+<li><strong>Initial cwnd</strong>: Historically 1-3 segments (~4.5 KB). Modern Linux uses 10 segments (RFC 6928), ~14.6 KB</li>
+<li><strong>ssthresh</strong>: Starts at a very large value (65535 bytes by default in older kernels, effectively “infinity”)</li>
+</ul>
+<p>Each ACK received while in slow start <strong>increments cwnd by one segment</strong> (SMSS — Sender Maximum Segment Size). With delayed ACKs (receiver acknowledging every other segment), cwnd effectively <strong>doubles every RTT</strong>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>RTT 1: cwnd =  1 segment (  ~1.5 KB)</span></span>
+<span class="line"><span>RTT 2: cwnd =  2 segments (  ~3 KB)</span></span>
+<span class="line"><span>RTT 3: cwnd =  4 segments (  ~6 KB)</span></span>
+<span class="line"><span>RTT 4: cwnd =  8 segments (  ~12 KB)</span></span>
+<span class="line"><span>RTT 5: cwnd = 16 segments (  ~24 KB)</span></span>
+<span class="line"><span>...</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="slow-start-exit-conditions">Slow Start Exit Conditions</h3>
+<p>Slow start exits (and congestion avoidance begins) when:</p>
+<ol>
+<li><strong>cwnd >= ssthresh</strong> — The pipe is getting full; ease off</li>
+<li><strong>Loss detected</strong> — cwnd is reset to 1 segment, ssthresh set to cwnd/2</li>
+</ol>
+<h3 id="wireshark-sequence-diagram-slow-start">Wireshark Sequence Diagram: Slow Start</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Sender                                          Receiver</span></span>
+<span class="line"><span>   |                                                |</span></span>
+<span class="line"><span>   |---[SYN]------------------------------></span></span>
+<span class="line"><span>   |    cwnd=1, seq=0</span></span>
+<span class="line"><span>   |                                                |</span></span>
+<span class="line"><span>   |&#x3C;---[SYN-ACK, ack=1]---------------------------</span></span>
+<span class="line"><span>   |    win=65535</span></span>
+<span class="line"><span>   |                                                |</span></span>
+<span class="line"><span>   |---[ACK, seq=1, data=1-1460]-----------------></span></span>
+<span class="line"><span>   |    cwnd=2 (1 segment sent, 1 ACK pending)</span></span>
+<span class="line"><span>   |                                                |</span></span>
+<span class="line"><span>   |&#x3C;---[ACK, ack=1461]---------------------------</span></span>
+<span class="line"><span>   |    Delayed ACK: acknowledged every 2 segments</span></span>
+<span class="line"><span>   |                                                |</span></span>
+<span class="line"><span>   |---[ACK, seq=1461, data=1461-2920]---------></span></span>
+<span class="line"><span>   |---[ACK, seq=2921, data=2921-4380]---------></span></span>
+<span class="line"><span>   |    cwnd=4 (doubled on two ACKs)</span></span>
+<span class="line"><span>   |                                                |</span></span>
+<span class="line"><span>   |&#x3C;---[ACK, ack=4381]---------------------------</span></span>
+<span class="line"><span>   |    One ACK covers both segments (delayed ACK)</span></span>
+<span class="line"><span>   |                                                |</span></span>
+<span class="line"><span>   |---[ACK, seq=4381, data=4381-5840]---------></span></span>
+<span class="line"><span>   |---[ACK, seq=5841, data=5841-7300]---------></span></span>
+<span class="line"><span>   |---[ACK, seq=7301, data=7301-8760]---------></span></span>
+<span class="line"><span>   |---[ACK, seq=8761, data=8761-10220]-------></span></span>
+<span class="line"><span>   |    cwnd=8 (doubled on four ACKs)</span></span>
+<span class="line"><span>   |                                                |</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Slow start is aggressive early — doubling every RTT means it reaches gigabit-speed pipes in roughly 10-14 RTTs. But this growth is blind; it doesn’t know the network’s capacity until it causes a loss.</p>
+<h2 id="aimd-the-fairness-algorithm">AIMD: The Fairness Algorithm</h2>
+<p><strong>Additive Increase Multiplicative Decrease (AIMD)</strong> is the core control law underlying most congestion avoidance algorithms. It implements a <strong>distributed fair bandwidth allocation</strong> across competing flows.</p>
+<h3 id="the-algorithm">The Algorithm</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>On each RTT (congestion avoidance):</span></span>
+<span class="line"><span>    cwnd = cwnd + MSS * (MSS / cwnd)    // Additive increase: +1 MSS per RTT</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>On loss (detected by triple duplicate ACK):</span></span>
+<span class="line"><span>    ssthresh = cwnd / 2</span></span>
+<span class="line"><span>    cwnd = ssthresh                      // Multiplicative decrease: cut to half</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Or expressed as a sawtooth waveform:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>cwnd</span></span>
+<span class="line"><span>  ^</span></span>
+<span class="line"><span>  |              /‾‾‾‾‾‾‾‾‾‾‾\___________/‾‾‾‾‾‾‾\_____</span></span>
+<span class="line"><span>  |            /                 \           /</span></span>
+<span class="line"><span>  |           /                   \         /</span></span>
+<span class="line"><span>  |          /                     \       /</span></span>
+<span class="line"><span>  |         /                       \     /</span></span>
+<span class="line"><span>  |        /                         \   /</span></span>
+<span class="line"><span>  |-------/---------------------------\-/---------> time</span></span>
+<span class="line"><span>  |       ^loss        ^loss        ^loss</span></span>
+<span class="line"><span>  |</span></span>
+<span class="line"><span>  +------[cwnd segments]-------------></span></span>
+<span class="line"><span>          1    4    8   16   32   16   20   24   28   32 ...</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The <strong>additive increase</strong> probes for more bandwidth slowly. The <strong>multiplicative decrease</strong> backs off sharply when loss signals congestion. This combination converges to a <strong>fair share</strong> — two flows competing for the same link will eventually stabilize at equal bandwidth, regardless of their starting points.</p>
+<h3 id="why-aimd-is-stable">Why AIMD Is Stable</h3>
+<p>AIMD is provably stable. In a network with capacity C and N flows, AIMD converges to each flow getting C/N — even if all flows start with wildly different cwnd values. No central coordinator needed. This property is called <strong>convergence to fairness</strong> and is why TCP dominates the internet.</p>
+<h2 id="congestion-avoidance-reno-newreno-tahoe">Congestion Avoidance: Reno, NewReno, Tahoe</h2>
+<p>The original TCP (Tahoe) treated <strong>any loss</strong> as a signal to restart slow start. This was wasteful for <strong>single packet losses</strong> in a stream — recovering with a full slow start means sending at 1 segment and ramping back up, which can take hundreds of RTTs on high-bandwidth links.</p>
+<h3 id="tcp-reno-1989">TCP Reno (1989)</h3>
+<p>Reno introduced the <strong>fast recovery</strong> phase:</p>
+<ol>
+<li><strong>Fast retransmit</strong>: On 3 duplicate ACKs, retransmit the lost segment without waiting for timeout</li>
+<li><strong>Fast recovery</strong>: After fast retransmit, cut cwnd to ssthresh = cwnd/2, then increase by 1 MSS per duplicate ACK (partial ACK handling)</li>
+<li>Resume normal congestion avoidance on successful ACK of the retransmitted segment</li>
+</ol>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Normal transmission:</span></span>
+<span class="line"><span>  Segments sent: 1, 2, 3, 4, 5, 6, 7, 8 ...</span></span>
+<span class="line"><span>  Segment 4 lost</span></span>
+<span class="line"><span>  Receiver ACKs: ack=3, ack=3, ack=3 (3 duplicate ACKs for seq 3)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Fast retransmit triggered at 3rd duplicate ACK:</span></span>
+<span class="line"><span>  Retransmit segment 4</span></span>
+<span class="line"><span>  cwnd = ssthresh = cwnd/2  (e.g., 16 → 8 segments)</span></span>
+<span class="line"><span>  ssthresh = cwnd/2        (e.g., 8)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Fast recovery — partial ACKs:</span></span>
+<span class="line"><span>  Receiver ACKs: ack=5 (segments 4 and 5 received)</span></span>
+<span class="line"><span>  cwnd = cwnd - 1 + 1 = cwnd (stay at ssthresh)</span></span>
+<span class="line"><span>  Continue sending segment 9, 10 ...</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Final ACK of retransmitted range:</span></span>
+<span class="line"><span>  cwnd = ssthresh</span></span>
+<span class="line"><span>  Resume congestion avoidance</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="tcp-newreno-1996">TCP NewReno (1996)</h3>
+<p>Reno’s fast recovery had a problem: <strong>multiple packet losses in one window</strong>. If segments 4 and 7 were both lost, Reno would:</p>
+<ol>
+<li>Detect loss of segment 4, enter fast recovery</li>
+<li>Retransmit segment 4</li>
+<li>Receive partial ACK for segment 5, exit fast recovery prematurely</li>
+<li>Never retransmit segment 7 → stalled connection, waits for timeout</li>
+</ol>
+<p>NewReno fixes this by <strong>not exiting fast recovery until the cumulative ACK passes all outstanding segments</strong>. It tracks how many packets were lost and only exits when the ACK covers past the last lost segment.</p>
+<h3 id="tcp-tahoe-1988">TCP Tahoe (1988)</h3>
+<p>Tahoe predates Reno and doesn’t have fast recovery. Every loss (timeout or duplicate ACK) triggers <strong>full slow start</strong> from cwnd=1. It’s simpler but significantly underperforms Reno on lossy links with multiple streams.</p>
+<h2 id="cubic-the-modern-default">CUBIC: The Modern Default</h2>
+<p>CUBIC (used by Linux as the default since kernel 2.6.19) replaced Reno’s linear cwnd growth with a <strong>cubic function</strong> that scales better on high-bandwidth, high-RTT links — the “bufferbloat” era solution.</p>
+<h3 id="the-cubic-function">The CUBIC Function</h3>
+<p>CUBIC grows cwnd according to:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>W(t) = C * (t - K)³ + W_max</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Where:</span></span>
+<span class="line"><span>  t    = time elapsed since last congestion event</span></span>
+<span class="line"><span>  K    = time to reach W_max again = (W_max * β / C)^(1/3)</span></span>
+<span class="line"><span>  W_max = cwnd at last congestion event (before decrease)</span></span>
+<span class="line"><span>  β    = 0.7 (multiplicative decrease factor)</span></span>
+<span class="line"><span>  C    = 0.4 (scaling constant)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The cubic shape produces <strong>faster initial growth</strong> than Reno (aggressive probe), but <strong>plateaus near W_max</strong> (avoids overshooting), then <strong>accelerates again</strong> as it moves past the inflection point:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>cwnd</span></span>
+<span class="line"><span>  ^</span></span>
+<span class="line"><span>  |                    ****  &#x3C;-- cubic curve plateaus near W_max</span></span>
+<span class="line"><span>  |               ****     ****</span></span>
+<span class="line"><span>  |           ****             ****</span></span>
+<span class="line"><span>  |        ***                     ***</span></span>
+<span class="line"><span>  |      **                           **</span></span>
+<span class="line"><span>  |     *                               *</span></span>
+<span class="line"><span>  |    *                                 *</span></span>
+<span class="line"><span>  |---*-----------------------------------*-------> time</span></span>
+<span class="line"><span>  |   ^                                   ^</span></span>
+<span class="line"><span>  |   W_max                               W_max again</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="cubic-properties">CUBIC Properties</h3>
+<ul>
+<li><strong>High RTT fairness</strong>: CUBIC is designed so that flows with different RTTs get roughly equal bandwidth (unlike Reno, where higher-RTT flows get less)</li>
+<li><strong>Epoch boundary</strong>: Each RTT is an “epoch”; after an epoch boundary, cwnd growth is reset to match the cubic curve, preventing runaway growth</li>
+<li><strong>TCP-friendly mode</strong>: CUBIC includes a TCP-friendly region where its growth approximates Reno, ensuring compatibility</li>
+</ul>
+<h3 id="cubic-vs-reno-on-high-bandwidth-links">CUBIC vs Reno on High-Bandwidth Links</h3>
+<p>On a 10 Gbps link with 100ms RTT:</p>
+<ul>
+<li><strong>Reno</strong>: ~66,000 segments per RTT increase → takes ~1,500 RTTs to fill the pipe</li>
+<li><strong>CUBIC</strong>: Same throughput in ~15-20 RTTs due to cubic acceleration</li>
+</ul>
+<h2 id="bbr-googles-model-based-approach">BBR: Google’s Model-Based Approach</h2>
+<p>BBR (Bottleneck Bandwidth and RTT), released by Google in 2016, takes a fundamentally different approach from all the loss-based algorithms above.</p>
+<h3 id="the-problem-with-loss-based-control">The Problem with Loss-Based Control</h3>
+<p>Reno, CUBIC, and their variants all <strong>use packet loss as the signal of congestion</strong>. But loss is a <em>symptom</em>, not the cause. Networks start queueing packets long before they drop them. In the <strong>bufferbloat</strong> era (oversized router buffers), links can sustain full throughput while buffering gigabytes of data — causing latency spikes of seconds.</p>
+<p>BBR asks: <strong>What if we measured the actual bottleneck capacity and RTT directly, instead of inferring them from loss?</strong></p>
+<h3 id="the-bbr-state-machine">The BBR State Machine</h3>
+<p>BBR maintains two estimates:</p>
+<ul>
+<li><strong>BtlBw</strong> (Bottleneck Bandwidth): Estimated maximum throughput the path can sustain</li>
+<li><strong>RTprop</strong> (Round-Trip Propagation Time): Estimated minimum RTT observed over a window</li>
+</ul>
+<p>From these, BBR computes the <strong>optimal operating point</strong>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>BDP = BtlBw * RTprop   (bytes in flight to fully utilize the pipe)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>BBR cycles through states:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>         |</span></span>
+<span class="line"><span>    Probe     Probe</span></span>
+<span class="line"><span>    Down      Up</span></span>
+<span class="line"><span>    |    \    /    |</span></span>
+<span class="line"><span>    |     \  /     |</span></span>
+<span class="line"><span>    v      \/      v</span></span>
+<span class="line"><span>  +------+------+</span></span>
+<span class="line"><span>  |  DRAIN      |</span></span>
+<span class="line"><span>  | (drain ex-  |</span></span>
+<span class="line"><span>  |  cess queue)|</span></span>
+<span class="line"><span>  +------+------+</span></span>
+<span class="line"><span>         |</span></span>
+<span class="line"><span>    Startup</span></span>
+<span class="line"><span>    (double</span></span>
+<span class="line"><span>     BtlBw)</span></span>
+<span class="line"><span>         |</span></span>
+<span class="line"><span>         | BtlBw confirmed</span></span>
+<span class="line"><span>         v</span></span>
+<span class="line"><span>  +------+------+</span></span>
+<span class="line"><span>  | PROBE_BW    |  &#x3C;-- Steady state: cycle through 8 phases</span></span>
+<span class="line"><span>  +------+------+     pacing at BtlBw, periodically prob-</span></span>
+<span class="line"><span>         |           ing for higher BtlBw or lower RTprop</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Startup</strong>: Like slow start, doubles BtlBw estimate until 3 RTTs show no throughput increase — confirming the pipe is full.</p>
+<p><strong>Drain</strong>: Immediately afterStartup, BBR drains the excess queue built during the doubling phase by pacing at very low rate.</p>
+<p><strong>Probe BW</strong>: Steady state. BBR cycles through 8 pacing cycles:</p>
+<ul>
+<li>70% of time: pacing at <code>pacing_gain = 1.0</code> (sustaining)</li>
+<li>8% of time: <code>pacing_gain = 1.25</code> (probing for more bandwidth)</li>
+<li>8% of time: <code>pacing_gain = 0.75</code> (draining queue from bandwidth probe)</li>
+<li>Repeated with different phase offsets</li>
+</ul>
+<p><strong>Probe RTT</strong>: Every ~10 seconds (if no lower RTprop seen), BBR enters Probe RTT — reduces cwnd to 4 segments for one RTT to measure the true base RTT without queueing.</p>
+<h3 id="bbr-vs-cubic-key-differences">BBR vs CUBIC: Key Differences</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Property</th><th>CUBIC</th><th>BBR</th></tr></thead><tbody><tr><td>Signal</td><td>Packet loss</td><td>Measured BtlBw + RTprop</td></tr><tr><td>Queue behavior</td><td>Fills buffers (probing)</td><td>Actively drains queues</td></tr><tr><td>RTT fairness</td><td>Good (by design)</td><td>Excellent</td></tr><tr><td>Loss tolerance</td><td>Good</td><td>Degrades gracefully</td></tr><tr><td>Throughput on lossy links</td><td>Good (cwnd stays high)</td><td>May underperform</td></tr><tr><td>Deployment maturity</td><td>Mature (kernel default since 2006)</td><td>Maturing (since kernel 4.9)</td></tr></tbody></table>
+<h3 id="bbrs-controversy">BBR’s Controversy</h3>
+<p>BBR’s aggressive draining and pacing behavior caused concern in ISP networks — it doesn’t fill buffers, which some network devices rely on for traffic shaping. BBR v2 improved this with ECN cooperation and better fairness with cubic flows.</p>
+<h2 id="practical-tools-viewing-and-changing-congestion-control-on-linux">Practical Tools: Viewing and Changing Congestion Control on Linux</h2>
+<h3 id="checking-current-settings">Checking Current Settings</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># View current congestion control algorithm</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#9ECE6A"> net.ipv4.tcp_congestion_control</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># List all available algorithms (compiled into kernel)</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#9ECE6A"> net.ipv4.tcp_available_congestion_control</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show per-socket congestion control (for existing connections)</span></span>
+<span class="line"><span style="color:#C0CAF5">ss</span><span style="color:#E0AF68"> -i</span></span>
+<span class="line"></span></code></pre>
+<p>Output example:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>net.ipv4.tcp_congestion_control = cubic</span></span>
+<span class="line"><span>net.ipv4.tcp_available_congestion_control = reno cubic bbr</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="per-connection-control">Per-Connection Control</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Set algorithm for a specific socket (via ss)</span></span>
+<span class="line"><span style="color:#C0CAF5">ss</span><span style="color:#E0AF68"> -i</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">src 192.168.1.100:443</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Use iproute2 to set congestion control for a specific destination</span></span>
+<span class="line"><span style="color:#C0CAF5">ip</span><span style="color:#9ECE6A"> route</span><span style="color:#9ECE6A"> change</span><span style="color:#9ECE6A"> default</span><span style="color:#9ECE6A"> via</span><span style="color:#FF9E64"> 192.168.1.1</span><span style="color:#9ECE6A"> initcwnd</span><span style="color:#FF9E64"> 10</span><span style="color:#9ECE6A"> initrwnd</span><span style="color:#FF9E64"> 10</span></span>
+<span class="line"></span></code></pre>
+<h3 id="setting-system-wide-default">Setting System-Wide Default</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Temporary (resets on reboot)</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_congestion_control=bbr</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Permanent: add to /etc/sysctl.conf or /etc/sysctl.d/99-network.conf</span></span>
+<span class="line"><span style="color:#0DB9D7">echo</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">net.ipv4.tcp_congestion_control = bbr</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF"> >></span><span style="color:#9ECE6A"> /etc/sysctl.conf</span></span>
+<span class="line"><span style="color:#0DB9D7">echo</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">net.ipv4.tcp_congestion_control = cubic</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF"> >></span><span style="color:#9ECE6A"> /etc/sysctl.conf</span></span>
+<span class="line"></span></code></pre>
+<h3 id="key-sysctl-parameters">Key Sysctl Parameters</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Initial congestion window (RFC 6928 recommends 10)</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_initcwnd_scaling=</span><span style="color:#FF9E64">1</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Slow start after idle (disable for persistent connections)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 1 = restart slow start after idle (default), 0 = skip slow start</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_slow_start_after_idle=</span><span style="color:#FF9E64">0</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># TCP timestamps (helps with RTT measurement accuracy)</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_timestamps=</span><span style="color:#FF9E64">1</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Enable ECN for BBR (requires network support)</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_ecn=</span><span style="color:#FF9E64">1</span></span>
+<span class="line"></span></code></pre>
+<h3 id="viewing-connection-state-with-ss">Viewing Connection State with <code>ss</code></h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Show all TCP connections with congestion info</span></span>
+<span class="line"><span style="color:#C0CAF5">ss</span><span style="color:#E0AF68"> -ti</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Filter by state</span></span>
+<span class="line"><span style="color:#C0CAF5">ss</span><span style="color:#E0AF68"> -ti</span><span style="color:#9ECE6A"> state</span><span style="color:#9ECE6A"> established</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show bbr-related info for connections using BBR</span></span>
+<span class="line"><span style="color:#C0CAF5">ss</span><span style="color:#E0AF68"> -ti</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">( transparent )</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span></code></pre>
+<p>Example <code>ss -ti</code> output:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>ts sack ecn bbr wscale:7,7 rtt:0.5/1ms pacing_rate 10.6Mbps</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="using-ip-route-for-path-tuning">Using <code>ip route</code> for Path Tuning</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># View default route's current settings</span></span>
+<span class="line"><span style="color:#C0CAF5">ip</span><span style="color:#9ECE6A"> route</span><span style="color:#9ECE6A"> show</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Example output:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># default via 192.168.1.1 dev eth0 initcwnd 10 initrwnd 10</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Change initial congestion window and initial receive window for a route</span></span>
+<span class="line"><span style="color:#C0CAF5">ip</span><span style="color:#9ECE6A"> route</span><span style="color:#9ECE6A"> change</span><span style="color:#9ECE6A"> default</span><span style="color:#9ECE6A"> via</span><span style="color:#FF9E64"> 192.168.1.1</span><span style="color:#9ECE6A"> dev</span><span style="color:#9ECE6A"> eth0</span><span style="color:#9ECE6A"> initcwnd</span><span style="color:#FF9E64"> 14</span><span style="color:#9ECE6A"> initrwnd</span><span style="color:#FF9E64"> 14</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Query specific destination path properties</span></span>
+<span class="line"><span style="color:#C0CAF5">ip</span><span style="color:#9ECE6A"> route</span><span style="color:#9ECE6A"> get</span><span style="color:#9ECE6A"> to</span><span style="color:#FF9E64"> 8.8.8.8</span></span>
+<span class="line"></span></code></pre>
+<h2 id="tuning-for-specific-use-cases">Tuning for Specific Use Cases</h2>
+<h3 id="high-throughput-short-lived-connections-web-servers">High-Throughput Short-Lived Connections (Web Servers)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># High initial cwnd for fast transfer of small objects</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_initcwnd_scaling=</span><span style="color:#FF9E64">1</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Use cubic (already default) or try bbr</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_congestion_control=cubic</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Disable slow start after idle for keepalive connections</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_slow_start_after_idle=</span><span style="color:#FF9E64">0</span></span>
+<span class="line"></span></code></pre>
+<h3 id="long-running-bulk-transfers-file-transfers-backups">Long-Running Bulk Transfers (File Transfers, Backups)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># BBR works well for high-RTT high-bandwidth links</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_congestion_control=bbr</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Ensure timestamps are on for accurate RTT measurement</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_timestamps=</span><span style="color:#FF9E64">1</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Enable window scaling for high-BDP paths</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_window_scaling=</span><span style="color:#FF9E64">1</span></span>
+<span class="line"></span></code></pre>
+<h3 id="satellitehigh-latency-links-rtt--500ms">Satellite/High-Latency Links (RTT > 500ms)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Use BBR for its better high-RTT performance</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_congestion_control=bbr</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Increase max buffer sizes</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.core.rmem_max=</span><span style="color:#FF9E64">16777216</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.core.wmem_max=</span><span style="color:#FF9E64">16777216</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_rmem=</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">4096 87380 16777216</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_wmem=</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">4096 65536 16777216</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Disable slow start after idle — essential for high-RTT paths</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_slow_start_after_idle=</span><span style="color:#FF9E64">0</span></span>
+<span class="line"></span></code></pre>
+<h2 id="measuring-and-benchmarking">Measuring and Benchmarking</h2>
+<h3 id="which-algorithm-is-active">Which Algorithm Is Active?</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Check current system default</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/sys/net/ipv4/tcp_congestion_control</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># For a running process, strace the setsockopt call</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=setsockopt</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> nginx</span><span style="color:#89DDFF"> 2>&#x26;1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#9ECE6A"> congestion</span></span>
+<span class="line"></span></code></pre>
+<h3 id="throughput-benchmarking">Throughput Benchmarking</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Using iperf3 (server on one machine, client on another)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Server:</span></span>
+<span class="line"><span style="color:#C0CAF5">iperf3</span><span style="color:#E0AF68"> -s</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Client (TCP):</span></span>
+<span class="line"><span style="color:#C0CAF5">iperf3</span><span style="color:#E0AF68"> -c</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">server-i</span><span style="color:#A9B1D6">p</span><span style="color:#89DDFF">></span><span style="color:#E0AF68"> -t</span><span style="color:#FF9E64"> 30</span><span style="color:#E0AF68"> -R</span><span style="color:#51597D;font-style:italic">  # -R for reverse mode (server sends)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Test with specific congestion control:</span></span>
+<span class="line"><span style="color:#C0CAF5">iperf3</span><span style="color:#E0AF68"> -c</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">server-i</span><span style="color:#A9B1D6">p</span><span style="color:#89DDFF">></span><span style="color:#E0AF68"> -t</span><span style="color:#FF9E64"> 30</span><span style="color:#E0AF68"> -C</span><span style="color:#9ECE6A"> cubic</span><span style="color:#51597D;font-style:italic">   # test with cubic</span></span>
+<span class="line"><span style="color:#C0CAF5">iperf3</span><span style="color:#E0AF68"> -c</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">server-i</span><span style="color:#A9B1D6">p</span><span style="color:#89DDFF">></span><span style="color:#E0AF68"> -t</span><span style="color:#FF9E64"> 30</span><span style="color:#E0AF68"> -C</span><span style="color:#9ECE6A"> bbr</span><span style="color:#51597D;font-style:italic">      # test with bbr</span></span>
+<span class="line"></span></code></pre>
+<h3 id="observing-cwnd-changes-in-real-time">Observing cwnd Changes in Real Time</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Use ss to observe connection stats</span></span>
+<span class="line"><span style="color:#C0CAF5">watch</span><span style="color:#E0AF68"> -n</span><span style="color:#FF9E64"> 0.5</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">ss -ti dst &#x3C;target-ip></span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Sample output (cwnd growth visible):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># ts sack ecn bbr wscale:7,7 rtt:5/10ms cwnd:45</span></span>
+<span class="line"></span></code></pre>
+<h3 id="packet-capture-analysis">Packet Capture Analysis</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Capture with tcpdump, then analyze in Wireshark</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># tcpdump -i eth0 -w capture.pcap 'tcp port 80'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># In Wireshark, use TCP stream stats:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Statistics > TCP StreamGraph > Sequence Diagram</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># This visualizes retransmissions, duplicate ACKs, and cwnd growth</span></span>
+<span class="line"></span></code></pre>
+<h2 id="further-reading">Further Reading</h2>
+<ul>
+<li><strong>RFC 5681</strong> — TCP Congestion Control (the authoritative spec)</li>
+<li><strong>RFC 9002</strong> — TCP Selective Acknowledgment (SACK)</li>
+<li><strong>RFC 8323</strong> — TCP Usage of BBR for Bulk Transfer</li>
+<li><strong>Cardwell et al., “BBR: Congestion-Based Congestion Control”</strong> — ACM Queue, 2017</li>
+<li><strong>Ha et al., “CUBIC: A New TCP-Friendly High-Speed TCP Variant”</strong> — ACM SIGOS, 2008</li>
+<li><strong>Linux kernel documentation</strong> — <code>Documentation/networking/ip-sysctl.rst</code> (covers all <code>sysctl</code> parameters)</li>
+<li><strong>netdevconf talks</strong> — BBR development updates (YouTube, various years)</li>
+</ul>
+<hr>
+<p><em>Understanding congestion control gives you a foundation for reasoning about network performance, tuning distributed systems, and debugging mysterious throughput issues. The algorithms are decades old but still actively evolved — BBR is only the latest chapter in an ongoing story.</em></p>
+<h2 id="related-posts">Related Posts</h2>
+<ul>
+<li><a href="/posts/tcp-ip-internals-packet-journey">TCP/IP Internals</a> — Congestion control operates within the TCP layer of the IP stack</li>
+<li><a href="/posts/ebpf-linux-observability-framework">eBPF Linux Observability</a> — eBPF programs can instrument TCP stack events for observability without kernel modules</li>
+<li><a href="/posts/linux-memory-debugging-profiling">Linux Memory Debugging</a> — Bufferbloat and memory pressure interact in production network queues</li>
+</ul>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/ebpf-linux-observability-framework" data-astro-cid-gjtny2mx>eBPF: Linux Observability That Will Change How You Debug</a> <p data-astro-cid-gjtny2mx>A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/http2-http3-internals" data-astro-cid-gjtny2mx>HTTP/2 and HTTP/3 Internals: How the Web Actually Gets Faster</a> <p data-astro-cid-gjtny2mx>Deep dive into HTTP/2 frames, streams, multiplexing, HPACK compression, server push, and HTTP/3&#39;s QUIC protocol, 0-RTT, and connection migration.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/tcp-ip-internals-packet-journey" data-astro-cid-gjtny2mx>TCP/IP Internals: How a Packet Travels Across the Network</a> <p data-astro-cid-gjtny2mx>A deep dive into the TCP/IP protocol stack, from application data to physical frames, and everything that happens in between.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"TCP Congestion Control: How TCP Slow Start, AIMD, and BBR Actually Work","description":"A deep dive into TCP congestion control algorithms — Slow Start, AIMD, Reno, CUBIC, and BBR — with packet diagrams, ASCII charts, and Linux sysctl commands for practical tuning.","datePublished":"2026-05-04T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/tcp-congestion-control-algorithms-deep-dive"},"keywords":"networking, tcp, congestion-control, performance, linux, kernel","articleSection":"networking","about":[{"@type":"Thing","name":"networking"},{"@type":"Thing","name":"tcp"},{"@type":"Thing","name":"congestion-control"},{"@type":"Thing","name":"performance"},{"@type":"Thing","name":"linux"},{"@type":"Thing","name":"kernel"}]}</script> 

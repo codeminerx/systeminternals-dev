@@ -1,0 +1,641 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A technical deep dive into Kubernetes architecture—control plane, etcd, scheduler, kubelet, pod lifecycle, networking, and how all the components work together to orchestrate containers at scale."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Kubernetes Architecture Deep Dive: How Container Orchestration Actually Works</title><meta property="og:title" content="Kubernetes Architecture Deep Dive: How Container Orchestration Actually Works"><meta property="og:description" content="A technical deep dive into Kubernetes architecture—control plane, etcd, scheduler, kubelet, pod lifecycle, networking, and how all the components work together to orchestrate containers at scale."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/kubernetes-architecture-deep-dive"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Kubernetes Architecture Deep Dive: How Container Orchestration Actually Works"><meta name="twitter:description" content="A technical deep dive into Kubernetes architecture—control plane, etcd, scheduler, kubelet, pod lifecycle, networking, and how all the components work together to orchestrate containers at scale."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/kubernetes-architecture-deep-dive"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Kubernetes Architecture Deep Dive: How Container Orchestration Actually Works</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-06T00:00:00.000Z" data-astro-cid-gjtny2mx>May 5, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>13 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>kubernetes</span><span class="tag" data-astro-cid-gjtny2mx>kubernetes-architecture</span><span class="tag" data-astro-cid-gjtny2mx>container-orchestration</span><span class="tag" data-astro-cid-gjtny2mx>devops</span><span class="tag" data-astro-cid-gjtny2mx>distributed-systems</span><span class="tag" data-astro-cid-gjtny2mx>etcd</span><span class="tag" data-astro-cid-gjtny2mx>scheduler</span><span class="tag" data-astro-cid-gjtny2mx>pods</span><span class="tag" data-astro-cid-gjtny2mx>cloud-native</span><span class="tag" data-astro-cid-gjtny2mx>k8s</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every major cloud-native deployment in 2026 runs on Kubernetes. Yet most engineers know Kubernetes only as “that YAML thing that runs Docker containers.” The reality is far more interesting: a distributed system of API servers, schedulers, etcd clusters, and kubelet agents that together form the world’s most popular container orchestration platform.</p>
+<p>This post dissects Kubernetes from the inside—how the control plane works, how the scheduler decides where pods run, how kubelet keeps containers alive, and how the networking model enables service discovery across a distributed cluster.</p>
+<h2 id="what-kubernetes-is-actually-doing">What Kubernetes Is Actually Doing</h2>
+<p>When you deploy an application to Kubernetes, you’re interacting with a complex distributed system:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>You (kubectl) → API Server → etcd → Scheduler → Kubelet → Container Runtime</span></span>
+<span class="line"><span>                    ↑</span></span>
+<span class="line"><span>              (all control loop decisions flow through here)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The fundamental model is a <strong>control loop</strong>: watch the desired state, compare to actual state, take action to reconcile differences. This pattern repeats at every layer—from the API server watching etcd, to the scheduler watching unscheduled pods, to kubelet watching container state.</p>
+<h2 id="the-control-plane-where-decisions-happen">The Control Plane: Where Decisions Happen</h2>
+<p>The Kubernetes control plane is the “brain” of the cluster—a set of components that accept your desired state and work to make it happen.</p>
+<kubernetesarchitecture client:load="">
+<h3 id="api-server-the-front-door">API Server: The Front Door</h3>
+<p>The <code>kube-apiserver</code> is the central hub. Every kubectl command, every dashboard request, every pod spec change flows through it:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># What kubectl actually does</span></span>
+<span class="line"><span style="color:#C0CAF5">kubectl</span><span style="color:#9ECE6A"> apply</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> deployment.yaml</span></span>
+<span class="line"><span style="color:#C0CAF5">    ↓</span></span>
+<span class="line"><span style="color:#C0CAF5">POST</span><span style="color:#9ECE6A"> /api/v1/namespaces/default/deployments</span></span>
+<span class="line"><span style="color:#C0CAF5">    ↓</span></span>
+<span class="line"><span style="color:#C0CAF5">kube-apiserver</span><span style="color:#9ECE6A"> validates</span><span style="color:#9ECE6A"> →</span><span style="color:#9ECE6A"> writes</span><span style="color:#9ECE6A"> to</span><span style="color:#9ECE6A"> etcd</span><span style="color:#9ECE6A"> →</span><span style="color:#9ECE6A"> returns</span><span style="color:#9ECE6A"> Deployment</span><span style="color:#9ECE6A"> object</span></span>
+<span class="line"><span style="color:#C0CAF5">    ↓</span></span>
+<span class="line"><span style="color:#C0CAF5">All</span><span style="color:#9ECE6A"> other</span><span style="color:#9ECE6A"> control</span><span style="color:#9ECE6A"> plane</span><span style="color:#9ECE6A"> components</span><span style="color:#9ECE6A"> watch</span><span style="color:#9ECE6A"> the</span><span style="color:#9ECE6A"> API</span><span style="color:#9ECE6A"> server</span><span style="color:#9ECE6A"> for</span><span style="color:#9ECE6A"> changes</span></span>
+<span class="line"></span></code></pre>
+<p>The API server is the only component that talks to etcd directly. The scheduler, kubelet, and controller managers all communicate through the API server’s watch interface. This design means:</p>
+<ul>
+<li><strong>etcd never receives direct requests from workers</strong> — security boundary</li>
+<li><strong>The API server is the single source of truth</strong> — no conflicting state</li>
+<li><strong>All state changes are audited</strong> — every write goes through one component</li>
+</ul>
+<p>The API server uses <strong>etcd watch</strong> to notify all clients of changes. When you create a Deployment, the API server writes it to etcd, then notifies all watching clients (scheduler, controller-manager) via the watch stream.</p>
+<h3 id="etcd-the-clusters-memory">etcd: The Cluster’s Memory</h3>
+<p>etcd stores all cluster state in a distributed, Raft-replicated key-value store. If the API server is the brain, etcd is the memory—every piece of configuration, every pod status, every Deployment spec lives here.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Inspect etcd directly (what's actually stored)</span></span>
+<span class="line"><span style="color:#C0CAF5">ETCDCTL_API</span><span style="color:#89DDFF">=</span><span style="color:#9ECE6A">3</span><span style="color:#C0CAF5"> etcdctl</span><span style="color:#9ECE6A"> get</span><span style="color:#9ECE6A"> /registry/</span><span style="color:#E0AF68"> --prefix</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> head</span><span style="color:#E0AF68"> -50</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># See cluster health</span></span>
+<span class="line"><span style="color:#C0CAF5">kubectl</span><span style="color:#9ECE6A"> get</span><span style="color:#9ECE6A"> etcd</span><span style="color:#E0AF68"> -n</span><span style="color:#9ECE6A"> kube-system</span></span>
+<span class="line"></span></code></pre>
+<p><strong>What etcd stores:</strong></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Key Pattern</th><th>Value</th></tr></thead><tbody><tr><td><code>/registry/pods/*</code></td><td>Pod specs and status</td></tr><tr><td><code>/registry/deployments/*</code></td><td>Deployment specs</td></tr><tr><td><code>/registry/nodes/*</code></td><td>Node specs and conditions</td></tr><tr><td><code>/registry/services/*</code></td><td>Service definitions</td></tr><tr><td><code>/registry/configmaps/*</code></td><td>ConfigMap data</td></tr></tbody></table>
+<p>Each key encodes the full resource path—namespaces are part of the key, not a field. This flat structure makes watch queries efficient.</p>
+<p><strong>Replication:</strong> etcd uses Raft (as covered in our <a href="/posts/raft-consensus-algorithm-deep-dive">Raft deep dive</a>) to replicate data across all control plane nodes. A 3-node etcd cluster tolerates 1 failure; a 5-node cluster tolerates 2.</p>
+<h3 id="scheduler-where-pods-get-placed">Scheduler: Where Pods Get Placed</h3>
+<p>The <code>kube-scheduler</code> watches for unscheduled pods—pods with no <code>spec.nodeName</code> set—and assigns them to nodes. The decision process:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>1. Filtering: Can this pod run on this node?</span></span>
+<span class="line"><span>   - Does the node have enough CPU/memory?</span></span>
+<span class="line"><span>   - Does the pod have node affinity/anti-affinity rules?</span></span>
+<span class="line"><span>   - Are there taints/tolerations that prevent placement?</span></span>
+<span class="line"><span>   - Are there topology constraints (zone, region)?</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>2. Scoring: Among eligible nodes, which is best?</span></span>
+<span class="line"><span>   - Least requested resources (spread load)</span></span>
+<span class="line"><span>   - Node affinity weights</span></span>
+<span class="line"><span>   - Pod affinity/anti-affinity (keep related pods together or apart)</span></span>
+<span class="line"><span>   - Data locality (prefer nodes with local volumes)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>3. Binding: Assign the pod to the winning node</span></span>
+<span class="line"><span>   - Update pod.spec.nodeName via API server</span></span>
+<span class="line"><span>   - Kubelet on the target node sees the assignment and starts containers</span></span>
+<span class="line"><span></span></span></code></pre>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#51597D;font-style:italic"># Pod spec that demonstrates scheduling features</span></span>
+<span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Pod</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> web-server</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">  # Node selector - simplest placement constraint</span></span>
+<span class="line"><span style="color:#F7768E">  nodeSelector</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    disktype</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> ssd</span></span>
+<span class="line"><span style="color:#A9B1D6">  </span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">  # Tolerations - work around node taints</span></span>
+<span class="line"><span style="color:#F7768E">  tolerations</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> key</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">node.kubernetes.io/disk-pressure</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#F7768E">    operator</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">Exists</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#F7768E">    effect</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">NoSchedule</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#A9B1D6">  </span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">  # Affinity - keep this pod near its database</span></span>
+<span class="line"><span style="color:#F7768E">  affinity</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    podAffinity</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      requiredDuringSchedulingIgnoredDuringExecution</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">      -</span><span style="color:#F7768E"> labelSelector</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">          matchLabels</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">            app</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> postgres</span></span>
+<span class="line"><span style="color:#F7768E">        topologyKey</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">kubernetes.io/hostname</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#A9B1D6">  </span></span>
+<span class="line"><span style="color:#F7768E">  containers</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> nginx</span></span>
+<span class="line"><span style="color:#F7768E">    image</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> nginx:latest</span></span>
+<span class="line"><span style="color:#F7768E">    resources</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      requests</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">        memory</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">64Mi</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#F7768E">        cpu</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">250m</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#F7768E">      limits</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">        memory</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">128Mi</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#F7768E">        cpu</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">500m</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Multi-level scheduling:</strong> The scheduler isn’t one algorithm—it’s a pluggable pipeline. You can write custom scheduler plugins that run at specific points in the scheduling cycle. Kubernetes’ <code>kube-scheduler</code> itself is composed of plugins (NodeResources, NodeAffinity, PodTopologySpread, etc.).</p>
+<h3 id="controller-manager-running-the-reconciliation-loops">Controller Manager: Running the Reconciliation Loops</h3>
+<p>The <code>kube-controller-manager</code> runs controller loops—each controller is a reconciliation loop that drives actual state toward desired state:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Controller</th><th>What It Reconciles</th></tr></thead><tbody><tr><td><strong>ReplicaSet</strong></td><td>Pod count matches desired replicas</td></tr><tr><td><strong>Deployment</strong></td><td>ReplicaSet version matches desired version</td></tr><tr><td><strong>StatefulSet</strong></td><td>Pods have stable network identity, persistent storage</td></tr><tr><td><strong>Job/CronJob</strong></td><td>Jobs complete; CronJobs schedule on time</td></tr><tr><td><strong>Endpoint</strong></td><td>Service selectors match pod IPs</td></tr><tr><td><strong>ServiceAccount</strong></td><td>Service accounts have proper RBAC</td></tr></tbody></table>
+<p>Each controller watches its resource type via the API server. When the desired state diverges from actual state, the controller takes action—creating pods, updating ReplicaSets, patching services.</p>
+<h3 id="cloud-controller-manager-cloud-specific-logic">Cloud Controller Manager: Cloud-Specific Logic</h3>
+<p>For managed Kubernetes (EKS, GKE, AKS), the cloud controller manager handles cloud-specific reconciliation:</p>
+<ul>
+<li><strong>Node controller</strong>: Detects node failures, provisions cloud instances</li>
+<li><strong>Route controller</strong>: Sets up cloud routing tables for pod networking</li>
+<li><strong>Service controller</strong>: Creates cloud load balancers for Services of type LoadBalancer</li>
+</ul>
+<p>This separation means the core Kubernetes code doesn’t need cloud-provider-specific logic.</p>
+<h2 id="kubelet-the-node-agent">Kubelet: The Node Agent</h2>
+<p>Every node in a Kubernetes cluster runs <code>kubelet</code>—the agent that communicates between the API server and the container runtime.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>API Server (desired state)</span></span>
+<span class="line"><span>    ↓ watch /pods</span></span>
+<span class="line"><span>kubelet</span></span>
+<span class="line"><span>    ↓  sync pod</span></span>
+<span class="line"><span>container runtime (Docker, containerd, CRI-O)</span></span>
+<span class="line"><span>    ↓ create</span></span>
+<span class="line"><span>containers</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="pod-lifecycle">Pod Lifecycle</h3>
+<p>Pods go through a defined lifecycle:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Pending → Running → Succeeded/Failed</span></span>
+<span class="line"><span>    ↓         ↓</span></span>
+<span class="line"><span>  (scheduled) (containers running)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Pod phases:</strong></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Phase</th><th>Meaning</th></tr></thead><tbody><tr><td><code>Pending</code></td><td>Pod accepted, waiting for scheduler + image pull</td></tr><tr><td><code>Running</code></td><td>At least one container running (starting/restarting/running)</td></tr><tr><td><code>Succeeded</code></td><td>All containers exited successfully</td></tr><tr><td><code>Failed</code></td><td>At least one container exited with failure</td></tr><tr><td><code>Unknown</code></td><td>Node communication lost</td></tr></tbody></table>
+<p><strong>Init containers</strong> run before the main containers, guaranteeing the main containers don’t start until prerequisites are met:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  initContainers</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> wait-for-db</span></span>
+<span class="line"><span style="color:#F7768E">    image</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> busybox:1.36</span></span>
+<span class="line"><span style="color:#F7768E">    command</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> [</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">sh</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">-c</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">until nc -z db:5432; do echo waiting; sleep 2; done</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">]</span></span>
+<span class="line"><span style="color:#A9B1D6">  </span></span>
+<span class="line"><span style="color:#F7768E">  containers</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> app</span></span>
+<span class="line"><span style="color:#F7768E">    image</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> myapp:latest</span></span>
+<span class="line"></span></code></pre>
+<h3 id="probe-types">Probe Types</h3>
+<p>Kubelet continuously checks container health via probes:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  containers</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> api</span></span>
+<span class="line"><span style="color:#F7768E">    image</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> myapi:latest</span></span>
+<span class="line"><span style="color:#A9B1D6">    </span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Does the process exist? (lowest level)</span></span>
+<span class="line"><span style="color:#F7768E">    livenessProbe</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      exec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">        command</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> [</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">cat</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">/tmp/healthy</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">]</span></span>
+<span class="line"><span style="color:#F7768E">      initialDelaySeconds</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 5</span></span>
+<span class="line"><span style="color:#F7768E">      periodSeconds</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 10</span></span>
+<span class="line"><span style="color:#A9B1D6">    </span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Does it respond to HTTP?</span></span>
+<span class="line"><span style="color:#F7768E">    readinessProbe</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      httpGet</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">        path</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> /healthz</span></span>
+<span class="line"><span style="color:#F7768E">        port</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 8080</span></span>
+<span class="line"><span style="color:#F7768E">      initialDelaySeconds</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 3</span></span>
+<span class="line"><span style="color:#F7768E">      periodSeconds</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 5</span></span>
+<span class="line"><span style="color:#A9B1D6">    </span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Does the container handle SIGTERM gracefully?</span></span>
+<span class="line"><span style="color:#F7768E">    startupProbe</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      httpGet</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">        path</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> /started</span></span>
+<span class="line"><span style="color:#F7768E">        port</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 8080</span></span>
+<span class="line"><span style="color:#F7768E">      failureThreshold</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 30</span></span>
+<span class="line"><span style="color:#F7768E">      periodSeconds</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 10</span></span>
+<span class="line"></span></code></pre>
+<p>Failed probes trigger kubelet to restart containers or remove pods from Service endpoints.</p>
+<h2 id="container-runtime-under-the-hood">Container Runtime: Under the Hood</h2>
+<p>Kubernetes doesn’t run containers itself—it delegates to a <strong>Container Runtime Interface (CRI)</strong> implementation:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>kubelet</span></span>
+<span class="line"><span>    ↓ CRI API (gRPC)</span></span>
+<span class="line"><span>containerd (or Docker, CRI-O)</span></span>
+<span class="line"><span>    ↓ OCI image + runtime spec</span></span>
+<span class="line"><span>runc → namespaces + cgroups → containers</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>containerd</strong> is the most common runtime in 2026. It handles:</p>
+<ul>
+<li>Image management (pull, unpack, cache)</li>
+<li>Container lifecycle (create, start, stop, delete)</li>
+<li>Storage (layer management, snapshot)</li>
+<li>Networking (via CNI plugins)</li>
+</ul>
+<p><strong>OCI Runtime</strong> (<code>runc</code>) takes the container bundle and actually creates the Linux namespaces (PID, network, mount, IPC) and cgroups (CPU, memory, I/O limits).</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># What kubelet actually does for a pod</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 1. Pull images</span></span>
+<span class="line"><span style="color:#C0CAF5">crictl</span><span style="color:#9ECE6A"> pull</span><span style="color:#9ECE6A"> nginx:latest</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 2. Create container (with config.json)</span></span>
+<span class="line"><span style="color:#C0CAF5">crictl</span><span style="color:#9ECE6A"> create</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">pod-sandbox-i</span><span style="color:#A9B1D6">d</span><span style="color:#89DDFF">></span><span style="color:#9ECE6A"> config.json</span><span style="color:#9ECE6A"> image.json</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 3. Start container</span></span>
+<span class="line"><span style="color:#C0CAF5">crictl</span><span style="color:#9ECE6A"> start</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">container-i</span><span style="color:#A9B1D6">d</span><span style="color:#89DDFF">></span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 4. Report status to API server</span></span>
+<span class="line"></span></code></pre>
+<h2 id="networking-how-pods-talk-to-each-other">Networking: How Pods Talk to Each Other</h2>
+<p>Kubernetes networking has three fundamental requirements:</p>
+<ol>
+<li><strong>Pod-to-pod</strong>: Any pod can talk to any other pod (no NAT)</li>
+<li><strong>Pod-to-service</strong>: Pods can reach Services via clusterIP (virtual IP)</li>
+<li><strong>External-to-service</strong>: External clients can reach Services</li>
+</ol>
+<h3 id="cni-the-plugin-model">CNI: The Plugin Model</h3>
+<p>Kubernetes delegates networking to <strong>CNI (Container Network Interface)</strong> plugins. The common ones:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Plugin</th><th>Model</th></tr></thead><tbody><tr><td><strong>Calico</strong></td><td>BGP routes, policy-based</td></tr><tr><td><strong>Cilium</strong></td><td>eBPF-based, transparent encryption</td></tr><tr><td><strong>Flannel</strong></td><td>VXLAN overlay, simple</td></tr><tr><td><strong>Weave</strong></td><td>sleeve fast-path, policy</td></tr></tbody></table>
+<p>When kubelet creates a pod, it calls the CNI plugin to set up networking:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># CNI configuration (typical Calico)</span></span>
+<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /etc/cni/net.d/10-calico.conflist</span></span>
+<span class="line"><span style="color:#9ABDF5">{</span></span>
+<span class="line"><span style="color:#C0CAF5">  "cniVersion"</span><span style="color:#0DB9D7">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">0.3.1</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">,</span></span>
+<span class="line"><span style="color:#C0CAF5">  "name"</span><span style="color:#0DB9D7">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">k8s-pod-network</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">,</span></span>
+<span class="line"><span style="color:#C0CAF5">  "plugins"</span><span style="color:#0DB9D7">:</span><span style="color:#A9B1D6"> [</span></span>
+<span class="line"><span style="color:#9ABDF5">    {</span></span>
+<span class="line"><span style="color:#C0CAF5">      "type"</span><span style="color:#0DB9D7">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">calico</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">,</span></span>
+<span class="line"><span style="color:#C0CAF5">      "ipam"</span><span style="color:#0DB9D7">:</span><span style="color:#9ECE6A"> {</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">type</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">calico-ipam</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A"> }</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#9ABDF5">    {</span></span>
+<span class="line"><span style="color:#C0CAF5">      "type"</span><span style="color:#0DB9D7">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">portmap</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">,</span></span>
+<span class="line"><span style="color:#C0CAF5">      "capabilities"</span><span style="color:#0DB9D7">:</span><span style="color:#9ECE6A"> {</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">portMappings</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">:</span><span style="color:#FF9E64"> true</span><span style="color:#9ECE6A">}</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"><span style="color:#A9B1D6">  ]</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span></code></pre>
+<h3 id="pod-networking-model">Pod Networking Model</h3>
+<p>Each pod gets its own <strong>IP address</strong> (unique in the cluster):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Pod A (10.244.1.15) → veth0 → eth0 (host) → CNI bridge → eth0 (host) → Pod B (10.244.2.8)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The CNI bridge (often called <code>cni0</code> or <code>br0</code>) connects pod veth pairs. Traffic between pods on the same node stays on the bridge; traffic to other nodes routes via the pod’s routing table.</p>
+<h3 id="services-virtual-ips-for-stable-endpoints">Services: Virtual IPs for Stable Endpoints</h3>
+<p>Services provide a stable virtual IP that load-balances to backing pods:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Service</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> web-service</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  selector</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    app</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> web</span></span>
+<span class="line"><span style="color:#F7768E">  ports</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> port</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 80</span><span style="color:#51597D;font-style:italic">        # Service port</span></span>
+<span class="line"><span style="color:#F7768E">    targetPort</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 8080</span><span style="color:#51597D;font-style:italic">  # Container port</span></span>
+<span class="line"><span style="color:#F7768E">  type</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> ClusterIP</span><span style="color:#51597D;font-style:italic">   # Internal only</span></span>
+<span class="line"></span></code></pre>
+<p><strong>kube-proxy</strong> watches for Service changes and updates iptables/ipvs rules on each node:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span># What kube-proxy actually installs on each node</span></span>
+<span class="line"><span>-A KUBE-SVC-XXXXXXXX -p tcp -m tcp --dport 80 \</span></span>
+<span class="line"><span>  -j KUBE-SEP-XXXXXXXX   # DNAT to pod IP</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>-A KUBE-SEP-XXXXXXXX -s 10.244.1.15 -m comment --comment "web-service" \</span></span>
+<span class="line"><span>  -j ACCEPT           # Allow traffic to pod</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>When you call <code>web-service:80</code>, the packet:</p>
+<ol>
+<li>Matches the Service’s iptables rule</li>
+<li>DNATs to a randomly selected pod IP</li>
+<li>Routes normally (pod-to-pod networking)</li>
+</ol>
+<h3 id="dns-service-discovery">DNS: Service Discovery</h3>
+<p>CoreDNS provides cluster-wide DNS. Every Service gets a DNS name:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Service discovery</span></span>
+<span class="line"><span style="color:#C0CAF5">web-service.default.svc.cluster.local</span></span>
+<span class="line"><span style="color:#C0CAF5">web-service.default.svc</span></span>
+<span class="line"><span style="color:#C0CAF5">web-service.default</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Headless Service (for pod discovery)</span></span>
+<span class="line"><span style="color:#C0CAF5">mysql-headless.default.svc.cluster.local</span><span style="color:#9ECE6A"> →</span><span style="color:#9ECE6A"> 10.244.1.15,</span><span style="color:#9ECE6A"> 10.244.2.20,</span><span style="color:#9ECE6A"> ...</span></span>
+<span class="line"></span></code></pre>
+<p>CoreDNS watches the API server for Service and Endpoint changes, keeping DNS records current as pods come and go.</p>
+<h2 id="storage-volumes-and-persistence">Storage: Volumes and Persistence</h2>
+<p>Kubernetes abstracts storage through the <strong>Container Storage Interface (CSI)</strong>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> PersistentVolumeClaim</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> mysql-data</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  accessModes</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">    -</span><span style="color:#9ECE6A"> ReadWriteOnce</span><span style="color:#51597D;font-style:italic">      # Single node r/w</span></span>
+<span class="line"><span style="color:#F7768E">  storageClassName</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> fast-ssd</span></span>
+<span class="line"><span style="color:#F7768E">  resources</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    requests</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      storage</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> 50Gi</span></span>
+<span class="line"><span style="color:#A9B1D6">---</span></span>
+<span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> apps/v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Deployment</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> mysql</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  template</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      containers</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">      -</span><span style="color:#F7768E"> name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> mysql</span></span>
+<span class="line"><span style="color:#F7768E">        volumeMounts</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">        -</span><span style="color:#F7768E"> name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> mysql-data</span></span>
+<span class="line"><span style="color:#F7768E">          mountPath</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> /var/lib/mysql</span></span>
+<span class="line"><span style="color:#F7768E">      volumes</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">      -</span><span style="color:#F7768E"> name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> mysql-data</span></span>
+<span class="line"><span style="color:#F7768E">        persistentVolumeClaim</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">          claimName</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> mysql-data</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Volume lifecycle:</strong></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Type</th><th>Lifecycle</th><th>Use Case</th></tr></thead><tbody><tr><td><strong>emptyDir</strong></td><td>Pod lifetime</td><td>Temporary scratch space</td></tr><tr><td><strong>hostPath</strong></td><td>Node lifetime</td><td>Node-specific access</td></tr><tr><td><strong>PersistentVolumeClaim</strong></td><td>Independent</td><td>Database storage</td></tr><tr><td><strong>ConfigMap/Secret</strong></td><td>Independent</td><td>Configuration injection</td></tr></tbody></table>
+<p>CSI drivers (AWS EBS CSI, GCE PD CSI, etc.) handle provisioning, attachment, and mounting when PVCs are bound to PVs.</p>
+<h2 id="authentication-and-authorization">Authentication and Authorization</h2>
+<p>Every request to the API server goes through authentication, authorization, and admission control:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Request → AuthN (who are you?) → AuthZ (what can you do?) → Admission (mutate/validate) → etcd</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="authentication">Authentication</h3>
+<p>Multiple authenticator plugins; common ones:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Static tokens (not for production)</span></span>
+<span class="line"><span style="color:#C0CAF5">--token-auth-file</span><span style="color:#89DDFF">=</span><span style="color:#9ECE6A">/var/run/secrets/token.csv</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Bootstrap tokens (for new nodes)</span></span>
+<span class="line"><span style="color:#C0CAF5">kubectl</span><span style="color:#9ECE6A"> get</span><span style="color:#9ECE6A"> secrets</span><span style="color:#E0AF68"> -n</span><span style="color:#9ECE6A"> kube-system</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#9ECE6A"> bootstrap</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># x509 client certificates (most common for users)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Certificate issued by the cluster CA</span></span>
+<span class="line"><span style="color:#C0CAF5">openssl</span><span style="color:#9ECE6A"> x509</span><span style="color:#E0AF68"> -in</span><span style="color:#9ECE6A"> user.crt</span><span style="color:#E0AF68"> -text</span><span style="color:#E0AF68"> -noout</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#9ECE6A"> Subject</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Service account tokens (for pods)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Automatically mounted at /var/run/secrets/kubernetes.io/serviceaccount/</span></span>
+<span class="line"></span></code></pre>
+<h3 id="rbac-role-based-access-control">RBAC (Role-Based Access Control)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#51597D;font-style:italic"># Role (namespace-scoped)</span></span>
+<span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> rbac.authorization.k8s.io/v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Role</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  namespace</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> default</span></span>
+<span class="line"><span style="color:#F7768E">rules</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">-</span><span style="color:#F7768E"> apiGroups</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> [</span><span style="color:#89DDFF">""</span><span style="color:#89DDFF">]</span></span>
+<span class="line"><span style="color:#F7768E">  resources</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> [</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">pods</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">]</span></span>
+<span class="line"><span style="color:#F7768E">  verbs</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> [</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">get</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">list</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">watch</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">---</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># RoleBinding (grant role to user)</span></span>
+<span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> rbac.authorization.k8s.io/v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> RoleBinding</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> read-pods</span></span>
+<span class="line"><span style="color:#F7768E">  namespace</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> default</span></span>
+<span class="line"><span style="color:#F7768E">subjects</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">-</span><span style="color:#F7768E"> kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> User</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> jane@example.com</span></span>
+<span class="line"><span style="color:#F7768E">roleRef</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Role</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> read-pods</span></span>
+<span class="line"></span></code></pre>
+<h3 id="admission-controllers">Admission Controllers</h3>
+<p>Admission controllers intercept requests after AuthN/AuthZ:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Enabled admission controllers</span></span>
+<span class="line"><span style="color:#C0CAF5">--enable-admission-plugins</span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6">\</span></span>
+<span class="line"><span style="color:#C0CAF5">  NamespaceLifecycle,\</span></span>
+<span class="line"><span style="color:#9ECE6A">  LimitRanger,</span><span style="color:#89DDFF">\</span></span>
+<span class="line"><span style="color:#9ECE6A">  ServiceAccount,</span><span style="color:#89DDFF">\</span></span>
+<span class="line"><span style="color:#9ECE6A">  DefaultStorageClass,</span><span style="color:#89DDFF">\</span></span>
+<span class="line"><span style="color:#9ECE6A">  PersistentVolumeClaimResize,</span><span style="color:#89DDFF">\</span></span>
+<span class="line"><span style="color:#9ECE6A">  MutatingAdmissionWebhook,</span><span style="color:#89DDFF">\</span></span>
+<span class="line"><span style="color:#9ECE6A">  ValidatingAdmissionWebhook</span></span>
+<span class="line"></span></code></pre>
+<p>Common patterns:</p>
+<ul>
+<li><strong>LimitRanger</strong>: Enforce resource limits on pods</li>
+<li><strong>DefaultStorageClass</strong>: Set default StorageClass for PVCs</li>
+<li><strong>MutatingWebhook</strong>: Inject sidecars, set defaults</li>
+</ul>
+<h2 id="networking-in-production-ingress-and-load-balancing">Networking in Production: Ingress and Load Balancing</h2>
+<p>External traffic enters the cluster through:</p>
+<h3 id="ingress-controller">Ingress Controller</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> networking.k8s.io/v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Ingress</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> web-ingress</span></span>
+<span class="line"><span style="color:#F7768E">  annotations</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    nginx.ingress.kubernetes.io/rewrite-target</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> /</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  rules</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> host</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> myapp.example.com</span></span>
+<span class="line"><span style="color:#F7768E">    http</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      paths</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">      -</span><span style="color:#F7768E"> path</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> /api</span></span>
+<span class="line"><span style="color:#F7768E">        pathType</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Prefix</span></span>
+<span class="line"><span style="color:#F7768E">        backend</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">          service</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">            name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> api-service</span></span>
+<span class="line"><span style="color:#F7768E">            port</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">              number</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 80</span></span>
+<span class="line"><span style="color:#9ABDF5">      -</span><span style="color:#F7768E"> path</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> /</span></span>
+<span class="line"><span style="color:#F7768E">        pathType</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Prefix</span></span>
+<span class="line"><span style="color:#F7768E">        backend</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">          service</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">            name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> frontend-service</span></span>
+<span class="line"><span style="color:#F7768E">            port</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">              number</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 80</span></span>
+<span class="line"></span></code></pre>
+<p>The Ingress controller (nginx, Contour, Ambassador) watches Ingress resources and configures the ingress proxy accordingly.</p>
+<h3 id="metallb-load-balancing-without-cloud">MetalLB: Load Balancing Without Cloud</h3>
+<p>For bare-metal clusters, MetalLB announces service IPs via ARP/NDP or BGP:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Service</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> my-service</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  type</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> LoadBalancer</span><span style="color:#51597D;font-style:italic">   # MetalLB handles this on bare-metal</span></span>
+<span class="line"><span style="color:#F7768E">  selector</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    app</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> myapp</span></span>
+<span class="line"><span style="color:#F7768E">  ports</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> port</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 80</span></span>
+<span class="line"><span style="color:#F7768E">    targetPort</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 8080</span></span>
+<span class="line"></span></code></pre>
+<p>MetalLB assigns an IP from a pool and responds to ARP requests, making the service reachable externally.</p>
+<h2 id="production-patterns">Production Patterns</h2>
+<h3 id="horizontal-pod-autoscaler-hpa">Horizontal Pod Autoscaler (HPA)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> autoscaling/v2</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> HorizontalPodAutoscaler</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> web-hpa</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  scaleTargetRef</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> apps/v1</span></span>
+<span class="line"><span style="color:#F7768E">    kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Deployment</span></span>
+<span class="line"><span style="color:#F7768E">    name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> web</span></span>
+<span class="line"><span style="color:#F7768E">  minReplicas</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 3</span></span>
+<span class="line"><span style="color:#F7768E">  maxReplicas</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 100</span></span>
+<span class="line"><span style="color:#F7768E">  metrics</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> type</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Resource</span></span>
+<span class="line"><span style="color:#F7768E">    resource</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> cpu</span></span>
+<span class="line"><span style="color:#F7768E">      target</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">        type</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Utilization</span></span>
+<span class="line"><span style="color:#F7768E">        averageUtilization</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 70</span></span>
+<span class="line"></span></code></pre>
+<p>The HPA controller polls metrics every 15 seconds (configurable), scaling pods based on observed utilization vs target.</p>
+<h3 id="pod-disruption-budget-pdb">Pod Disruption Budget (PDB)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> policy/v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> PodDisruptionBudget</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> web-pdb</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  minAvailable</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 2</span><span style="color:#51597D;font-style:italic">   # At least 2 pods always available</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">  # OR maxUnavailable: 1 (only 1 pod down at a time during disruptions)</span></span>
+<span class="line"><span style="color:#F7768E">  selector</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    matchLabels</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      app</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> web</span></span>
+<span class="line"></span></code></pre>
+<p>PDB ensures voluntary disruptions (node drain, upgrades) don’t take down too many pods simultaneously.</p>
+<h3 id="resource-quotas-and-limitranges">Resource Quotas and LimitRanges</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> ResourceQuota</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> default-quota</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  hard</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">    requests.cpu</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">10</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#F7768E">    requests.memory</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> 20Gi</span></span>
+<span class="line"><span style="color:#F7768E">    limits.cpu</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">20</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#F7768E">    limits.memory</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> 40Gi</span></span>
+<span class="line"><span style="color:#F7768E">    pods</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">50</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#A9B1D6">---</span></span>
+<span class="line"><span style="color:#F7768E">apiVersion</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> v1</span></span>
+<span class="line"><span style="color:#F7768E">kind</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> LimitRange</span></span>
+<span class="line"><span style="color:#F7768E">metadata</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  name</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> default-limits</span></span>
+<span class="line"><span style="color:#F7768E">spec</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">  limits</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#9ABDF5">  -</span><span style="color:#F7768E"> type</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Container</span></span>
+<span class="line"><span style="color:#F7768E">    default</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      cpu</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> 500m</span></span>
+<span class="line"><span style="color:#F7768E">      memory</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> 256Mi</span></span>
+<span class="line"><span style="color:#F7768E">    defaultRequest</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">      cpu</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> 100m</span></span>
+<span class="line"><span style="color:#F7768E">      memory</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> 64Mi</span></span>
+<span class="line"></span></code></pre>
+<p>Without LimitRange, pods with no resource requests can starve other tenants.</p>
+<h2 id="the-big-picture">The Big Picture</h2>
+<p>Kubernetes is a distributed system built on four principles:</p>
+<ol>
+<li><strong>Declarative configuration</strong>: You describe desired state; Kubernetes reconciles</li>
+<li><strong>Control loops</strong>: Every component is a reconciliation loop watching for drift</li>
+<li><strong>Loose coupling</strong>: Components communicate only through the API server</li>
+<li><strong>Scalability</strong>: All components are horizontally scalable (except etcd)</li>
+</ol>
+<p>The control plane (API server, etcd, scheduler, controller-manager) coordinates work. The data plane (kubelet, container runtime, CNI) executes it. The result is a system that can recover from node failures, scale workloads across hundreds of machines, and provide the self-healing capabilities that make containers practical for production.</p>
+<hr>
+<p><strong>Next:</strong> <a href="/posts/paxos-consensus-algorithm-deep-dive">Paxos Consensus Algorithm Deep Dive</a> → for more distributed systems theory
+<strong>Previous:</strong> <a href="/posts/raft-consensus-algorithm-deep-dive">Raft Consensus Algorithm</a> → for the consensus algorithm Kubernetes uses internally</p>
+<hr>
+<p><strong>External Resources</strong></p>
+<ul>
+<li><a href="https://kubernetes.io/docs/">Kubernetes Documentation</a> — The official reference</li>
+<li><a href="https://github.com/kelseyhightower/kubernetes-the-hard-way">Kubernetes The Hard Way (Kelsey Hightower)</a> — Build a cluster from scratch to understand every component</li>
+<li><a href="https://etcd.io/docs/">etcd Documentation</a> — The consistency backend</li>
+<li><a href="https://landscape.cncf.io/">CNCF Landscape</a> — The broader cloud-native ecosystem</li>
+</ul></kubernetesarchitecture>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/raft-consensus-algorithm-deep-dive" data-astro-cid-gjtny2mx>Raft Consensus Algorithm: How Distributed Systems Agree on Reality</a> <p data-astro-cid-gjtny2mx>A deep dive into Raft&#39;s leader election, log replication, and safety guarantees—and why etcd, CockroachDB, and TiKV all rely on it for distributed consensus.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/chat-messaging-system-design" data-astro-cid-gjtny2mx>Chat System Design: How to Build a WhatsApp-Scale Messaging System</a> <p data-astro-cid-gjtny2mx>Design a real-time chat system like WhatsApp from first principles. Cover WebSockets, message storage with Cassandra, fan-out patterns, online/offline presence, and the architecture decisions that scale to billions of messages per day.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/clickhouse-architecture-deep-dive" data-astro-cid-gjtny2mx>ClickHouse Architecture: How a Column-Oriented Database Processes Billions of Rows</a> <p data-astro-cid-gjtny2mx>A deep dive into ClickHouse&#39;s architecture—vectorized execution, MergeTree storage, and how it achieves sub-second queries on trillion-row datasets.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Kubernetes Architecture Deep Dive: How Container Orchestration Actually Works","description":"A technical deep dive into Kubernetes architecture—control plane, etcd, scheduler, kubelet, pod lifecycle, networking, and how all the components work together to orchestrate containers at scale.","datePublished":"2026-05-06T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/kubernetes-architecture-deep-dive"},"keywords":"kubernetes, kubernetes-architecture, container-orchestration, devops, distributed-systems, etcd, scheduler, pods, cloud-native, k8s","articleSection":"kubernetes","about":[{"@type":"Thing","name":"kubernetes"},{"@type":"Thing","name":"kubernetes-architecture"},{"@type":"Thing","name":"container-orchestration"},{"@type":"Thing","name":"devops"},{"@type":"Thing","name":"distributed-systems"},{"@type":"Thing","name":"etcd"},{"@type":"Thing","name":"scheduler"},{"@type":"Thing","name":"pods"},{"@type":"Thing","name":"cloud-native"},{"@type":"Thing","name":"k8s"}]}</script> 

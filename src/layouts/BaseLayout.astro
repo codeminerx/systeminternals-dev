@@ -11,6 +11,7 @@ interface Props {
   twitterTitle?: string;
   twitterDescription?: string;
   twitterImage?: string;
+  canonicalUrl?: string;
 }
 
 const {
@@ -25,6 +26,7 @@ const {
   twitterTitle,
   twitterDescription,
   twitterImage,
+  canonicalUrl,
 } = Astro.props;
 
 ---
@@ -50,6 +52,7 @@ const {
     <meta name="twitter:title" content={twitterTitle ?? ogTitle ?? title} />
     <meta name="twitter:description" content={twitterDescription ?? ogDescription ?? description} />
     <meta name="twitter:image" content={twitterImage ?? ogImage} />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
   </head>
   <body>
     <div class="container">

@@ -374,6 +374,8 @@ strace -p 12345 -f
 ltrace -p 12345
 ```
 
+*Want to practice these commands on a live system? [Spin up a Linux VPS with Vultr](https://www.vultr.com/?ref=8914132) — deploy in 60 seconds, $100 free credit for new accounts.*
+
 ## Conclusion
 
 Linux process management is built on the `/proc` filesystem and a set of tools that let you inspect what's running. `ps` gives you snapshots, `top` gives you live updates, and `htop` makes the whole experience more pleasant.

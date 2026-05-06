@@ -2,7 +2,12 @@
 title: "Database Transactions and Isolation Levels Explained"
 description: "ACID properties, Read Uncommitted to Serializable isolation levels, dirty reads, non-repeatable reads, phantom reads, pessimistic vs optimistic locking, deadlock handling, and race condition prevention in SQL databases."
 date: 2024-01-28
-tags: ["sql", "databases", "transactions", "concurrency"]
+tags: ["sql", "databases", "transactions", "concurrency", "acid", "isolation-levels"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2024-01-28"
+  dateModified: "2024-01-28"
 ---
 
 Race conditions aren't just a multithreading problem. Your database has them too. Let's talk about transactions and isolation levels.
@@ -209,3 +214,9 @@ COMMIT;
 ```
 
 Race conditions in databases are real. Choose the right isolation level, understand the tradeoffs, and test your concurrent scenarios.
+
+## Related Posts
+
+- [PostgreSQL vs MySQL 2024](/posts/postgresql-vs-mysql-2024) — MVCC implementations differ between databases; PostgreSQL's version-based approach affects concurrency behavior
+- [SQL Indexing Deep Dive](/posts/sql-indexing-deep-dive) — Index design directly affects lock contention under high concurrency
+- [Redis Beyond Caching](/posts/redis-beyond-caching) — Redis intentionally lacks ACID transactions; understanding why helps you choose the right tool

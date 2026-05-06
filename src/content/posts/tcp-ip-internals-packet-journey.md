@@ -364,3 +364,9 @@ Understanding this stack is essential for:
 - Configuring firewalls and routers
 
 The next time you run `traceroute` or capture packets with `tcpdump`, you'll know exactly what's happening at each step.
+
+## Related Posts
+
+- [DNS Deep Dive](/posts/dns-deep-dive-how-domain-resolution-works) — DNS sits on top of the TCP/IP stack; understanding the network layer explains why DNS lookups can fail in specific ways
+- [Linux Process Management](/posts/linux-process-management-ps-top-htop) — Network connections are created by processes; `ps` and `/proc` show you which processes hold which sockets
+- [ClickHouse Architecture](/posts/clickhouse-architecture-deep-dive) — ClickHouse's distributed query execution depends on the TCP/IP stack for inter-node communication

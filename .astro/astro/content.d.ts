@@ -141,6 +141,13 @@ declare module 'astro:content' {
 
 	type ContentEntryMap = {
 		"posts": {
+"chat-messaging-system-design.md": {
+	id: "chat-messaging-system-design.md";
+  slug: "chat-messaging-system-design";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
 "clickhouse-architecture-deep-dive.md": {
 	id: "clickhouse-architecture-deep-dive.md";
   slug: "clickhouse-architecture-deep-dive";
@@ -162,6 +169,13 @@ declare module 'astro:content' {
   collection: "posts";
   data: InferEntrySchema<"posts">
 } & { render(): Render[".md"] };
+"distributed-cache-system-design.md": {
+	id: "distributed-cache-system-design.md";
+  slug: "distributed-cache-system-design";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
 "dns-deep-dive-how-domain-resolution-works.md": {
 	id: "dns-deep-dive-how-domain-resolution-works.md";
   slug: "dns-deep-dive-how-domain-resolution-works";
@@ -179,6 +193,27 @@ declare module 'astro:content' {
 "gdb-debugging-core-dumps-live-processes.md": {
 	id: "gdb-debugging-core-dumps-live-processes.md";
   slug: "gdb-debugging-core-dumps-live-processes";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
+"http2-http3-internals.md": {
+	id: "http2-http3-internals.md";
+  slug: "http2-http3-internals";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
+"kubernetes-architecture-deep-dive.md": {
+	id: "kubernetes-architecture-deep-dive.md";
+  slug: "kubernetes-architecture-deep-dive";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
+"linux-io-debugging-iostat-iotop-pidstat.md": {
+	id: "linux-io-debugging-iostat-iotop-pidstat.md";
+  slug: "linux-io-debugging-iostat-iotop-pidstat";
   body: string;
   collection: "posts";
   data: InferEntrySchema<"posts">
@@ -239,6 +274,13 @@ declare module 'astro:content' {
   collection: "posts";
   data: InferEntrySchema<"posts">
 } & { render(): Render[".md"] };
+"socket-programming-tcp-client-from-scratch.md": {
+	id: "socket-programming-tcp-client-from-scratch.md";
+  slug: "socket-programming-tcp-client-from-scratch";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
 "sql-indexing-deep-dive.md": {
 	id: "sql-indexing-deep-dive.md";
   slug: "sql-indexing-deep-dive";
@@ -246,9 +288,23 @@ declare module 'astro:content' {
   collection: "posts";
   data: InferEntrySchema<"posts">
 } & { render(): Render[".md"] };
+"strace-cheat-sheet.md": {
+	id: "strace-cheat-sheet.md";
+  slug: "strace-cheat-sheet";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
 "strace-debugging-linux-system-calls.md": {
 	id: "strace-debugging-linux-system-calls.md";
   slug: "strace-debugging-linux-system-calls";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
+"tcp-congestion-control-algorithms-deep-dive.md": {
+	id: "tcp-congestion-control-algorithms-deep-dive.md";
+  slug: "tcp-congestion-control-algorithms-deep-dive";
   body: string;
   collection: "posts";
   data: InferEntrySchema<"posts">

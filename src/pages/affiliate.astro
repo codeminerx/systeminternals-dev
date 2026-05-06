@@ -1,0 +1,226 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Affiliate Partnerships"
+  description="Partner with System Internals to reach senior engineers, SREs, and backend developers with your infrastructure products."
+  ogTitle="Affiliate Partnerships — System Internals"
+  ogDescription="Partner with System Internals to reach senior engineers, SREs, and backend developers with your infrastructure products."
+>
+  <div class="page">
+    <header>
+      <p class="eyebrow">Partner With Us</p>
+      <h1>Affiliate Partnerships</h1>
+      <p class="lead">
+        System Internals reaches senior engineers, DevOps, and backend developers who make infrastructure purchasing decisions.
+        If your product helps them build, debug, or scale systems — let's talk.
+      </p>
+    </header>
+
+    <section>
+      <h2>Why Partner With System Internals</h2>
+      <ul class="stats">
+        <li>
+          <span class="stat-value">Deep technical audience</span>
+          <span class="stat-desc">Readers are the engineers who actually evaluate and buy infrastructure tools — not managers.</span>
+        </li>
+        <li>
+          <span class="stat-value">High-intent traffic</span>
+          <span class="stat-desc">Our readers come looking for solutions to real problems. They're actively researching, not browsing casually.</span>
+        </li>
+        <li>
+          <span class="stat-value">Trusted content</span>
+          <span class="stat-desc">The blog has published detailed, technical deep dives on Linux, databases, networking, and distributed systems.</span>
+        </li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Who We're Looking For</h2>
+      <p>We partner with products that fit the audience:</p>
+      <ul class="product-list">
+        <li><strong>Cloud infrastructure &amp; VPS</strong> — Cloud providers, serverless platforms, bare metal</li>
+        <li><strong>Observability &amp; monitoring</strong> — APM, tracing, logging, metrics, alerting</li>
+        <li><strong>Developer tooling</strong> — CI/CD, container platforms, databases, caches</li>
+        <li><strong>Networking &amp; security</strong> — CDNs, DNS, DDoS protection, VPNs, certificate management</li>
+        <li><strong>Performance profiling</strong> — Profiling tools, benchmarking, load testing</li>
+        <li><strong>Managed services</strong> — Managed databases, queues, search, observability SaaS</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Partnership Options</h2>
+      <div class="tiers">
+        <div class="tier">
+          <h3>Affiliate Links</h3>
+          <p>We embed referral links in relevant posts and resource pages. You get a commission on any referred customers — typically 10% recurring for 12 months. Clean, honest recommendations only.</p>
+        </div>
+        <div class="tier">
+          <h3>Sponsored Content</h3>
+          <p>A well-researched post about your product, written to our editorial standards. Not a press release — a genuine technical piece that helps readers.</p>
+        </div>
+        <div class="tier">
+          <h3>Newsletter Feature</h3>
+          <p>A mention or mini-review in our newsletter to our subscriber base. High open rates, direct delivery.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <h2>Interested?</h2>
+      <p>
+        If you have a product that genuinely helps systems engineers, reach out with a brief intro:
+        who you are, what you offer, and why it's relevant to our audience.
+      </p>
+      <p class="contact">
+        You can find us through the <a href="/about">contact info on the About page</a>.
+      </p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .page {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 2rem 0;
+  }
+
+  header {
+    margin-bottom: 3rem;
+  }
+
+  .eyebrow {
+    font-size: 0.8rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    line-height: 1.2;
+  }
+
+  .lead {
+    font-size: 1.125rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  section {
+    margin-bottom: 3rem;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: var(--text);
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .stats li {
+    border-left: 2px solid var(--accent);
+    padding-left: 1.25rem;
+  }
+
+  .stat-value {
+    display: block;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--text);
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-desc {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .product-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  .product-list strong {
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .product-list li::before {
+    content: '→';
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .tiers {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .tier {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+  }
+
+  .tier h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: var(--accent);
+  }
+
+  .tier p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .cta {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 2rem;
+    border: 1px solid var(--border);
+  }
+
+  .cta h2 {
+    margin-bottom: 0.75rem;
+  }
+
+  .cta p {
+    color: var(--text-muted);
+    line-height: 1.6;
+    font-size: 0.95rem;
+  }
+
+  .cta .contact {
+    margin-top: 1rem;
+  }
+
+  .cta a {
+    color: var(--accent);
+  }
+
+  .cta a:hover {
+    text-decoration: underline;
+  }
+</style>

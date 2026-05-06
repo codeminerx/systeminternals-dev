@@ -173,3 +173,9 @@ Both are production-ready, battle-tested databases. You probably can't go wrong 
 If you're starting fresh and don't have strong constraints, I lean PostgreSQL. The feature gap keeps widening in its favor.
 
 But if MySQL works for your use case and your team knows it well? Ship it. Database choice matters less than shipping software.
+
+## Related Posts
+
+- [Database Transactions and Isolation Levels](/posts/database-transactions-isolation-levels) — Isolation levels and MVCC implementations differ between PostgreSQL and MySQL
+- [SQL Indexing Deep Dive](/posts/sql-indexing-deep-dive) — Query planner differences stem from index handling and statistics
+- [Database Normalization](/posts/database-normalization-practical-guide) — Both databases follow normalized OLTP patterns but differ in constraints and JSON handling

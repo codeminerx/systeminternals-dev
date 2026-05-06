@@ -72,8 +72,12 @@ const articleSchema = {
   ogDescription={description}
   ogType="article"
   ogUrl={`https://systeminternals.dev/posts/${post.slug}`}
+  ogImage="/og-default.svg"
+  twitterCard="summary_large_image"
   twitterTitle={title}
   twitterDescription={description}
+  twitterImage="/og-default.svg"
+  canonicalUrl={`https://systeminternals.dev/posts/${post.slug}`}
 >
   <article>
     <header>

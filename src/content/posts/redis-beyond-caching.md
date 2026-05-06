@@ -240,3 +240,9 @@ Redis isn't just a cache. With the right use case, it's a powerful primary datab
 - Pair it with a relational database for complex queries
 
 The key is understanding what Redis does well—fast, structured data access—and using it where that matters most.
+
+## Related Posts
+
+- [URL Shortener System Design](/posts/url-shortener-system-design) — Redis as a primary store for hot data and short URL counters
+- [Database Transactions and Isolation Levels](/posts/database-transactions-isolation-levels) — Redis intentionally lacks ACID transactions; Redis persistence is eventual, not transactional
+- [Linux Process Management](/posts/linux-process-management-ps-top-htop) — Redis persistence (RDB/AOF) means the Redis process is an I/O actor the kernel tracks like any process

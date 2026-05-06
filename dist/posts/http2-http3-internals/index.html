@@ -1,0 +1,380 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Deep dive into HTTP/2 frames, streams, multiplexing, HPACK compression, server push, and HTTP/3's QUIC protocol, 0-RTT, and connection migration."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>HTTP/2 and HTTP/3 Internals: How the Web Actually Gets Faster</title><meta property="og:title" content="HTTP/2 and HTTP/3 Internals: How the Web Actually Gets Faster"><meta property="og:description" content="Deep dive into HTTP/2 frames, streams, multiplexing, HPACK compression, server push, and HTTP/3's QUIC protocol, 0-RTT, and connection migration."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/http2-http3-internals"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="HTTP/2 and HTTP/3 Internals: How the Web Actually Gets Faster"><meta name="twitter:description" content="Deep dive into HTTP/2 frames, streams, multiplexing, HPACK compression, server push, and HTTP/3's QUIC protocol, 0-RTT, and connection migration."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/http2-http3-internals"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>HTTP/2 and HTTP/3 Internals: How the Web Actually Gets Faster</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-06T00:00:00.000Z" data-astro-cid-gjtny2mx>May 5, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>12 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>networking</span><span class="tag" data-astro-cid-gjtny2mx>http</span><span class="tag" data-astro-cid-gjtny2mx>http2</span><span class="tag" data-astro-cid-gjtny2mx>http3</span><span class="tag" data-astro-cid-gjtny2mx>quic</span><span class="tag" data-astro-cid-gjtny2mx>performance</span><span class="tag" data-astro-cid-gjtny2mx>linux</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>If you’ve ever wondered why loading a page with dozens of CSS, JS, and image requests is faster over HTTP/2 than HTTP/1.1, or why HTTP/3 eliminates the HOL blocking that plagues HTTP/2 — this is the post that gets you all the way there.</p>
+<p>HTTP/1.1 served us for 15 years, but its fundamental limitation is that it was designed for a web of simple document fetches, not the complex dependency graphs of modern SPAs. Understanding what HTTP/2 and HTTP/3 actually do under the hood lets you reason about when they help, when they hurt, and how to tune them.</p>
+<blockquote>
+<p><strong>Prerequisites:</strong> This post assumes familiarity with TCP/IP fundamentals. If you need a refresher on how packets travel across the network, start with <a href="/posts/tcp-ip-internals-packet-journey/">TCP/IP Internals: How a Packet Travels Across the Network</a>.</p>
+</blockquote>
+<h2 id="http11-the-problem">HTTP/1.1: The Problem</h2>
+<p>HTTP/1.1 opens a TCP connection and serializes requests over it:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client                          Server</span></span>
+<span class="line"><span>  |--- GET /index.html -------->|     (connection opened)</span></span>
+<span class="line"><span>  |&#x3C;-- 200 OK + index.html -----|     (wait, receive, parse)</span></span>
+<span class="line"><span>  |--- GET /style.css --------->|</span></span>
+<span class="line"><span>  |&#x3C;-- 200 OK + style.css ------|</span></span>
+<span class="line"><span>  |--- GET /app.js ------------>|</span></span>
+<span class="line"><span>  |&#x3C;-- 200 OK + app.js ---------|</span></span>
+<span class="line"><span>  |--- GET /logo.png ---------->|</span></span>
+<span class="line"><span>  |&#x3C;-- 200 OK + logo.png -------|</span></span>
+<span class="line"><span>  ...</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Each request blocks the next. To work around this, browsers opened <strong>6 TCP connections per origin</strong> (HTTP/1.0/pipelining was widely broken). This created <strong>head-of-line blocking</strong> at the application layer — even though the underlying TCP connection was full-duplex, applications had to wait in line.</p>
+<p>Worse, every connection requires a full TCP handshake (1 RTT minimum, more with TLS). For a page with 100 resources across 10 origins, that’s 10 separate handshakes before a single byte of data.</p>
+<h2 id="http2-multiplexing-with-streams-and-frames">HTTP/2: Multiplexing with Streams and Frames</h2>
+<p>HTTP/2’s core innovation is <strong>stream multiplexing</strong> — multiple logical request/response exchanges ride on a single TCP connection simultaneously. The key abstraction is the <strong>frame</strong>:</p>
+<h3 id="frames-the-atomic-unit">Frames: The Atomic Unit</h3>
+<p>Every HTTP/2 message is broken into frames. There are 10 frame types:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Frame Type</th><th>Purpose</th></tr></thead><tbody><tr><td><code>DATA</code></td><td>Application request/response body</td></tr><tr><td><code>HEADERS</code></td><td>Request/response headers (compressed)</td></tr><tr><td><code>SETTINGS</code></td><td>Connection configuration (initial handshake)</td></tr><tr><td><code>WINDOW_UPDATE</code></td><td>Flow control</td></tr><tr><td><code>RST_STREAM</code></td><td>Abrupt stream termination</td></tr><tr><td><code>PING</code></td><td>Round-trip time measurement</td></tr><tr><td><code>GOAWAY</code></td><td>Graceful connection shutdown</td></tr><tr><td><code>PRIORITY</code></td><td>Stream dependency weighting</td></tr><tr><td><code>PUSH_PROMISE</code></td><td>Server-initiated push</td></tr><tr><td><code>CONTINUATION</code></td><td>Header fragment continuation</td></tr></tbody></table>
+<p>Each frame has a simple structure:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>+-----------------------------------------------+</span></span>
+<span class="line"><span>|  Length (24 bits)  |  Type (8)  |  Flags (8)  |</span></span>
+<span class="line"><span>+-----------------------------------------------+</span></span>
+<span class="line"><span>|  R (1)  |        Stream ID (31 bits)          |</span></span>
+<span class="line"><span>+-----------------------------------------------+</span></span>
+<span class="line"><span>|              Frame Payload (variable)         |</span></span>
+<span class="line"><span>+-----------------------------------------------+</span></span>
+<span class="line"><span></span></span></code></pre>
+<ul>
+<li><strong>Length:</strong> 3 bytes, allowing frames up to 16 MB (16,777,215 bytes)</li>
+<li><strong>Type:</strong> Identifies the frame semantics</li>
+<li><strong>Flags:</strong> Type-specific flags (e.g., <code>END_HEADERS</code>, <code>END_STREAM</code>)</li>
+<li><strong>Stream ID:</strong> Odd for client-initiated, even for server-initiated (push)</li>
+</ul>
+<h3 id="streams-virtual-conversations">Streams: Virtual Conversations</h3>
+<p>A <strong>stream</strong> is an independent, bidirectional sequence of frames between client and server. Each stream has:</p>
+<ul>
+<li>A unique integer ID (1, 3, 5, … for client-initiated)</li>
+<li>Its own state machine (open, half-closed, closed)</li>
+<li>Priority/weight for scheduling</li>
+</ul>
+<p>Multiple streams interleave on the wire:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>TCP Connection (single)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span> Stream 1 (GET /index.html)    DATA [............]</span></span>
+<span class="line"><span> Stream 3 (GET /style.css)         HEADERS [.]. DATA [....]</span></span>
+<span class="line"><span> Stream 5 (GET /app.js)                 HEADERS [.] DATA [........]</span></span>
+<span class="line"><span> Stream 7 (GET /logo.png)     HEADERS [.]  DATA [..]</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The TCP layer sees one byte stream. The HTTP/2 layer sees multiple virtual conversations. Frames are tagged with stream IDs so the receiver can demultiplex them.</p>
+<h3 id="hpack-header-compression-that-matters">HPACK: Header Compression That Matters</h3>
+<p>HTTP headers are verbose. A typical request:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>GET / HTTP/1.1</span></span>
+<span class="line"><span>Host: example.com</span></span>
+<span class="line"><span>User-Agent: Mozilla/5.0...</span></span>
+<span class="line"><span>Accept: text/html,application/xhtml+xml...</span></span>
+<span class="line"><span>Accept-Language: en-US,en;q=0.9</span></span>
+<span class="line"><span>Accept-Encoding: gzip, deflate, br</span></span>
+<span class="line"><span>Cache-Control: no-cache</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Thousands of bytes before a single content byte. Over a persistent connection with dozens of requests to the same origin, this is wasteful.</p>
+<p>HTTP/1.1 used <code>Content-Encoding: gzip</code> on the body, but headers were always plaintext and always re-sent in full.</p>
+<p>HTTP/2 uses <strong>HPACK</strong>, a stateful header compression scheme with two major components:</p>
+<p><strong>1. Static Table</strong> — A predefined list of 61 common header fields (e.g., <code>:method: GET</code>, <code>:status: 200</code>, <code>content-type: text/plain</code>). Both endpoints know these by index.</p>
+<p><strong>2. Dynamic Table</strong> — Learned entries specific to this connection. If you send <code>x-custom-header: some-value</code> once, it’s added to the dynamic table and referred to by index in subsequent requests.</p>
+<p><strong>3. Huffman Encoding</strong> — String literals are encoded with Huffman coding, with frequency distribution tuned to HTTP header values.</p>
+<p>A typical HPACK-encoded request might look like:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>:method: GET          → index 2  (static table, 1 byte)</span></span>
+<span class="line"><span>:scheme: https        → index 6  (static table, 1 byte)</span></span>
+<span class="line"><span>:path: /             → index 4  (static table, 1 byte)</span></span>
+<span class="line"><span>:authority: example.com → index 1 (static table, 1 byte)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>vs. the full uncompressed text: 9 bytes vs. 5 bytes.</p>
+<p>HPACK also uses <strong>never-indexed</strong> representation for privacy-sensitive headers (cookies, auth tokens), encoding them as literal strings that must never be added to the dynamic table.</p>
+<h3 id="server-push-promise-before-you-ask">Server Push: Promise Before You Ask</h3>
+<p>HTTP/2 server push lets the server preemptively send resources the client will need, before the client requests them. The server sends a <code>PUSH_PROMISE</code> frame:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client                              Server</span></span>
+<span class="line"><span>  |--- GET /index.html ------------>|   (stream 1)</span></span>
+<span class="line"><span>  |&#x3C;-- 200 OK + headers (stream 1)--|</span></span>
+<span class="line"><span>  |&#x3C;-- PUSH_PROMISE [stream 3] -----|   (promises /style.css)</span></span>
+<span class="line"><span>  |     + HEADERS (css request)     |   (server-initiated synthetic request)</span></span>
+<span class="line"><span>  |&#x3C;-- DATA + style.css (stream 3)--|</span></span>
+<span class="line"><span>  |&#x3C;-- 200 OK + index.html (stream 1)|</span></span>
+<span class="line"><span>  |--- HEADERS + GET /style.css --->|   (stream 5)</span></span>
+<span class="line"><span>  |&#x3C;-- (already pushed, ignored) ----|</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The client can <code>RST_STREAM</code> the push promise if it already has the resource cached. In practice, server push has seen limited adoption because of cache complexity and the difficulty of predicting what the client needs.</p>
+<h3 id="flow-control-not-just-tcps-job">Flow Control: Not Just TCP’s Job</h3>
+<p>TCP has flow control (receiver buffer), and HTTP/2 adds its own <strong>per-stream and connection-level flow control</strong> using <code>WINDOW_UPDATE</code> frames.</p>
+<p>Each endpoint advertises a flow control window for each stream and for the connection. By default it’s 65,535 bytes. As bytes are received, the window shrinks. When it approaches zero, the sender blocks.</p>
+<p>This is different from TCP flow control:</p>
+<ul>
+<li><strong>TCP flow control:</strong> Prevents the sender from overwhelming the receiver’s socket buffer (OS-level)</li>
+<li><strong>HTTP/2 flow control:</strong> Prevents a single stream from monopolizing the connection (application-level)</li>
+</ul>
+<p>A greedy stream can’t starve other streams because each has its own window tracked by the receiver.</p>
+<h2 id="http3-quic-takes-over">HTTP/3: QUIC Takes Over</h2>
+<p>HTTP/3 replaces TCP with <strong>QUIC</strong>, a UDP-based multiplexed transport protocol. The reasons are fundamental:</p>
+<h3 id="the-tcp-hol-blocking-problem">The TCP HOL Blocking Problem</h3>
+<p>HTTP/2 solves application-layer head-of-line blocking but introduces a new one at the transport layer:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Stream 1: DATA [.................................................................]</span></span>
+<span class="line"><span>Stream 3: DATA [........]</span></span>
+<span class="line"><span>Stream 5: DATA [........]</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>If Stream 3’s packet is lost, TCP can’t deliver Stream 5’s data to the application either — even if Stream 5’s data arrived and was perfectly intact. TCP treats the byte stream as a single ordered sequence.</p>
+<p>The solution: decouple stream delivery from connection-level reliability.</p>
+<h3 id="quic-streams-as-first-class-citizens">QUIC: Streams as First-Class Citizens</h3>
+<p>QUIC runs over UDP. Each QUIC connection has its own encryption layer (TLS 1.3 mandatory), and streams are first-class objects:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>UDP (connectionless)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>  QUIC Connection (handshake, crypto)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>    Stream 1  (independent reliability: packet loss → only Stream 1 blocked)</span></span>
+<span class="line"><span>    Stream 3  (independent reliability: packet loss → only Stream 3 blocked)</span></span>
+<span class="line"><span>    Stream 5  (independent reliability: packet loss → only Stream 5 blocked)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>When a packet is lost, only the stream that packet belonged to is blocked. Other streams continue normally.</p>
+<h3 id="quic-packet-structure">QUIC Packet Structure</h3>
+<p>QUIC packets (over UDP) look like:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>UDP Header</span></span>
+<span class="line"><span>  Source Port, Dest Port</span></span>
+<span class="line"><span>  Length, Checksum</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>QUIC Header (long form, during handshake):</span></span>
+<span class="line"><span>  Header Form (1) = 1</span></span>
+<span class="line"><span>  Version (32)</span></span>
+<span class="line"><span>  Dest Connection ID (0-160 bits)</span></span>
+<span class="line"><span>  Src Connection ID (0-160 bits)</span></span>
+<span class="line"><span>  Packet Number Length (2)</span></span>
+<span class="line"><span>  Initial Packet Number (8/16/32/48)</span></span>
+<span class="line"><span>  Initial Token (variable)</span></span>
+<span class="line"><span>  Length (variable)</span></span>
+<span class="line"><span>  Crypto Handshake (variable)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>QUIC Header (short form, after handshake):</span></span>
+<span class="line"><span>  Header Form (1) = 0</span></span>
+<span class="line"><span>  Dest Connection ID</span></span>
+<span class="line"><span>  Packet Number (8/16/32/48)</span></span>
+<span class="line"><span>  Header Protection (removed)</span></span>
+<span class="line"><span>  Encrypted Content (AEAD)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The <code>Packet Number</code> is always encrypted and shorter than the full sequence number (1-4 bytes vs. the full 48-bit number). This makes it impossible for eavesdroppers to infer sequence numbers and adds resistance to manipulated packet numbers.</p>
+<h3 id="0-rtt-the-holy-grail">0-RTT: The Holy Grail</h3>
+<p>TLS 1.3 introduced <strong>0-RTT</strong> (zero round-trip time) resumption. QUIC adopts this:</p>
+<p><strong>Normal TLS 1.3 handshake (1-RTT):</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client                          Server</span></span>
+<span class="line"><span>  |--- ClientHello ------------->|</span></span>
+<span class="line"><span>  |&#x3C;-- ServerHello + certificate -|</span></span>
+<span class="line"><span>  |&#x3C;-- ( Finished ) -------------|</span></span>
+<span class="line"><span>  |--- ( Finished ) ------------>|</span></span>
+<span class="line"><span>  |=== encrypted channel =======|</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>0-RTT resumption:</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client                          Server</span></span>
+<span class="line"><span>  |--- ClientHello + PSK票据 + early data ->|</span></span>
+<span class="line"><span>  |&#x3C;== encrypted channel (immediate) =======|</span></span>
+<span class="line"><span>  |--- HTTP/3 request (immediate) --------->|</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The client uses a <strong>Pre-Shared Key (PSK)</strong> from a previous handshake. It can encrypt and send data immediately, saving 1 full RTT.</p>
+<p>Caveat: 0-RTT data is vulnerable to <strong>replay attacks</strong>. The data is tied to the specific session resumption ticket. Servers must handle this carefully and typically restrict 0-RTT to idempotent requests.</p>
+<h3 id="connection-migration">Connection Migration</h3>
+<p>TCP connections are identified by the 4-tuple: <code>(src IP, src port, dst IP, dst port)</code>. If any of these change (e.g., mobile device switches from WiFi to LTE), the connection dies.</p>
+<p>QUIC uses a <strong>Connection ID</strong> that’s independent of the network path:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>QUIC Connection</span></span>
+<span class="line"><span>  Connection ID: 0xabc123</span></span>
+<span class="line"><span>  (regardless of which IP/port we're using)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>When the network changes, the client sends packets from the new path with the same Connection ID. The server recognizes it and migrates the connection state. This happens invisibly to the application.</p>
+<p>For mobile clients, this means a phone call that interrupts WiFi doesn’t kill your video stream.</p>
+<h3 id="http3-frames">HTTP/3 Frames</h3>
+<p>HTTP/3 uses a different wire format than HTTP/2 (QPACK instead of HPACK, different frame framing), but the concepts map:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Concept</th><th>HTTP/2</th><th>HTTP/3</th></tr></thead><tbody><tr><td>Framing</td><td>Length-prefixed frames</td><td>Length-prefixed frames (over QUIC streams)</td></tr><tr><td>Streams</td><td>Logical by stream ID</td><td>QUIC streams (first-class)</td></tr><tr><td>Header compression</td><td>HPACK</td><td>QPACK</td></tr><tr><td>Flow control</td><td>WINDOW_UPDATE</td><td>QUIC flow control</td></tr><tr><td>Priority</td><td>PRIORITY frame</td><td>PRIORITY_HEADERS frame</td></tr></tbody></table>
+<p>QPACK is HPACK adapted for out-of-order delivery — since QUIC delivers stream data out of order, headers can’t be compressed using the same indexed references without coordination. QPACK uses a two-phase header acknowledgment scheme to handle this.</p>
+<h2 id="linux-sysctl-tuning">Linux sysctl Tuning</h2>
+<p>Both HTTP/2 and HTTP/3 benefit from kernel-level tuning.</p>
+<h3 id="tcp-tuning-affects-http2-over-tcp">TCP Tuning (affects HTTP/2 over TCP)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Enable TCP BBR for better throughput on high-latency links</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_congestion_control=bbr</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.core.default_qdisc=fq</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Increase max concurrent streams (HTTP/2)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Note: This is negotiated via SETTINGS frame, but kernel limits apply</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_max_syn_reacks=</span><span style="color:#FF9E64">64</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># TCP keepalive for long-lived connections</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_keepalive_time=</span><span style="color:#FF9E64">30</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> net.ipv4.tcp_keepalive_intvl=</span><span style="color:#FF9E64">10</span></span>
+<span class="line"></span></code></pre>
+<h3 id="quichttp3-requires-a-quic-capable-server">QUIC/HTTP/3 (requires a QUIC-capable server)</h3>
+<p>HTTP/3 support in the kernel is evolving. The main userspace QUIC implementations are:</p>
+<ul>
+<li><strong>lsquic</strong> (LiteSpeed)</li>
+<li><strong>quiche</strong> (Cloudflare)</li>
+<li><strong>ngtcp2</strong> (used by curl, H2O)</li>
+</ul>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># For servers running QUIC:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Ensure firewall allows UDP on the HTTP/3 port (443)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># QUIC uses UDP, not TCP</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Monitor QUIC with ss (shows UDP sockets)</span></span>
+<span class="line"><span style="color:#C0CAF5">ss</span><span style="color:#E0AF68"> -uan</span><span style="color:#9ECE6A"> sport</span><span style="color:#9ECE6A"> =</span><span style="color:#FF9E64"> 443</span><span style="color:#51597D;font-style:italic">   # QUIC listeners</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># tcpdump captures QUIC (UDP port 443)</span></span>
+<span class="line"><span style="color:#C0CAF5">tcpdump</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">udp port 443</span><span style="color:#89DDFF">'</span><span style="color:#E0AF68"> -nn</span><span style="color:#E0AF68"> -X</span></span>
+<span class="line"></span></code></pre>
+<h3 id="curl-with-http3">curl with HTTP/3</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Build curl with HTTP/3 support</span></span>
+<span class="line"><span style="color:#C0CAF5">curl</span><span style="color:#E0AF68"> --http3</span><span style="color:#9ECE6A"> https://example.com</span><span style="color:#E0AF68"> -I</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Check if a server supports HTTP/3</span></span>
+<span class="line"><span style="color:#C0CAF5">curl</span><span style="color:#E0AF68"> -I</span><span style="color:#E0AF68"> --http3</span><span style="color:#9ECE6A"> https://example.com</span></span>
+<span class="line"></span></code></pre>
+<h2 id="practical-reading-http2-frames-with-tcpdump">Practical: Reading HTTP/2 Frames with tcpdump</h2>
+<p>Let’s actually look at HTTP/2 on the wire:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Capture HTTP/2 traffic (requires TLS inspection or a test server with h2c)</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpdump</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tcp port 8443</span><span style="color:#89DDFF">'</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> h2.pcap</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Or for plaintext HTTP/2 (h2c):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Start a test server</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># ncat -l 8443 --sh-exec "ncat -l 8443 --exec 'cat', -k"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Decode HTTP/2 with tshark (Wireshark CLI)</span></span>
+<span class="line"><span style="color:#C0CAF5">tshark</span><span style="color:#E0AF68"> -r</span><span style="color:#9ECE6A"> h2.pcap</span><span style="color:#E0AF68"> -Y</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">http2</span><span style="color:#89DDFF">"</span><span style="color:#E0AF68"> -T</span><span style="color:#9ECE6A"> fields</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> http2.streamid</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> http2.header.name</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> http2.header.value</span></span>
+<span class="line"></span></code></pre>
+<p>A frame-level capture shows stream IDs and interleaving:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Stream 1: HEADERS (request: GET /)</span></span>
+<span class="line"><span>Stream 1: DATA (response begins)</span></span>
+<span class="line"><span>Stream 3: HEADERS (request: GET /style.css)   ← interleaved while Stream 1 still delivering</span></span>
+<span class="line"><span>Stream 5: HEADERS (request: GET /app.js)</span></span>
+<span class="line"><span>Stream 1: DATA (response continues)</span></span>
+<span class="line"><span>Stream 3: DATA (response begins)</span></span>
+<span class="line"><span>...</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Wireshark (GUI) makes this visually obvious — you can see the frame interleaving in the “Frames” pane.</p>
+<h3 id="reading-quic-with-tcpdump">Reading QUIC with tcpdump</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Capture QUIC traffic</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpdump</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">udp port 443</span><span style="color:#89DDFF">'</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> quic.pcap</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Wireshark can decode QUIC natively (QUIC dissector)</span></span>
+<span class="line"><span style="color:#C0CAF5">tshark</span><span style="color:#E0AF68"> -r</span><span style="color:#9ECE6A"> quic.pcap</span><span style="color:#E0AF68"> -Y</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">quic</span><span style="color:#89DDFF">"</span><span style="color:#E0AF68"> -T</span><span style="color:#9ECE6A"> fields</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> quic.packet_number</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> quic.stream.stream_id</span></span>
+<span class="line"></span></code></pre>
+<h2 id="when-does-each-protocol-win">When Does Each Protocol Win?</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Scenario</th><th>Best Choice</th><th>Reason</th></tr></thead><tbody><tr><td>High-latency, many requests</td><td>HTTP/2 or HTTP/3</td><td>Multiplexing eliminates connection setup overhead</td></tr><tr><td>Mobile client, network switches</td><td>HTTP/3</td><td>Connection migration avoids reconnect</td></tr><tr><td>High packet loss environment</td><td>HTTP/3</td><td>Stream-level loss recovery; no HOL blocking</td></tr><tr><td>Small number of large files</td><td>HTTP/1.1 or HTTP/2</td><td>Overhead of multiplexing may not pay off</td></tr><tr><td>Latency-critical 1-RTT budget</td><td>HTTP/3 + 0-RTT</td><td>Saves full RTT on resumption</td></tr><tr><td>Middlebox-limited network</td><td>HTTP/2 over TCP</td><td>QUIC may be blocked by firewalls</td></tr></tbody></table>
+<h2 id="the-bottom-line">The Bottom Line</h2>
+<p>HTTP/2’s multiplexing is a fundamental advance — once you have it, you don’t go back. But its TCP roots mean it never fully escapes head-of-line blocking.</p>
+<p>HTTP/3 is the clean break: QUIC gives streams first-class treatment, 0-RTT eliminates handshake latency, and connection migration makes mobile finally work right.</p>
+<p>For modern web performance, HTTP/3 is the target. Deploy it behind a CDN that handles the edge translation, and your users get the benefits without the QUIC deployment complexity.</p>
+<p>The web got faster by fixing the transport layer’s oldest assumptions. Now go instrument it.</p>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/tcp-congestion-control-algorithms-deep-dive" data-astro-cid-gjtny2mx>TCP Congestion Control: How TCP Slow Start, AIMD, and BBR Actually Work</a> <p data-astro-cid-gjtny2mx>A deep dive into TCP congestion control algorithms — Slow Start, AIMD, Reno, CUBIC, and BBR — with packet diagrams, ASCII charts, and Linux sysctl commands for practical tuning.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/ebpf-linux-observability-framework" data-astro-cid-gjtny2mx>eBPF: Linux Observability That Will Change How You Debug</a> <p data-astro-cid-gjtny2mx>A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/linux-io-debugging-iostat-iotop-pidstat" data-astro-cid-gjtny2mx>Linux I/O Debugging: From iostat to iotop to pidstat</a> <p data-astro-cid-gjtny2mx>A practical guide to diagnosing I/O bottlenecks in Linux using iostat, iotop, pidstat, and blktrace — with real output, interpretation, and tuning.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"HTTP/2 and HTTP/3 Internals: How the Web Actually Gets Faster","description":"Deep dive into HTTP/2 frames, streams, multiplexing, HPACK compression, server push, and HTTP/3's QUIC protocol, 0-RTT, and connection migration.","datePublished":"2026-05-06T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/http2-http3-internals"},"keywords":"networking, http, http2, http3, quic, performance, linux","articleSection":"networking","about":[{"@type":"Thing","name":"networking"},{"@type":"Thing","name":"http"},{"@type":"Thing","name":"http2"},{"@type":"Thing","name":"http3"},{"@type":"Thing","name":"quic"},{"@type":"Thing","name":"performance"},{"@type":"Thing","name":"linux"}]}</script> 

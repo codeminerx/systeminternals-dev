@@ -3,6 +3,11 @@ title: "ClickHouse Architecture: How a Column-Oriented Database Processes Billio
 description: "A deep dive into ClickHouse's architecture—vectorized execution, MergeTree storage, and how it achieves sub-second queries on trillion-row datasets."
 date: 2026-05-03
 tags: ["clickhouse", "databases", "columnar", "olap", "performance", "distributed-systems", "analytics"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-03"
+  dateModified: "2026-05-03"
 draft: false
 ---
 
@@ -196,6 +201,8 @@ ORDER BY (user_id, timestamp);
 
 INSERT INTO events VALUES (1, 'click', now());
 ```
+
+*If you don't have a Linux machine handy to try this, [spin up a VPS on Vultr](https://www.vultr.com/?ref=8914132) — new accounts get $100 in free credit, enough to run a small ClickHouse node for a few months.*
 
 ## When to Use ClickHouse
 

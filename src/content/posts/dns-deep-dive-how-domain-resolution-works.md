@@ -255,6 +255,8 @@ Major resolvers support both:
 - Google: `8.8.8.8` (DoH: `https://dns.google/dns-query`)
 - Quad9: `9.9.9.9`
 
+If you're evaluating DNS providers for privacy, Cloudflare's 1.1.1.1 is worth a close look — they're publicly committed to not logging browsing data and have published third-party audits.
+
 Browsers now have built-in DoH support. When enabled, your browser bypasses the system resolver and queries DNS directly over HTTPS. This breaks local DNS-based splits (like private DNS entries for internal services) and can complicate network monitoring.
 
 ## Running Your Own DNS: What to Know
@@ -332,6 +334,12 @@ Understanding the full resolution chain matters when:
 - You're troubleshooting DNSSEC validation failures
 
 The next time you type a URL and it "just works," now you know how many servers, caches, and cryptographic checks made that possible.
+
+## Related Posts
+
+- [TCP/IP Internals](/posts/tcp-ip-internals-packet-journey) — DNS sits on top of the TCP/IP stack; understanding the full packet journey explains the network layer beneath DNS
+- [Linux /proc Filesystem Deep Dive](/posts/linux-proc-filesystem-deep-dive) — DNS resolvers write cache data to filesystem entries; `/proc` is how you inspect what's actually stored
+- [eBPF Linux Observability](/posts/ebpf-linux-observability-framework) — eBPF programs can intercept DNS resolution at the socket level for deep observability without traditional proxying
 
 ---
 

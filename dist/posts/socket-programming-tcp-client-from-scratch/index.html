@@ -1,0 +1,435 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A deep dive into POSIX socket programming — from file descriptors to the TCP 3-way handshake, with working C code, strace traces, and edge-triggered I/O."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Raw Socket Programming: Building a Simple TCP Client from Scratch</title><meta property="og:title" content="Raw Socket Programming: Building a Simple TCP Client from Scratch"><meta property="og:description" content="A deep dive into POSIX socket programming — from file descriptors to the TCP 3-way handshake, with working C code, strace traces, and edge-triggered I/O."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/socket-programming-tcp-client-from-scratch"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Raw Socket Programming: Building a Simple TCP Client from Scratch"><meta name="twitter:description" content="A deep dive into POSIX socket programming — from file descriptors to the TCP 3-way handshake, with working C code, strace traces, and edge-triggered I/O."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/socket-programming-tcp-client-from-scratch"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Raw Socket Programming: Building a Simple TCP Client from Scratch</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-04T00:00:00.000Z" data-astro-cid-gjtny2mx>May 3, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>14 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>c</span><span class="tag" data-astro-cid-gjtny2mx>sockets</span><span class="tag" data-astro-cid-gjtny2mx>networking</span><span class="tag" data-astro-cid-gjtny2mx>tcp</span><span class="tag" data-astro-cid-gjtny2mx>posix</span><span class="tag" data-astro-cid-gjtny2mx>systems-programming</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <h1 id="raw-socket-programming-building-a-simple-tcp-client-from-scratch">Raw Socket Programming: Building a Simple TCP Client from Scratch</h1>
+<p>Every network connection on a Unix-like system starts with the same primitive: a socket. Before your HTTP client connects to a server, before your database client talks to Postgres, there is a socket — a file descriptor that happens to live on the network. Understanding sockets at this layer gives you a real model of what your high-level libraries are doing underneath.</p>
+<p>This post is for backend developers who use the socket API daily but want to see what’s actually happening when you <code>connect()</code> or <code>send()</code>. We’ll build a working TCP client in C, trace it with <code>strace</code>, walk through the TCP 3-way handshake in detail, and cover the pitfalls that bite production systems.</p>
+<hr>
+<h2 id="1-what-is-a-socket">1. What Is a Socket?</h2>
+<p>A socket is a <strong>file descriptor</strong> — an integer that the kernel uses to track an I/O endpoint. On Unix, almost everything is a file: regular files, terminals, pipes, and sockets all share the same descriptor table. When you call <code>socket()</code>, you get back a plain int that behaves like any other fd.</p>
+<p>The modern socket API originates from <strong>Berkeley sockets</strong>, developed in the early 1980s for 4.2BSD Unix. It was designed to abstract network communication into a file-like interface. Today it lives in <code>&#x3C;sys/socket.h></code>, <code>&#x3C;netinet/in.h></code>, and <code>&#x3C;arpa/inet.h></code> — portable across Linux, macOS, BSD, and even Windows (via Winsock).</p>
+<p>The key insight: <strong>sockets are endpoints</strong>. A connection has two ends — a local socket and a remote socket. The local side has an IP address and a port; the remote side has an IP address and a port. Together they form a 4-tuple that uniquely identifies every TCP connection on the wire.</p>
+<hr>
+<h2 id="2-socket-types">2. Socket Types</h2>
+<p>When you call <code>socket()</code>, you specify a <strong>domain</strong>, <strong>type</strong>, and <strong>protocol</strong>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#BB9AF7">int</span><span style="color:#A9B1D6"> sock </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> socket</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">AF_INET</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> SOCK_STREAM</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span></code></pre>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Domain</th><th>Meaning</th></tr></thead><tbody><tr><td><code>AF_INET</code></td><td>IPv4</td></tr><tr><td><code>AF_INET6</code></td><td>IPv6</td></tr><tr><td><code>AF_UNIX</code></td><td>Local Unix domain</td></tr></tbody></table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td><code>SOCK_STREAM</code></td><td>Reliable, ordered, connection-oriented (TCP)</td></tr><tr><td><code>SOCK_DGRAM</code></td><td>Datagram, no connection (UDP)</td></tr><tr><td><code>SOCK_RAW</code></td><td>Raw IP — you build the packet yourself</td></tr></tbody></table>
+<p><code>SOCK_STREAM</code> over <code>AF_INET</code> gives you TCP. <code>SOCK_DGRAM</code> gives you UDP. <code>SOCK_RAW</code> lets you craft IP packets directly — used by tools like <code>ping</code> and <code>traceroute</code>, and by firewall tools like <code>nft</code>.</p>
+<hr>
+<h2 id="3-the-client-workflow">3. The Client Workflow</h2>
+<p>A TCP client’s syscall sequence:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>socket()  →  connect()  →  send() / recv()  →  close()</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong><code>socket()</code></strong> — Creates the file descriptor, asks the kernel for a TCP socket.</p>
+<p><strong><code>connect()</code></strong> — Initiates the 3-way handshake with the server. Blocks until the connection is established or fails.</p>
+<p><strong><code>send()</code> / recv()`</strong> — Copy data between user space and kernel socket buffers.</p>
+<p><strong><code>close()</code></strong> — Tears down the connection, sends a FIN.</p>
+<p>That’s the happy path. In reality you also need error handling: <code>connect()</code> returns <code>-1</code> on error and sets <code>errno</code>. A robust client checks every syscall.</p>
+<hr>
+<h2 id="4-the-server-workflow">4. The Server Workflow</h2>
+<p>A TCP server’s syscall sequence:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>socket()  →  bind()  →  listen()  →  accept()  →  send() / recv()  →  close()</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong><code>bind()</code></strong> — Attaches the socket to a specific IP address and port. <code>INADDR_ANY</code> means “bind to all interfaces.”</p>
+<p><strong><code>listen()</code></strong> — Marks the socket as <strong>passive</strong> — a listening socket that will receive incoming connections. The second argument is the <strong>backlog</strong>: how many pending (not yet accepted) connections the kernel queues.</p>
+<p><strong><code>accept()</code></strong> — Blocks until a client connects. Returns a <strong>new file descriptor</strong> for that specific connection. The listening socket stays open and keeps queuing new connections.</p>
+<p>The key distinction: <code>bind()</code> + <code>listen()</code> on the <strong>listening socket</strong>; <code>accept()</code> creates a <strong>connected socket</strong> that you actually <code>send()</code>/<code>recv()</code> on.</p>
+<hr>
+<h2 id="5-code-tcp-client-in-c">5. Code: TCP Client in C</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">define</span><span style="color:#7AA2F7"> _POSIX_C_SOURCE</span><span style="color:#FF9E64"> 200809</span><span style="color:#F7768E">L</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">stdio.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">stdlib.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">string.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">unistd.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">errno.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">sys/socket.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">netinet/in.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">arpa/inet.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">define</span><span style="color:#7AA2F7"> SERVER_PORT</span><span style="color:#FF9E64"> 8080</span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">define</span><span style="color:#7AA2F7"> SERVER_ADDR</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">127.0.0.1</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">define</span><span style="color:#7AA2F7"> MSG</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">Hello from client</span><span style="color:#89DDFF">\0"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">int</span><span style="color:#7AA2F7"> main</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">void</span><span style="color:#9ABDF5">)</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#BB9AF7">    int</span><span style="color:#9ABDF5"> fd</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    struct</span><span style="color:#9ABDF5"> sockaddr_in addr</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    char</span><span style="color:#C0CAF5"> buf</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">256</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    ssize_t</span><span style="color:#9ABDF5"> n</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 1: create the socket --- */</span></span>
+<span class="line"><span style="color:#9ABDF5">    fd </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> socket</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">AF_INET</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> SOCK_STREAM</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (fd </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">socket</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        exit</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">EXIT_FAILURE</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"><span style="color:#7AA2F7">    printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[client] socket fd = </span><span style="color:#C0CAF5">%d</span><span style="color:#89DDFF">\n"</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 2: build the address struct --- */</span></span>
+<span class="line"><span style="color:#7AA2F7">    memset</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">addr</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">addr</span><span style="color:#9ABDF5">))</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">    addr</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sin_family</span><span style="color:#89DDFF">      =</span><span style="color:#9ABDF5"> AF_INET</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">          /* IPv4 */</span></span>
+<span class="line"><span style="color:#C0CAF5">    addr</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sin_port</span><span style="color:#89DDFF">        =</span><span style="color:#7AA2F7"> htons</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">SERVER_PORT</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* inet_pton converts a string like "127.0.0.1" to binary form */</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#7AA2F7">inet_pton</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">AF_INET</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> SERVER_ADDR</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#C0CAF5">addr</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sin_addr</span><span style="color:#9ABDF5">) </span><span style="color:#BB9AF7">&#x3C;=</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">inet_pton</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        exit</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">EXIT_FAILURE</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 3: connect --- */</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#7AA2F7">connect</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#89DDFF">,</span><span style="color:#9ABDF5"> (</span><span style="color:#BB9AF7">struct</span><span style="color:#7AA2F7"> sockaddr </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">addr</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">addr</span><span style="color:#9ABDF5">)) </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">connect</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        exit</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">EXIT_FAILURE</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"><span style="color:#7AA2F7">    printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[client] connected to </span><span style="color:#C0CAF5">%s</span><span style="color:#9ECE6A">:</span><span style="color:#C0CAF5">%d</span><span style="color:#89DDFF">\n"</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> SERVER_ADDR</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> SERVER_PORT</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 4: send data --- */</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#7AA2F7">send</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> MSG</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> strlen</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">MSG</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">send</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        exit</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">EXIT_FAILURE</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"><span style="color:#7AA2F7">    printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[client] sent: </span><span style="color:#89DDFF">\"</span><span style="color:#C0CAF5">%s</span><span style="color:#89DDFF">\"\n"</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> MSG</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 5: receive response --- */</span></span>
+<span class="line"><span style="color:#7AA2F7">    memset</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">buf</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">buf</span><span style="color:#9ABDF5">))</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    n </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> recv</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> buf</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">buf</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (n </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">recv</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        exit</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">EXIT_FAILURE</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"><span style="color:#7AA2F7">    printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[client] received: </span><span style="color:#89DDFF">\"</span><span style="color:#C0CAF5">%s</span><span style="color:#89DDFF">\"\n"</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> buf</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 6: clean up --- */</span></span>
+<span class="line"><span style="color:#7AA2F7">    close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">    printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[client] connection closed</span><span style="color:#89DDFF">\n"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span></code></pre>
+<p>Key points:</p>
+<ul>
+<li><code>inet_pton()</code> — “presentation to network” — converts the dotted-decimal string to a 32-bit binary address in network byte order.</li>
+<li><code>htons()</code> — “host to network short” — converts the port number to network byte order (big-endian). x86 is little-endian, so this matters.</li>
+<li><code>send()</code> and <code>recv()</code> return the number of bytes transferred, or <code>-1</code> on error. <strong>They can return fewer bytes than you asked for.</strong> Always check the return value.</li>
+<li>Always <code>close()</code> the fd — socket leaks are real, especially in long-running processes.</li>
+</ul>
+<hr>
+<h2 id="6-code-tcp-server-in-c">6. Code: TCP Server in C</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">define</span><span style="color:#7AA2F7"> _POSIX_C_SOURCE</span><span style="color:#FF9E64"> 200809</span><span style="color:#F7768E">L</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">stdio.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">stdlib.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">string.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">unistd.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">errno.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">sys/socket.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">netinet/in.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">arpa/inet.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">define</span><span style="color:#7AA2F7"> PORT</span><span style="color:#FF9E64"> 8080</span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">define</span><span style="color:#7AA2F7"> BACKLOG</span><span style="color:#FF9E64"> 10</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">int</span><span style="color:#7AA2F7"> main</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">void</span><span style="color:#9ABDF5">)</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#BB9AF7">    int</span><span style="color:#9ABDF5"> listen_fd</span><span style="color:#89DDFF">,</span><span style="color:#9ABDF5"> conn_fd</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    struct</span><span style="color:#9ABDF5"> sockaddr_in srv_addr</span><span style="color:#89DDFF">,</span><span style="color:#9ABDF5"> cli_addr</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#0DB9D7">    socklen_t</span><span style="color:#9ABDF5"> cli_len</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    char</span><span style="color:#C0CAF5"> buf</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">256</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    ssize_t</span><span style="color:#9ABDF5"> n</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 1: create the socket --- */</span></span>
+<span class="line"><span style="color:#9ABDF5">    listen_fd </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> socket</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">AF_INET</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> SOCK_STREAM</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (listen_fd </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">socket</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        exit</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">EXIT_FAILURE</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Socket options: allow address reuse immediately after kill --- */</span></span>
+<span class="line"><span style="color:#BB9AF7">    int</span><span style="color:#9ABDF5"> opt </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#7AA2F7">setsockopt</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">listen_fd</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> SOL_SOCKET</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> SO_REUSEADDR</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#7AA2F7">opt</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">opt</span><span style="color:#9ABDF5">)) </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">setsockopt SO_REUSEADDR</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">listen_fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        exit</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">EXIT_FAILURE</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 2: bind to port --- */</span></span>
+<span class="line"><span style="color:#7AA2F7">    memset</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">srv_addr</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">srv_addr</span><span style="color:#9ABDF5">))</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">    srv_addr</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sin_family</span><span style="color:#89DDFF">      =</span><span style="color:#9ABDF5"> AF_INET</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">    srv_addr</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sin_addr</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">s_addr</span><span style="color:#89DDFF"> =</span><span style="color:#7AA2F7"> htonl</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">INADDR_ANY</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">  /* all interfaces */</span></span>
+<span class="line"><span style="color:#C0CAF5">    srv_addr</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sin_port</span><span style="color:#89DDFF">        =</span><span style="color:#7AA2F7"> htons</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">PORT</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#7AA2F7">bind</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">listen_fd</span><span style="color:#89DDFF">,</span><span style="color:#9ABDF5"> (</span><span style="color:#BB9AF7">struct</span><span style="color:#7AA2F7"> sockaddr </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">srv_addr</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">srv_addr</span><span style="color:#9ABDF5">)) </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">bind</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">listen_fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        exit</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">EXIT_FAILURE</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"><span style="color:#7AA2F7">    printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[server] bound to port </span><span style="color:#C0CAF5">%d</span><span style="color:#89DDFF">\n"</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> PORT</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 3: listen --- */</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#7AA2F7">listen</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">listen_fd</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> BACKLOG</span><span style="color:#9ABDF5">) </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">listen</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">listen_fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        exit</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">EXIT_FAILURE</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"><span style="color:#7AA2F7">    printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[server] listening (backlog=</span><span style="color:#C0CAF5">%d</span><span style="color:#9ECE6A">)</span><span style="color:#89DDFF">\n"</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> BACKLOG</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- Step 4: accept loop --- */</span></span>
+<span class="line"><span style="color:#BB9AF7">    while</span><span style="color:#9ABDF5"> (</span><span style="color:#FF9E64">1</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        memset</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">cli_addr</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">cli_addr</span><span style="color:#9ABDF5">))</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">        cli_len </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(cli_addr)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">        conn_fd </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> accept</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">listen_fd</span><span style="color:#89DDFF">,</span><span style="color:#9ABDF5"> (</span><span style="color:#BB9AF7">struct</span><span style="color:#7AA2F7"> sockaddr </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">cli_addr</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#7AA2F7">cli_len</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#9ABDF5"> (conn_fd </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">            perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">accept</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">            continue</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">  /* don't exit; keep listening */</span></span>
+<span class="line"><span style="color:#9ABDF5">        }</span></span>
+<span class="line"><span style="color:#7AA2F7">        printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[server] client connected from </span><span style="color:#C0CAF5">%s</span><span style="color:#9ECE6A">:</span><span style="color:#C0CAF5">%d</span><span style="color:#89DDFF">\n"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#7AA2F7">               inet_ntoa</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cli_addr</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sin_addr</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#7AA2F7">               ntohs</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cli_addr</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sin_port</span><span style="color:#9ABDF5">))</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        /* --- Step 5: echo back whatever the client sends --- */</span></span>
+<span class="line"><span style="color:#7AA2F7">        memset</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">buf</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">buf</span><span style="color:#9ABDF5">))</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">        n </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> recv</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">conn_fd</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> buf</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">buf</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#9ABDF5"> (n </span><span style="color:#BB9AF7">></span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">            printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[server] received: </span><span style="color:#89DDFF">\"</span><span style="color:#C0CAF5">%s</span><span style="color:#89DDFF">\"\n"</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> buf</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">            if</span><span style="color:#9ABDF5"> (</span><span style="color:#7AA2F7">send</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">conn_fd</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> buf</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> n</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#7AA2F7">                perror</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">send</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">            }</span></span>
+<span class="line"><span style="color:#9ABDF5">        }</span></span>
+<span class="line"><span style="color:#7AA2F7">        close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">conn_fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        printf</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">[server] client disconnected</span><span style="color:#89DDFF">\n"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    /* --- (never reached in this simple version) --- */</span></span>
+<span class="line"><span style="color:#7AA2F7">    close</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">listen_fd</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span></code></pre>
+<p>Notable decisions:</p>
+<ul>
+<li><strong><code>SO_REUSEADDR</code></strong> — Without this, after killing the server you’ll get “Address already in use” for about 60 seconds (the TIME_WAIT state). This option tells the kernel to allow binding to a socket in TIME_WAIT. Essential during development.</li>
+<li><strong><code>INADDR_ANY</code></strong> — Binds to all available IPv4 addresses. Useful for servers that need to accept connections on any interface.</li>
+<li><code>ntohs()</code> / <code>ntohl()</code> — “network to host” — reverse of <code>htons</code>/<code>htonl</code>. Convert from network byte order back to host byte order.</li>
+</ul>
+<hr>
+<h2 id="7-the-tcp-3-way-handshake">7. The TCP 3-Way Handshake</h2>
+<p>Here’s what actually happens when you call <code>connect()</code>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client                        Server</span></span>
+<span class="line"><span>  |                             |</span></span>
+<span class="line"><span>  |  &#x3C;-- SYN (seq=x)            |  Client:发送SYN, 进入SYN_SENT状态</span></span>
+<span class="line"><span>  |                             |</span></span>
+<span class="line"><span>  |  SYN-ACK (seq=y, ack=x+1) -->|  Server:收到SYN, 发送SYN-ACK, 进入SYN_RCVD状态</span></span>
+<span class="line"><span>  |                             |</span></span>
+<span class="line"><span>  |  ACK (seq=x+1, ack=y+1) -->  |  Client:收到SYN-ACK, 发送ACK, 进入ESTABLISHED状态</span></span>
+<span class="line"><span>  |                             |</span></span>
+<span class="line"><span>  |  (ESTABLISHED)              |  Server:收到ACK, 进入ESTABLISHED状态</span></span>
+<span class="line"><span></span></span></code></pre>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>         TCP 3-Way Handshake State Diagram</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>  CLOSED                                      LISTEN</span></span>
+<span class="line"><span>    |                                           ^</span></span>
+<span class="line"><span>    |  listen()                                |</span></span>
+<span class="line"><span>    v                                           |</span></span>
+<span class="line"><span>  LISTEN  &#x3C;----- accept() -----                |</span></span>
+<span class="line"><span>    ^       (new conn_fd)                      |</span></span>
+<span class="line"><span>    |                                           |</span></span>
+<span class="line"><span> SYN_SENT                                      |</span></span>
+<span class="line"><span>    |  SYN --------->                          |</span></span>
+<span class="line"><span>    |  &#x3C;---------- SYN-ACK                     |</span></span>
+<span class="line"><span>    |  ACK --------->                          |</span></span>
+<span class="line"><span>    v                                           |</span></span>
+<span class="line"><span> ESTABLISHED  &#x3C;------ connections ----         |</span></span>
+<span class="line"><span>                                  (incoming    |</span></span>
+<span class="line"><span>                                   SYN)       |</span></span>
+<span class="line"><span>                                  -----------  |</span></span>
+<span class="line"><span>                                           v  |</span></span>
+<span class="line"><span>                                       SYN_RCVD</span></span>
+<span class="line"><span>                                          |  ^</span></span>
+<span class="line"><span>                                          |  |</span></span>
+<span class="line"><span>                                       (ACK)</span></span>
+<span class="line"><span>                                          |  |</span></span>
+<span class="line"><span>                                          v  |</span></span>
+<span class="line"><span>                                       ESTABLISHED</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Sequence numbers</strong> are initialized randomly (to prevent replay attacks). Each byte of data sent increments the sequence number by 1.</p>
+<p>Why three messages?</p>
+<ul>
+<li><strong>SYN</strong> — Client proves it can be reached at its IP (and initializes seq number).</li>
+<li><strong>SYN-ACK</strong> — Server proves it can be reached at the port it’s listening on.</li>
+<li><strong>ACK</strong> — Client confirms the server’s port is open.</li>
+</ul>
+<p>The data transfer phase can’t begin until both sides have confirmed the other’s existence. Three messages, two round trips.</p>
+<hr>
+<h2 id="8-socket-options">8. Socket Options</h2>
+<p>Every production socket system hits these eventually:</p>
+<h3 id="so_reuseaddr"><code>SO_REUSEADDR</code></h3>
+<p>We’ve already seen it above. If the server crashes or is killed and restarted quickly, the kernel holds the port in <code>TIME_WAIT</code>. Setting <code>SO_REUSEADDR</code> lets the server restart and bind immediately.</p>
+<h3 id="so_keepalive"><code>SO_KEEPALIVE</code></h3>
+<p>Enables periodic “are you alive?” messages on an idle connection. If the other end has crashed, the connection is killed after ~7200 seconds (2 hours on Linux, configurable). Useful for long-lived connections where neither side sends data for hours.</p>
+<p>Not a substitute for application-level heartbeats — it only detects a dead machine, not a dead application.</p>
+<h3 id="tcp_nodelay"><code>TCP_NODELAY</code></h3>
+<p>By default, Linux uses <strong>Nagle’s algorithm</strong> — small sends are buffered for ~40ms to coalesce them into larger packets. This reduces overhead but adds latency.</p>
+<p>For interactive applications (Redis clients, game servers, interactive SSH sessions), disable Nagle:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#BB9AF7">int</span><span style="color:#A9B1D6"> flag </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">setsockopt</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> IPPROTO_TCP</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> TCP_NODELAY</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#E0AF68">flag</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">flag</span><span style="color:#9ABDF5">))</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span></code></pre>
+<p>For bulk transfer (file transfers, HTTP), leave Nagle on — it improves throughput.</p>
+<hr>
+<h2 id="9-selectpoll-vs-epoll">9. <code>select</code>/<code>poll</code> vs <code>epoll</code></h2>
+<p>Early Unix solved the “wait for multiple file descriptors” problem with <code>select()</code>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#A9B1D6">fd_set read_fds</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">FD_ZERO</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">&#x26;</span><span style="color:#E0AF68">read_fds</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">FD_SET</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd1</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#E0AF68">read_fds</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">FD_SET</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fd2</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#E0AF68">read_fds</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> timeval timeout </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> { .tv_sec </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 5</span><span style="color:#89DDFF">,</span><span style="color:#9ABDF5"> .tv_usec </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5"> }</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">int</span><span style="color:#A9B1D6"> nfds </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> select</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">max_fd </span><span style="color:#89DDFF">+</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#E0AF68">read_fds</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> NULL</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> NULL</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#E0AF68">timeout</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span></code></pre>
+<p><code>select()</code> works, but it has a fundamental problem: every call rebuilds the <code>fd_set</code> from scratch, and <strong>the fd set is capped at <code>FD_SETSIZE</code> (often 1024)</strong>. For high-connection servers, this is a bottleneck.</p>
+<p><strong><code>poll()</code></strong> replaced <code>select()</code> with a dynamically-sized array:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> pollfd </span><span style="color:#C0CAF5">fds</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">2</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">fds</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">0</span><span style="color:#9ABDF5">]</span><span style="color:#A9B1D6">.fd </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> fd1</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">fds</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">0</span><span style="color:#9ABDF5">]</span><span style="color:#A9B1D6">.events </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> POLLIN</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">fds</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">1</span><span style="color:#9ABDF5">]</span><span style="color:#A9B1D6">.fd </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> fd2</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">fds</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">1</span><span style="color:#9ABDF5">]</span><span style="color:#A9B1D6">.events </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> POLLIN</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">int</span><span style="color:#A9B1D6"> nfds </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> poll</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">fds</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 2</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 5000</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">  /* 5 second timeout */</span></span>
+<span class="line"></span></code></pre>
+<p><code>poll()</code> removes the FD_SETSIZE limit but still requires a linear scan of all fds on every call.</p>
+<p><strong><code>epoll()</code></strong> solves this by moving the “which fds are ready?” tracking into the kernel:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#BB9AF7">int</span><span style="color:#A9B1D6"> epfd </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> epoll_create1</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">0</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> epoll_event ev </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> { .events </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> EPOLLIN</span><span style="color:#89DDFF">,</span><span style="color:#9ABDF5"> .</span><span style="color:#C0CAF5">data</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">fd</span><span style="color:#89DDFF"> =</span><span style="color:#9ABDF5"> fd }</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">epoll_ctl</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">epfd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> EPOLL_CTL_ADD</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> fd</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#E0AF68">ev</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">/* wait for events — only returns ready fds, no scan */</span></span>
+<span class="line"><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> epoll_event </span><span style="color:#C0CAF5">events</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">10</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">int</span><span style="color:#A9B1D6"> n </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> epoll_wait</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">epfd</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> events</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 10</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> -</span><span style="color:#FF9E64">1</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">  /* -1 = infinite timeout */</span></span>
+<span class="line"></span></code></pre>
+<p><code>epoll</code> is <strong>edge-triggered</strong> — it only tells you about state <em>changes</em>, not current state. If a socket has data waiting, <code>epoll_wait</code> returns it once. You must drain the buffer completely before the next <code>epoll_wait</code> call. Miss a state change? You lose events. With level-triggered (like <code>poll</code>), you just keep polling and it keeps telling you.</p>
+<p>The advantage: <code>epoll_wait</code> returns only the active fds, in O(1) time, not O(n). A server with 100,000 idle connections pays almost no cost — <code>poll</code> would scan all 100,000 every call.</p>
+<p>On Linux: <code>epoll</code>. On macOS (no <code>epoll</code>): use <code>kqueue</code>. The idea is the same.</p>
+<hr>
+<h2 id="10-common-pitfalls">10. Common Pitfalls</h2>
+<h3 id="partial-sends">Partial sends</h3>
+<p><code>send()</code> may send fewer bytes than you asked for. Always check the return value and loop until all bytes are sent:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#BB9AF7">ssize_t</span><span style="color:#7AA2F7"> send_all</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">int</span><span style="color:#E0AF68"> fd</span><span style="color:#89DDFF">,</span><span style="color:#9D7CD8;font-style:italic"> const</span><span style="color:#BB9AF7"> void</span><span style="color:#89DDFF"> *</span><span style="color:#E0AF68">buf</span><span style="color:#89DDFF">,</span><span style="color:#BB9AF7"> size_t</span><span style="color:#E0AF68"> len</span><span style="color:#9ABDF5">)</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#BB9AF7">    size_t</span><span style="color:#9ABDF5"> remaining </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> len</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9D7CD8;font-style:italic">    const</span><span style="color:#BB9AF7"> char</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">p </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> buf</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    while</span><span style="color:#9ABDF5"> (remaining </span><span style="color:#BB9AF7">></span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span></span>
+<span class="line"><span style="color:#BB9AF7">        ssize_t</span><span style="color:#9ABDF5"> n </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> send</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> p</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> remaining</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#9ABDF5"> (n </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) </span><span style="color:#BB9AF7">return</span><span style="color:#89DDFF"> -</span><span style="color:#FF9E64">1</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">        p </span><span style="color:#89DDFF">+=</span><span style="color:#9ABDF5"> n</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">        remaining </span><span style="color:#89DDFF">-=</span><span style="color:#9ABDF5"> n</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#9ABDF5"> len</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span></code></pre>
+<h3 id="sigpipe">SIGPIPE</h3>
+<p>If you <code>send()</code> on a connection where the other end has closed, your process receives <code>SIGPIPE</code> and dies by default. Fix:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#7AA2F7">signal</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">SIGPIPE</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> SIG_IGN</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span></code></pre>
+<p>Or check <code>send()</code> return value (it returns <code>-1</code> and sets <code>errno</code> to <code>EPIPE</code>).</p>
+<h3 id="buffer-management">Buffer management</h3>
+<p>Don’t assume <code>recv()</code> returns a complete message. TCP is a stream protocol, not a datagram protocol. The application protocol must define message boundaries (length-prefix, newline-delimited, etc.):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#51597D;font-style:italic">/* correct: recv in a loop until you have a complete message */</span></span>
+<span class="line"><span style="color:#BB9AF7">size_t</span><span style="color:#A9B1D6"> total </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">while</span><span style="color:#9ABDF5"> (</span><span style="color:#A9B1D6">total </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#A9B1D6"> expected_len</span><span style="color:#9ABDF5">)</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#9ABDF5">    n </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> recv</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">fd</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> buf </span><span style="color:#89DDFF">+</span><span style="color:#7AA2F7"> total</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> expected_len </span><span style="color:#89DDFF">-</span><span style="color:#7AA2F7"> total</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (n </span><span style="color:#BB9AF7">&#x3C;=</span><span style="color:#FF9E64"> 0</span><span style="color:#9ABDF5">) {</span><span style="color:#51597D;font-style:italic"> /* handle close or error */</span><span style="color:#BB9AF7"> break</span><span style="color:#89DDFF">;</span><span style="color:#9ABDF5"> }</span></span>
+<span class="line"><span style="color:#9ABDF5">    total </span><span style="color:#89DDFF">+=</span><span style="color:#9ABDF5"> n</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span></code></pre>
+<h3 id="time_wait">TIME_WAIT</h3>
+<p>When a connection closes, the endpoint that initiates the close (usually the client) stays in <code>TIME_WAIT</code> for 60-120 seconds. This ensures any delayed packets are absorbed before the port is reused.</p>
+<p>For servers that close many connections rapidly (load balancers, proxies), <code>SO_REUSEADDR</code> is mandatory. For clients that connect/disconnect frequently, the client-side port may get exhausted — consider <strong>connection pooling</strong> or using <code>SO_REUSEADDR</code> and binding to a specific source port range.</p>
+<hr>
+<h2 id="11-strace-in-action">11. <code>strace</code> in Action</h2>
+<p>Here’s what the client syscalls actually look like. Run the server in one terminal:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">gcc</span><span style="color:#E0AF68"> -Wall</span><span style="color:#E0AF68"> -Wextra</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> server</span><span style="color:#9ECE6A"> server.c</span></span>
+<span class="line"><span style="color:#C0CAF5">./server</span></span>
+<span class="line"></span></code></pre>
+<p>And the client in another:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">gcc</span><span style="color:#E0AF68"> -Wall</span><span style="color:#E0AF68"> -Wextra</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> client</span><span style="color:#9ECE6A"> client.c</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=read,write,connect,close,socket</span><span style="color:#9ECE6A"> ./client</span></span>
+<span class="line"></span></code></pre>
+<p><em>Want to run these examples on a remote server? <a href="https://www.vultr.com/?ref=8914132">Deploy a VPS on Vultr</a> and compile the code yourself — $100 free credit for new sign-ups.</em></p>
+<p>You’ll see something like:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>socket(AF_INET, SOCK_STREAM, 0)        = 3</span></span>
+<span class="line"><span>connect(3, {sin_family=AF_INET, sin_port=htons(8080), sin_addr=inet_addr("127.0.0.1")}, 16) = 0</span></span>
+<span class="line"><span>write(3, "Hello from client", 16)       = 16</span></span>
+<span class="line"><span>read(3, "Hello from server", 17)        = 17</span></span>
+<span class="line"><span>close(3)                                = 0</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The fd <code>3</code> appears because fds 0, 1, 2 are already <code>stdin</code>, <code>stdout</code>, <code>stderr</code>. What you see in <code>strace</code> is exactly what the kernel does for you. Every <code>send()</code> is a <code>write()</code> to the socket fd. Every <code>recv()</code> is a <code>read()</code> from it.</p>
+<p>For deeper tracing:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Trace all syscalls, filter to just network-related</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=network</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> ./client</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show time spent in each syscall</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -T</span><span style="color:#E0AF68"> -e</span><span style="color:#9ECE6A"> trace=read,write</span><span style="color:#9ECE6A"> ./client</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Show all syscalls with full details</span></span>
+<span class="line"><span style="color:#C0CAF5">strace</span><span style="color:#E0AF68"> -tt</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> ./client</span></span>
+<span class="line"></span></code></pre>
+<p>The raw syscall view is the ground truth. Everything else (libuv, libevent, Go’s net package, Node’s <code>net</code> module) is a layer on top of these primitives.</p>
+<hr>
+<h2 id="12-further-reading">12. Further Reading</h2>
+<ul>
+<li><strong>“The Socket API”</strong> — Stevens &#x26; Rago, <em>Advanced Programming in the UNIX Environment</em>, Ch. 16. The definitive Unix network programming reference.</li>
+<li><strong>“TCP/IP Illustrated”</strong> — Stevens, Vol. 1. The detailed walkthrough of the TCP/IP stack. Not for the faint-hearted, but nothing else gives you this depth.</li>
+<li><strong>“Unix Network Programming”</strong> — Stevens, Vol. 1. A complete guide to the client-server model with working code.</li>
+<li>Linux manual pages: <code>socket(2)</code>, <code>connect(2)</code>, <code>bind(2)</code>, <code>listen(2)</code>, <code>accept(2)</code>, <code>epoll(4)</code>, <code>tcp(7)</code></li>
+<li><code>/proc/sys/net/ipv4/tcp_*</code> — Linux TCP tuning knobs. Browse while you’re debugging.</li>
+<li>Wireshark — Watch the actual packets for the handshake and data transfer. <code>tcpdump</code> for command-line capture.</li>
+</ul>
+<hr>
+<p>Sockets are thirty-five years old and still at the bottom of every network program you write. The better you understand this layer, the better you understand everything above it.</p>
+<h2 id="related-posts">Related Posts</h2>
+<ul>
+<li><a href="/posts/tcp-ip-internals-packet-journey">TCP/IP Internals</a> — Raw sockets implement the TCP/IP stack described in this post</li>
+<li><a href="/posts/ebpf-linux-observability-framework">eBPF Linux Observability</a> — eBPF programs can hook socket creation for network observability</li>
+<li><a href="/posts/rate-limiter-system-design">Rate Limiter System Design</a> — Connection tracking and socket state are fundamental to distributed rate limiting</li>
+</ul>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/gdb-debugging-core-dumps-live-processes" data-astro-cid-gjtny2mx>GDB Debugging: From Core Dumps to Live Processes</a> <p data-astro-cid-gjtny2mx>Master GDB for debugging C/C++ programs — set breakpoints, inspect memory, analyze core dumps, and attach to live processes for production debugging.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/tcp-congestion-control-algorithms-deep-dive" data-astro-cid-gjtny2mx>TCP Congestion Control: How TCP Slow Start, AIMD, and BBR Actually Work</a> <p data-astro-cid-gjtny2mx>A deep dive into TCP congestion control algorithms — Slow Start, AIMD, Reno, CUBIC, and BBR — with packet diagrams, ASCII charts, and Linux sysctl commands for practical tuning.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/tcp-ip-internals-packet-journey" data-astro-cid-gjtny2mx>TCP/IP Internals: How a Packet Travels Across the Network</a> <p data-astro-cid-gjtny2mx>A deep dive into the TCP/IP protocol stack, from application data to physical frames, and everything that happens in between.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Raw Socket Programming: Building a Simple TCP Client from Scratch","description":"A deep dive into POSIX socket programming — from file descriptors to the TCP 3-way handshake, with working C code, strace traces, and edge-triggered I/O.","datePublished":"2026-05-04T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/socket-programming-tcp-client-from-scratch"},"keywords":"c, sockets, networking, tcp, posix, systems-programming","articleSection":"c","about":[{"@type":"Thing","name":"c"},{"@type":"Thing","name":"sockets"},{"@type":"Thing","name":"networking"},{"@type":"Thing","name":"tcp"},{"@type":"Thing","name":"posix"},{"@type":"Thing","name":"systems-programming"}]}</script> 

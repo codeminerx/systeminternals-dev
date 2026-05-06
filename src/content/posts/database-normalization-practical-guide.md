@@ -1,8 +1,13 @@
 ---
 title: "Database Normalization: When to Normalize and When to Denormalize"
-description: "Database normalization forms (1NF-3NF), when to denormalize for read performance, OLTP vs OLAP design patterns, star schemas, and practical guidelines for balancing integrity and speed."
+description: "Database normalization forms (1NF-3NF), when to denormalize for read performance, OLTP vs OLAP design patterns, star schemas, and practical guidelines for balancing data integrity and query speed in production SQL systems."
 date: 2024-02-10
-tags: ["sql", "databases", "design", "normalization"]
+tags: ["sql", "databases", "design", "normalization", "schema", "oltp", "olap"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2024-02-10"
+  dateModified: "2024-02-10"
 ---
 
 Normalization is one of those topics that sounds academic until you're debugging why your data is inconsistent at 2 AM. Let's make it practical.
@@ -169,3 +174,9 @@ For OLTP (transactional) systems: lean toward normalization.
 For OLAP (analytical) systems: denormalize aggressively.
 
 For most applications: normalize by default, denormalize surgically where profiling shows it matters.
+
+## Related Posts
+
+- [SQL Indexing Deep Dive](/posts/sql-indexing-deep-dive) — Indexes are the main performance lever in normalized schemas; understand them before denormalizing
+- [PostgreSQL vs MySQL 2024](/posts/postgresql-vs-mysql-2024) — The two databases handle normalization and performance differently
+- [Database Transactions and Isolation Levels](/posts/database-transactions-isolation-levels) — Consistency constraints are why normalization matters in transactional systems

@@ -1,43 +1,137 @@
-<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="What eBPF is, how it works, why it matters compared to kernel modules, and practical tools like bpftrace, tcpdump -B, and execsnoop."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>eBPF: Linux&#39;s Most Powerful Observation Framework</title><meta property="og:title" content="eBPF: Linux's Most Powerful Observation Framework"><meta property="og:description" content="What eBPF is, how it works, why it matters compared to kernel modules, and practical tools like bpftrace, tcpdump -B, and execsnoop."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/ebpf-linux-observability-framework"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="eBPF: Linux's Most Powerful Observation Framework"><meta name="twitter:description" content="What eBPF is, how it works, why it matters compared to kernel modules, and practical tools like bpftrace, tcpdump -B, and execsnoop."><meta name="twitter:image" content="/og-default.svg"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>eBPF: Linux Observability That Will Change How You Debug</title><meta property="og:title" content="eBPF: Linux Observability That Will Change How You Debug"><meta property="og:description" content="A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/ebpf-linux-observability-framework"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="eBPF: Linux Observability That Will Change How You Debug"><meta name="twitter:description" content="A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/ebpf-linux-observability-framework"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
 .post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
-</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>eBPF: Linux&#39;s Most Powerful Observation Framework</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-03T00:00:00.000Z" data-astro-cid-gjtny2mx>May 2, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>10 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>linux</span><span class="tag" data-astro-cid-gjtny2mx>ebpf</span><span class="tag" data-astro-cid-gjtny2mx>observability</span><span class="tag" data-astro-cid-gjtny2mx>performance</span><span class="tag" data-astro-cid-gjtny2mx>kernel</span><span class="tag" data-astro-cid-gjtny2mx>debugging</span><span class="tag" data-astro-cid-gjtny2mx>bpf</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>For decades, if you wanted to observe Linux kernel behavior in real time — every system call, every network packet, every function call inside the kernel — you had two options: kernel modules (dangerous, can crash your system) or adding printk statements and rebuilding the kernel (slow, impractical in production). Neither was good.</p>
-<p>eBPF changed all of that. It provides a safe, programmable interface to the Linux kernel that lets you run custom logic in response to events — without modifying kernel code, without loading potentially unstable modules, and with minimal overhead.</p>
-<p>If you’re debugging production systems, writing observability tools, or building security instrumentation, eBPF is the most powerful tool in your arsenal.</p>
-<h2 id="what-problem-ebpf-solves">What Problem eBPF Solves</h2>
-<p>The Linux kernel is the arbiter of everything: every file open, every network packet, every process creation, every memory allocation. Observing it has always been a trade-off between depth and safety.</p>
-<p><strong>Kernel modules</strong> can do anything — but they run with full kernel privileges. A bug crashes the whole system. They’re also tied to specific kernel versions and require source or ABI compatibility.</p>
-<p><strong>User-space tools</strong> like <code>strace</code> or <code>tcpdump</code> are safe, but they sample or filter after the fact. <code>strace</code> intercepts system calls but adds significant overhead. <code>tcpdump</code> copies network packets to userspace for analysis. You’re always one step removed from the event.</p>
-<p>eBPF sits in between: kernel-level execution speed with user-space safety, and the ability to observe almost any kernel event.</p>
-<h2 id="how-ebpf-works-bytecode-verifier-and-jit">How eBPF Works: Bytecode, Verifier, and JIT</h2>
-<p>When you write an eBPF program, you’re writing code that will run inside the kernel. This sounds terrifying, but eBPF has multiple safety guards.</p>
-<h3 id="the-ebpf-program-lifecycle">The eBPF Program Lifecycle</h3>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>User writes eBPF program (in C, Go, or eBPF assembly)</span></span>
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>eBPF: Linux Observability That Will Change How You Debug</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-04T00:00:00.000Z" data-astro-cid-gjtny2mx>May 3, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>12 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>linux</span><span class="tag" data-astro-cid-gjtny2mx>ebpf</span><span class="tag" data-astro-cid-gjtny2mx>observability</span><span class="tag" data-astro-cid-gjtny2mx>performance</span><span class="tag" data-astro-cid-gjtny2mx>kernel</span><span class="tag" data-astro-cid-gjtny2mx>debugging</span><span class="tag" data-astro-cid-gjtny2mx>bpf</span><span class="tag" data-astro-cid-gjtny2mx>tracing</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>If you’ve ever used <code>strace</code> to watch a process make system calls, or <code>perf</code> to sample CPU hotspots, you’ve already benefited from Linux’s observability infrastructure. But there’s a technology underneath both of those tools — and much more — that changes the entire calculus of kernel-level debugging: <strong>eBPF</strong> (extended Berkeley Packet Filter).</p>
+<p>eBPF lets you run custom programs inside the kernel, attached to almost any interesting event — a function call, a network packet, a scheduler decision — with guarantees that your code cannot crash the system. That’s not a small thing. Kernel modules can crash your machine. eBPF programs go through a static verifier that proves safety before they load.</p>
+<p>This post is about how eBPF actually works, how to write your first programs, and which tools to reach for depending on the problem.</p>
+<h2 id="the-history-bpf--ebpf">The History: BPF → eBPF</h2>
+<p>The original Berkeley Packet Filter was designed in 1992 for packet filtering in the kernel. It was a small bytecode interpreter for network filters — efficient enough for the time, limited in scope.</p>
+<p>eBPF arrived in Linux 3.18 (2014), but the version that changed everything was Linux 4.4 (2016), which added many program types and map support. Linux 5.8 (2020) brought BTF (BPF Type Format), CO-RE (Compile Once – Run Everywhere), and ring buffers. The ecosystem has matured rapidly since then.</p>
+<p>The key difference: original BPF was just for network filtering. eBPF became a general-purpose kernel execution environment with:</p>
+<ul>
+<li>Many more registers (10 virtual registers vs 2)</li>
+<li>A richer instruction set</li>
+<li>Maps for stateful storage</li>
+<li>Helper functions (kernel-provided syscalls for the programs)</li>
+<li>A verifier that proofs-of-correctness before loading</li>
+</ul>
+<h2 id="how-ebpf-works-verifier-bytecode-jit">How eBPF Works: Verifier, Bytecode, JIT</h2>
+<p>When you write an eBPF program, it goes through a strict pipeline before it ever runs:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>You write eBPF code (C, Go, Rust, or bpftrace DSL)</span></span>
 <span class="line"><span>         │</span></span>
 <span class="line"><span>         ▼</span></span>
-<span class="line"><span>    Compiler (clang) compiles to eBPF bytecode</span></span>
+<span class="line"><span>    Compiler (clang) → eBPF bytecode</span></span>
 <span class="line"><span>         │</span></span>
 <span class="line"><span>         ▼</span></span>
-<span class="line"><span>    Load program into kernel via bpf() syscall</span></span>
+<span class="line"><span>    bpf() syscall loads program into kernel</span></span>
 <span class="line"><span>         │</span></span>
 <span class="line"><span>         ▼</span></span>
-<span class="line"><span>    Kernel Verifier: validates the program is safe</span></span>
-<span class="line"><span>    - No infinite loops (or loops that are proven to terminate)</span></span>
-<span class="line"><span>    - No out-of-bounds memory access</span></span>
-<span class="line"><span>    - No unsafe pointer operations</span></span>
-<span class="line"><span>    - Must complete within a bounded number of instructions</span></span>
+<span class="line"><span>    Kernel Verifier static analysis</span></span>
+<span class="line"><span>    ├── Rejects programs that could OOB access memory</span></span>
+<span class="line"><span>    ├── Rejects programs with unbounded loops</span></span>
+<span class="line"><span>    │   (unless loop is provably bounded and exits)</span></span>
+<span class="line"><span>    ├── Rejects unsafe pointer operations</span></span>
+<span class="line"><span>    ├── Simulates every possible execution path</span></span>
+<span class="line"><span>    └── Must complete in bounded instructions</span></span>
 <span class="line"><span>         │</span></span>
 <span class="line"><span>         ▼ (if verified)</span></span>
-<span class="line"><span>    JIT compiler converts bytecode to native machine code</span></span>
+<span class="line"><span>    JIT compiler → native machine code</span></span>
 <span class="line"><span>         │</span></span>
 <span class="line"><span>         ▼</span></span>
-<span class="line"><span>    Program attached to a kernel hook (probe, tracepoint, etc.)</span></span>
+<span class="line"><span>    Program attached to hook point</span></span>
 <span class="line"><span>         │</span></span>
 <span class="line"><span>         ▼</span></span>
-<span class="line"><span>    Kernel executes program when hook triggers</span></span>
+<span class="line"><span>    Kernel executes on every trigger event</span></span>
 <span class="line"><span></span></span></code></pre>
-<p>The verifier is key. It performs static analysis on your program before loading it, simulating all possible execution paths. If your program could ever access memory it shouldn’t, loop forever, or cause a kernel panic, the verifier rejects it.</p>
-<h3 id="types-of-ebpf-programs">Types of eBPF Programs</h3>
-<p>eBPF isn’t one thing — there are many hook points:</p>
+<p>The verifier is the critical piece. It runs your program through static analysis, exploring every possible execution path. If any path could dereference an invalid pointer, read out of bounds, or loop forever, the verifier rejects it.</p>
+<p>This is why eBPF is safe: the verifier proves properties about your code before it runs. Unlike kernel modules, which can panic the system with a null pointer dereference, an eBPF program that fails verification never loads.</p>
+<h3 id="btf-and-co-re">BTF and CO-RE</h3>
+<p>Writing eBPF programs that work across kernel versions used to be painful. Kernel structures change layout between versions — a field at offset 8 in one kernel might be at offset 16 in another.</p>
+<p><strong>BTF</strong> (BPF Type Format) embeds type information into the kernel. <strong>CO-RE</strong> (Compile Once – Run Everywhere) uses BTF to let the eBPF loader patch your program’s memory accesses for the target kernel at load time. You compile once, and it works across kernels. This is what makes modern eBPF practical for distribution.</p>
+<h2 id="your-first-ebpf-program">Your First eBPF Program</h2>
+<p>Let’s start simple. The canonical first eBPF program attaches to a kernel function and reads some data.</p>
+<h3 id="using-bpftrace-one-liner">Using bpftrace (One-Liner)</h3>
+<p>The fastest path is <code>bpftrace</code>, which provides a high-level DSL that compiles down to eBPF. You can get real insight with a single command:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Count system calls by process name</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:raw_syscalls:sys_enter { @[comm] = count(); }</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Time spent in the write() syscall, per PID</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:syscalls:sys_exit_write /pid == 1234/ { @latency = hist(elapsed); }</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Watch all file opens with the filename</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:syscalls:sys_enter_openat { printf("%s: %s\n", comm, str(args->filename)); }</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Count kernel function calls matching a pattern</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">kprobe:vfs_* { @[probe] = count(); }</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span></code></pre>
+<p>These run instantly, no compilation needed. The output is aggregated in a map (<code>@</code>) and printed on Ctrl+C or on an interval.</p>
+<h3 id="using-bcc-c--python">Using bcc (C + Python)</h3>
+<p>For more control, the BPF Compiler Collection (bcc) lets you write eBPF programs in C, attach them from Python, and have full access to maps and complex logic:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#51597D;font-style:italic">// ebpf_first.c — trace all write() syscalls and print the string</span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">uapi/linux/ptrace.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">bcc/proto.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">// A map to count writes per process name</span></span>
+<span class="line"><span style="color:#7AA2F7">BPF_HASH</span><span style="color:#9ABDF5">(</span><span style="color:#A9B1D6">counter</span><span style="color:#89DDFF">,</span><span style="color:#BB9AF7"> char</span><span style="color:#89DDFF"> *,</span><span style="color:#A9B1D6"> u64</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">int</span><span style="color:#7AA2F7"> trace_write</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> pt_regs </span><span style="color:#89DDFF">*</span><span style="color:#E0AF68">ctx</span><span style="color:#89DDFF">,</span><span style="color:#BB9AF7"> int</span><span style="color:#E0AF68"> fd</span><span style="color:#89DDFF">,</span><span style="color:#9D7CD8;font-style:italic"> const</span><span style="color:#BB9AF7"> char</span><span style="color:#89DDFF"> *</span><span style="color:#E0AF68">buf</span><span style="color:#9ABDF5">)</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    // Get current process name</span></span>
+<span class="line"><span style="color:#BB9AF7">    char</span><span style="color:#C0CAF5"> comm</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">16</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">    bpf_get_current_comm</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">comm</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">comm</span><span style="color:#9ABDF5">))</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    // Look up or create entry for this process</span></span>
+<span class="line"><span style="color:#9ABDF5">    u64 </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">p </span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5"> counter</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">lookup</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">comm</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (p) {</span></span>
+<span class="line"><span style="color:#9ABDF5">        (</span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">p)</span><span style="color:#89DDFF">++;</span></span>
+<span class="line"><span style="color:#9ABDF5">    } </span><span style="color:#BB9AF7">else</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#9ABDF5">        u64 one </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">        counter</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">update</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">comm</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#7AA2F7">one</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    // Print the string being written (up to 32 bytes)</span></span>
+<span class="line"><span style="color:#7AA2F7">    bpf_trace_printk</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">write from </span><span style="color:#C0CAF5">%s</span><span style="color:#9ECE6A">: </span><span style="color:#C0CAF5">%s</span><span style="color:#89DDFF">\n"</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> comm</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> buf</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span></code></pre>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># attach_ebpf.py</span></span>
+<span class="line"><span style="color:#7DCFFF">from</span><span style="color:#A9B1D6"> bcc </span><span style="color:#7DCFFF">import</span><span style="color:#FF9E64"> BPF</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">program </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> open</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">ebpf_first.c</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">read</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#A9B1D6">b </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> BPF</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">text</span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5">program</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Attach to the write syscall entry</span></span>
+<span class="line"><span style="color:#A9B1D6">b</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">attach_kprobe</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">event</span><span style="color:#89DDFF">=</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">__x64_sys_write</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> fn_name</span><span style="color:#89DDFF">=</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">trace_write</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Print output</span></span>
+<span class="line"><span style="color:#A9B1D6">b</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">trace_print</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"></span></code></pre>
+<h3 id="using-bpftrace-script-file">Using bpftrace Script File</h3>
+<p>For reusable tools, write a <code>.bt</code> script:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>#!/usr/bin/env bpftrace</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>// Trace all process executions (execve syscalls)</span></span>
+<span class="line"><span>tracepoint:syscalls:sys_enter_execve</span></span>
+<span class="line"><span>{</span></span>
+<span class="line"><span>    printf("%s %s\n", comm, str(args->argv[0]));</span></span>
+<span class="line"><span>}</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>// Print stats every 5 seconds</span></span>
+<span class="line"><span>interval:5s</span></span>
+<span class="line"><span>{</span></span>
+<span class="line"><span>    print("=== Exec counts ===");</span></span>
+<span class="line"><span>    print(@);</span></span>
+<span class="line"><span>    clear(@);</span></span>
+<span class="line"><span>}</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>END</span></span>
+<span class="line"><span>{</span></span>
+<span class="line"><span>    print("=== Final counts ===");</span></span>
+<span class="line"><span>    print(@);</span></span>
+<span class="line"><span>}</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Run it with <code>sudo bpftrace ./trace_exec.bt</code>.</p>
+<h2 id="ebpf-programs-and-maps">eBPF Programs and Maps</h2>
+<h3 id="types-of-program-hooks">Types of Program Hooks</h3>
+<p>eBPF programs attach to different kernel hooks depending on what you want to observe:</p>
 
 
 
@@ -88,139 +182,108 @@
 
 
 
-<table><thead><tr><th>Type</th><th>Hook</th><th>Use Case</th></tr></thead><tbody><tr><td><strong>kprobe</strong></td><td>Dynamic kernel function entry/exit</td><td>Trace any kernel function</td></tr><tr><td><strong>uprobe</strong></td><td>Dynamic userspace function entry/exit</td><td>Trace library or application functions</td></tr><tr><td><strong>tracepoint</strong></td><td>Static, stable kernel tracepoints</td><td>Low-overhead kernel tracing</td></tr><tr><td><strong>sched</strong></td><td>Scheduler events</td><td>Trace process scheduling</td></tr><tr><td><strong>xdp</strong></td><td>Network packet at NIC driver</td><td>Fast packet filtering, DDoS mitigation</td></tr><tr><td><strong>tc</strong></td><td>Traffic control at qdisc</td><td>Network traffic shaping and filtering</td></tr><tr><td><strong>lsm</strong></td><td>Linux Security Module hooks</td><td>Security policy enforcement</td></tr><tr><td><strong>perf</strong></td><td>Hardware and software perf events</td><td>CPU profiling, sampling</td></tr></tbody></table>
-<p>The distinction between kprobe and tracepoint matters: kprobes can attach to any kernel function (even internal, unstable ones), but those functions can change between kernel versions. Tracepoints are stable ABI — they’re guaranteed to not break across kernel versions.</p>
-<h2 id="maps-ebpfs-data-store">Maps: eBPF’s Data Store</h2>
-<p>eBPF programs need somewhere to store data. That’s what <strong>eBPF maps</strong> are for:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#51597D;font-style:italic">// A hash map from UID to counter</span></span>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Program Type</th><th>Hook Point</th><th>Stability</th><th>Use Case</th></tr></thead><tbody><tr><td><strong>kprobe</strong></td><td>Kernel function entry/exit</td><td>Unstable</td><td>Trace any kernel function dynamically</td></tr><tr><td><strong>uprobe</strong></td><td>Userspace function entry/exit</td><td>Unstable</td><td>Trace library calls or app functions</td></tr><tr><td><strong>tracepoint</strong></td><td>Static kernel tracepoints</td><td>Stable ABI</td><td>Low-overhead kernel tracing</td></tr><tr><td><strong>raw_tracepoint</strong></td><td>Same as tracepoint, raw args</td><td>Stable ABI</td><td>Slightly lower overhead</td></tr><tr><td><strong>sched</strong></td><td>Scheduler events</td><td>Stable</td><td>Process/thread scheduling analysis</td></tr><tr><td><strong>xdp</strong></td><td>Packet at NIC driver</td><td>Stable</td><td>Fast packet processing, DDoS mitigation</td></tr><tr><td><strong>tc</strong></td><td>Traffic control (qdisc)</td><td>Stable</td><td>Network traffic shaping</td></tr><tr><td><strong>lsm</strong></td><td>Linux Security Module hooks</td><td>Stable</td><td>Security policy enforcement</td></tr><tr><td><strong>perf_event</strong></td><td>Hardware/software perf events</td><td>Stable</td><td>CPU profiling, sampling</td></tr></tbody></table>
+<p><strong>Tracepoints are better than kprobes when available.</strong> They’re part of the kernel’s stable ABI — they won’t change between kernel versions. kprobes attach to any function, but internal functions move around between kernel versions, breaking your program.</p>
+<h3 id="maps-stateful-storage">Maps: Stateful Storage</h3>
+<p>eBPF programs are side-effect-free by nature — they can’t call arbitrary functions or access memory outside of what’s provided. To store state between invocations or stream data to userspace, you use <strong>maps</strong>.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#51597D;font-style:italic">// Define a hash map: key = PID (u32), value = count (u64)</span></span>
 <span class="line"><span style="color:#BB9AF7">struct</span><span style="color:#9ABDF5"> {</span></span>
 <span class="line"><span style="color:#7AA2F7">    __uint</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">type</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> BPF_MAP_TYPE_HASH</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
 <span class="line"><span style="color:#7AA2F7">    __uint</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">max_entries</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 10240</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
 <span class="line"><span style="color:#7AA2F7">    __type</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">key</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> __u32</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
 <span class="line"><span style="color:#7AA2F7">    __type</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">value</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> __u64</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
-<span class="line"><span style="color:#9ABDF5">}</span><span style="color:#A9B1D6"> counter_map </span><span style="color:#7AA2F7">SEC</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">.maps</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span><span style="color:#A9B1D6"> pid_counts </span><span style="color:#7AA2F7">SEC</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">.maps</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
 <span class="line"></span></code></pre>
-<p>Maps are shared between the eBPF program (kernel-space) and user-space helpers. Common map types:</p>
+<p>Common map types:</p>
 <ul>
-<li><strong>Hash</strong> — Key-value store, O(1) lookup</li>
-<li><strong>Array</strong> — Index-based, good for counters</li>
-<li><strong>Per-CPU Array</strong> — Each CPU has its own copy, avoids locking</li>
-<li><strong>Ring Buffer</strong> — Efficient event streaming to userspace</li>
-<li><strong>Stack Trace</strong> — Capture kernel stack traces</li>
+<li><strong>BPF_MAP_TYPE_HASH</strong> — Key-value store, O(1) lookup. Good for counting, tracking state.</li>
+<li><strong>BPF_MAP_TYPE_ARRAY</strong> — Index-based array. Fast, fixed size. Good for histogramming.</li>
+<li><strong>BPF_MAP_TYPE_PERCPU_HASH / ARRAY</strong> — Each CPU has its own copy. Avoids lock contention in high-frequency tracing.</li>
+<li><strong>BPF_MAP_TYPE_RINGBUF</strong> — Single-producer, multi-consumer circular buffer. Efficient event streaming to userspace (replaces perf buffer in newer kernels).</li>
+<li><strong>BPF_MAP_TYPE_STACK_TRACE</strong> — Stores kernel stack traces. Great for flame graph generation.</li>
 </ul>
-<p>From userspace, you can read and write maps via the <code>bpf()</code> syscall:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> ctypes</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Access the map from Python using bcc</span></span>
-<span class="line"><span style="color:#7DCFFF">from</span><span style="color:#A9B1D6"> bcc </span><span style="color:#7DCFFF">import</span><span style="color:#FF9E64"> BPF</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#A9B1D6">program </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> """</span></span>
-<span class="line"><span style="color:#9ECE6A">BPF_HASH(counter, u32);</span></span>
-<span class="line"><span style="color:#89DDFF">"""</span></span>
+<p>From userspace, you access maps via the <code>bpf()</code> syscall:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">from</span><span style="color:#A9B1D6"> bcc </span><span style="color:#7DCFFF">import</span><span style="color:#FF9E64"> BPF</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#A9B1D6">b </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> BPF</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">text</span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5">program</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">counter </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> b</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">pid_counts</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Read all entries</span></span>
+<span class="line"><span style="color:#BB9AF7">for</span><span style="color:#A9B1D6"> k</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> v </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> counter</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">items</span><span style="color:#9ABDF5">()</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#0DB9D7">    print</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"PID </span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">k</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">value</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">: </span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">v</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">value</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A"> writes"</span><span style="color:#9ABDF5">)</span></span>
 <span class="line"></span></code></pre>
-<h2 id="bpftrace-one-liners-to-full-scripts">bpftrace: One-Liners to Full Scripts</h2>
-<p><code>bpftrace</code> is the quickest way to get started with eBPF. It provides a high-level DSL that compiles down to eBPF programs.</p>
-<h3 id="installation">Installation</h3>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Ubuntu/Debian</span></span>
-<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> apt</span><span style="color:#9ECE6A"> install</span><span style="color:#9ECE6A"> bpftrace</span></span>
+<h2 id="practical-tools-built-on-ebpf">Practical Tools Built on eBPF</h2>
+<h3 id="bpftrace">bpftrace</h3>
+<p>The swiss army knife. One-liners for quick investigation:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Count context switches (scheduler activity)</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:sched:sched_switch { @[comm] = count(); }</span><span style="color:#89DDFF">'</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># macOS (with DTrace alternative, limited)</span></span>
-<span class="line"><span style="color:#C0CAF5">brew</span><span style="color:#9ECE6A"> install</span><span style="color:#9ECE6A"> bpftrace</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Watch memory allocations by process</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">kmalloc { @[comm] = hist(siz); }</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># TCP connect attempt origins</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:syscalls:sys_enter_connect { printf("%s -> %s\n", comm, ntop(AF_INET, args->uservaddr)); }</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Disk I/O by process (using block devices)</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:block:block_bio_queue { @[comm] = hist(args->nr_sector * 512); }</span><span style="color:#89DDFF">'</span></span>
 <span class="line"></span></code></pre>
-<h3 id="one-liners">One-liners</h3>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Count system calls by process</span></span>
-<span class="line"><span style="color:#C0CAF5">bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:raw_syscalls:sys_enter { @[comm] = count(); }</span><span style="color:#89DDFF">'</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Time spent in the write() system call</span></span>
-<span class="line"><span style="color:#C0CAF5">bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:raw_syscalls:sys_exit /pid == 1234/ { @[comm] = hist(arg1); }</span><span style="color:#89DDFF">'</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Trace file opens with process name and filename</span></span>
-<span class="line"><span style="color:#C0CAF5">bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:syscalls:sys_enter_open { printf("%s: %s\n", comm, str(args->filename)); }</span><span style="color:#89DDFF">'</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Count kernel function calls containing "alloc"</span></span>
-<span class="line"><span style="color:#C0CAF5">bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">kprobe:vfs_* { @[probe] = count(); }</span><span style="color:#89DDFF">'</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Show network packets per process (requires root)</span></span>
-<span class="line"><span style="color:#C0CAF5">bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:net:netif_receive_skb { @[comm] = count(); }</span><span style="color:#89DDFF">'</span></span>
-<span class="line"></span></code></pre>
-<h3 id="bpftrace-scripts">bpftrace Scripts</h3>
-<p>For more complex behavior, write a full script:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>#!/usr/bin/env bpftrace</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span>// Trace new processes and show arguments</span></span>
-<span class="line"><span>tracepoint:sched:sched_process_fork</span></span>
-<span class="line"><span>{</span></span>
-<span class="line"><span>    $child_pid = args->child_pid;</span></span>
-<span class="line"><span>    $child_comm = comm;</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span>    join(args->child_comm);</span></span>
-<span class="line"><span>}</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span>// Trace all system calls and measure latency</span></span>
-<span class="line"><span>tracepoint:raw_syscalls:sys_enter</span></span>
-<span class="line"><span>{</span></span>
-<span class="line"><span>    @syscall[syscall] = count();</span></span>
-<span class="line"><span>}</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span>tracepoint:raw_syscalls:sys_exit</span></span>
-<span class="line"><span>/@syscall[syscall]/</span></span>
-<span class="line"><span>{</span></span>
-<span class="line"><span>    @latency[syscall] = hist(elapsed * 1000);</span></span>
-<span class="line"><span>}</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span>// Print every 5 seconds</span></span>
-<span class="line"><span>interval:5</span></span>
-<span class="line"><span>{</span></span>
-<span class="line"><span>    print("=== Syscall counts ===");</span></span>
-<span class="line"><span>    print(@syscall);</span></span>
-<span class="line"><span>    print("=== Latency histogram (ms) ===");</span></span>
-<span class="line"><span>    print(@latency);</span></span>
-<span class="line"><span>    clear(@syscall);</span></span>
-<span class="line"><span>}</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span>END</span></span>
-<span class="line"><span>{</span></span>
-<span class="line"><span>    clear(@syscall);</span></span>
-<span class="line"><span>    clear(@latency);</span></span>
-<span class="line"><span>}</span></span>
-<span class="line"><span></span></span></code></pre>
-<h2 id="execsnoop-capturing-every-process-execution">execsnoop: Capturing Every Process Execution</h2>
-<p><code>execsnoop</code> is a classic eBPF demonstration tool. It traces every <code>execve()</code> system call — every time a process runs another program — and prints the command line arguments.</p>
-<p>Here’s how it works:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Use bpftrace directly</span></span>
-<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftrace</span><span style="color:#E0AF68"> -e</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tracepoint:syscalls:sys_enter_execve { join(args->argv); }</span><span style="color:#89DDFF">'</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Or use the bcc version (often pre-installed)</span></span>
+<h3 id="bcc-tools">BCC Tools</h3>
+<p>BCC ships with dozens of production-grade tools:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># execsnoop — every execve() call</span></span>
 <span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> execsnoop</span></span>
-<span class="line"></span></code></pre>
-<p>The output looks like:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>PCOMM            PID     PPID    ARGS</span></span>
-<span class="line"><span>bash             12345   12300   ls -la /tmp</span></span>
-<span class="line"><span>python           12346   12340   python3 -c "import socket; ..."</span></span>
-<span class="line"><span>curl             12347   12346   curl -s https://api.example.com/health</span></span>
-<span class="line"><span></span></span></code></pre>
-<p>This is incredibly useful for:</p>
-<ul>
-<li><strong>Security auditing</strong> — Who ran what, when, with what arguments</li>
-<li><strong>Debugging</strong> — Understanding what a complex program is actually spawning</li>
-<li><strong>Performance analysis</strong> — Catching shell spawns in hot paths (looking at you, Java)</li>
-</ul>
-<h2 id="tcpdump--b-ebpf-powered-packet-capture">tcpdump -B: eBPF-Powered Packet Capture</h2>
-<p>The <code>-B</code> flag in <code>tcpdump</code> uses eBPF to filter packets in the kernel, before they reach userspace. Traditional <code>tcpdump</code> copies packets to userspace and then filters them — with <code>-B</code>, the filter runs in-kernel, dramatically reducing overhead.</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Traditional tcpdump (copies to userspace, then filter)</span></span>
-<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpdump</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#9ECE6A"> port</span><span style="color:#FF9E64"> 80</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># eBPF-powered (filter in kernel, less overhead)</span></span>
-<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpdump</span><span style="color:#E0AF68"> -B</span><span style="color:#FF9E64"> 4096</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#9ECE6A"> port</span><span style="color:#FF9E64"> 80</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># opensnoop — every open/openat call</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> opensnoop</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># tcpconnect — every outbound TCP connection</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpconnect</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># tcpaccept — every inbound TCP connection</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpaccept</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># biolatency — block I/O latency histogram</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> biolatency</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># runqlat — scheduler latency histogram (how long processes wait to run)</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> runqlat</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># funccount — count calls to kernel functions matching a pattern</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> funccount</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">vfs_*</span><span style="color:#89DDFF">'</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># profile — CPU sampling (like perf top, but in BPF)</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> profile</span><span style="color:#FF9E64"> 49</span><span style="color:#E0AF68"> -F</span><span style="color:#FF9E64"> 99</span></span>
 <span class="line"></span></code></pre>
-<p>The number after <code>-B</code> is the buffer size in KB. Larger buffers mean fewer dropped packets under load.</p>
-<p>More importantly, modern <code>tcpdump</code> can use eBPF’s expression optimizer:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Complex filtering in kernel</span></span>
-<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> tcpdump</span><span style="color:#E0AF68"> -B</span><span style="color:#FF9E64"> 8192</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> eth0</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">tcp[tcpflags] &#x26; (tcp-syn|tcp-fin) != 0 and dst port 80</span><span style="color:#89DDFF">'</span></span>
+<p>These tools are installed at <code>/usr/share/bcc/tools/</code> on most distros. They’re real programs, not scripts — written in C for the eBPF part, Python for the user-space control.</p>
+<h3 id="cilium">Cilium</h3>
+<p>Cilium is a Kubernetes CNI (Container Network Interface) plugin that uses eBPF for all networking and security policy enforcement. Instead of iptables rules, Cilium compiles network policies into eBPF programs that run at the XDP or tc hook point.</p>
+<p>The advantage: eBPF-based networking scales to thousands of nodes without the iptables rule explosion problem. It also provides deep observability — per-connection metrics, latency histograms, dropped packet tracking — all without sidecars or application-level agents.</p>
+<h3 id="falco">Falco</h3>
+<p>Falco is a security auditing tool that uses eBPF to monitor syscall activity and detect anomalous behavior. You write rules that trigger on specific syscall patterns:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="yaml"><code><span class="line"><span style="color:#9ABDF5">-</span><span style="color:#F7768E"> rule</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Unexpected outbound connection</span></span>
+<span class="line"><span style="color:#F7768E">  desc</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> A process outside the expected set makes an outbound connection</span></span>
+<span class="line"><span style="color:#F7768E">  condition</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> outbound and not proc.name in (expected_procs)</span></span>
+<span class="line"><span style="color:#F7768E">  output</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Unexpected connection by unexpected process</span></span>
 <span class="line"></span></code></pre>
-<p>With eBPF, this expression gets compiled into eBPF bytecode and runs in-kernel, so only matching packets are copied to userspace.</p>
-<h2 id="ebpf-vs-kernel-modules-why-safe-is-better">eBPF vs Kernel Modules: Why Safe Is Better</h2>
+<p>Falco’s eBPF driver runs at the syscall level, capturing everything without needing kernel modules.</p>
+<h3 id="pixie">Pixie</h3>
+<p>Pixie does automatic distributed tracing in Kubernetes using eBPF. No instrumenting your application code — it automatically captures protocol-level data (HTTP, gRPC, Kafka, etc.) from the kernel, and can even auto-instrument Go, Python, and Node applications by tracing their runtime functions.</p>
+<h2 id="ebpf-vs-strace-vs-perf">eBPF vs strace vs perf</h2>
+<p>These tools overlap, but each has a specific niche:</p>
 
 
 
@@ -250,132 +313,108 @@
 
 
 
-
-
-
-
-
-
-<table><thead><tr><th>Aspect</th><th>Kernel Module</th><th>eBPF</th></tr></thead><tbody><tr><td>Safety</td><td>Can crash kernel</td><td>Verified before loading, can’t crash</td></tr><tr><td>Update</td><td>Must unload and reload</td><td>Hot-reload without disrupting</td></tr><tr><td>Portability</td><td>Kernel version dependent</td><td>Portable across kernel versions (with CO-RE)</td></tr><tr><td>Access</td><td>Full kernel access</td><td>Limited to what you attach to</td></tr><tr><td>Distribution</td><td>Requires signed module (in production)</td><td>Works out of the box on modern kernels</td></tr></tbody></table>
-<p><strong>CO-RE (Compile Once – Run Everywhere)</strong> solves the portability problem. eBPF programs compiled with BTF (BPF Type Format) information can be relocated across kernel versions without recompilation. The loader adjusts memory offsets based on the target kernel’s actual structure layouts.</p>
-<h2 id="practical-production-use-cases">Practical Production Use Cases</h2>
-<h3 id="1-network-performance-monitoring">1. Network Performance Monitoring</h3>
-<p>XDP programs can inspect and count packets at line rate — before the kernel networking stack even processes them:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#51597D;font-style:italic">// Count packets by destination port, in-kernel</span></span>
-<span class="line"><span style="color:#7AA2F7">SEC</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">xdp</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">int</span><span style="color:#7AA2F7"> xdp_prog</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> xdp_md </span><span style="color:#89DDFF">*</span><span style="color:#E0AF68">ctx</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#9ABDF5">{</span></span>
+<table><thead><tr><th>Tool</th><th>Mechanism</th><th>Overhead</th><th>Best For</th></tr></thead><tbody><tr><td><strong>strace</strong></td><td>ptrace() syscall interception</td><td>Very high (every syscall has enter+exit context switches)</td><td>Debugging a specific process, short traces</td></tr><tr><td><strong>perf</strong></td><td>Hardware PMU + kernel采样</td><td>Low to medium</td><td>CPU profiling, understanding where cycles go</td></tr><tr><td><strong>eBPF</strong></td><td>Kernel programs attached to hooks</td><td>Minimal, in-kernel aggregation</td><td>Production debugging, high-frequency events, continuous monitoring</td></tr></tbody></table>
+<p><strong>Use strace when:</strong> You need to see exact syscall arguments and return values for a specific process for a short time. Not for production — the overhead is 10x+.</p>
+<p><strong>Use perf when:</strong> You need to understand where CPU time is spent. <code>perf record -F 99 -a -g</code> for flame graphs. <code>perf stat</code> for counting hardware events.</p>
+<p><strong>Use eBPF when:</strong> You need high-frequency events, per-process aggregation, or want to debug production systems without adding 10x overhead.</p>
+<h2 id="security-considerations">Security Considerations</h2>
+<p>eBPF requires significant privileges. The basic requirement is:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Check kernel support</span></span>
+<span class="line"><span style="color:#C0CAF5">uname</span><span style="color:#E0AF68"> -r</span><span style="color:#51597D;font-style:italic">  # needs 4.4+ for basic features, 5.8+ for modern features</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Check if eBPF is enabled</span></span>
+<span class="line"><span style="color:#C0CAF5">ls</span><span style="color:#9ECE6A"> /sys/kernel/debug/tracing/events/</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Check available programs</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftool</span><span style="color:#9ECE6A"> prog</span><span style="color:#9ECE6A"> list</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># List maps</span></span>
+<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> bpftool</span><span style="color:#9ECE6A"> map</span><span style="color:#9ECE6A"> list</span></span>
+<span class="line"></span></code></pre>
+<p>To load eBPF programs, you need:</p>
+<ul>
+<li><strong>Root</strong> — or <code>CAP_BPF</code> capability (Linux 5.6+), or <code>CAP_SYS_ADMIN</code></li>
+<li><strong>Kernel compiled with <code>CONFIG_BPF=y</code></strong> and <code>CONFIG_BPF_SYSCALL=y</code></li>
+<li>For some program types (XDP, tc), you also need CAP_NET_ADMIN</li>
+</ul>
+<p>The security model: eBPF is safer than kernel modules, but it’s still running in kernel space. The verifier constrains what you can do, but a loaded eBPF program with write access to maps can consume resources (fill up a map, spin CPU in allowed operations). For production, use <code>bpftool</code> to inspect loaded programs and <code>ulimit -l</code> to limit memory locked for eBPF maps.</p>
+<h3 id="unprivileged-ebpf">Unprivileged eBPF</h3>
+<p>Since Linux 5.13, unprivileged eBPF is more restricted. You can load some program types (flow dissectors, sched_ext) without CAP_SYS_ADMIN, but most production use cases still need elevated privileges.</p>
+<h2 id="example-building-a-network-connection-counter">Example: Building a Network Connection Counter</h2>
+<p>Here’s a practical example: counting TCP connections by remote address, using a per-CPU array to avoid lock contention:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">uapi/linux/bpf.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">bcc/bpf_helpers.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">linux/if_ether.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">linux/ip.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"><span style="color:#89DDFF">#</span><span style="color:#BB9AF7">include</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">linux/tcp.h</span><span style="color:#89DDFF">></span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">// Per-CPU array: avoids cross-CPU locking overhead</span></span>
+<span class="line"><span style="color:#BB9AF7">struct</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#7AA2F7">    __uint</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">type</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> BPF_MAP_TYPE_PERCPU_ARRAY</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">    __uint</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">max_entries</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 65536</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">    __type</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">key</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> __u32</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">   // remote IP as u32</span></span>
+<span class="line"><span style="color:#7AA2F7">    __type</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">value</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> __u64</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span><span style="color:#51597D;font-style:italic">  // connection count</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span><span style="color:#A9B1D6"> conn_counts </span><span style="color:#7AA2F7">SEC</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">.maps</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#9D7CD8;font-style:italic">static</span><span style="color:#A9B1D6"> __always_inline </span><span style="color:#BB9AF7">int</span><span style="color:#7AA2F7"> parse_tcp</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> xdp_md </span><span style="color:#89DDFF">*</span><span style="color:#E0AF68">ctx</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> __u32 </span><span style="color:#89DDFF">*</span><span style="color:#E0AF68">remote_ip</span><span style="color:#9ABDF5">)</span><span style="color:#9ABDF5"> {</span></span>
 <span class="line"><span style="color:#BB9AF7">    void</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">data_end </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> (</span><span style="color:#BB9AF7">void</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">)(</span><span style="color:#BB9AF7">long</span><span style="color:#9ABDF5">)</span><span style="color:#C0CAF5">ctx</span><span style="color:#89DDFF">-></span><span style="color:#C0CAF5">data_end</span><span style="color:#89DDFF">;</span></span>
 <span class="line"><span style="color:#BB9AF7">    void</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">data </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> (</span><span style="color:#BB9AF7">void</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">)(</span><span style="color:#BB9AF7">long</span><span style="color:#9ABDF5">)</span><span style="color:#C0CAF5">ctx</span><span style="color:#89DDFF">-></span><span style="color:#C0CAF5">data</span><span style="color:#89DDFF">;</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#BB9AF7">    struct</span><span style="color:#9ABDF5"> ethhdr </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">eth </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> data</span><span style="color:#89DDFF">;</span></span>
 <span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> ((</span><span style="color:#BB9AF7">void</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">)(eth </span><span style="color:#89DDFF">+</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5">) </span><span style="color:#BB9AF7">></span><span style="color:#9ABDF5"> data_end)</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#C0CAF5">eth</span><span style="color:#89DDFF">-></span><span style="color:#C0CAF5">h_proto</span><span style="color:#BB9AF7"> !=</span><span style="color:#7AA2F7"> htons</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">ETH_P_IP</span><span style="color:#9ABDF5">))</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    struct</span><span style="color:#9ABDF5"> iphdr </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">ip </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> data </span><span style="color:#89DDFF">+</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">eth)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> ((</span><span style="color:#BB9AF7">void</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">)(ip </span><span style="color:#89DDFF">+</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5">) </span><span style="color:#BB9AF7">></span><span style="color:#9ABDF5"> data_end)</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#C0CAF5">ip</span><span style="color:#89DDFF">-></span><span style="color:#C0CAF5">protocol</span><span style="color:#BB9AF7"> !=</span><span style="color:#9ABDF5"> IPPROTO_TCP)</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    struct</span><span style="color:#9ABDF5"> tcphdr </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">tcp </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> (</span><span style="color:#BB9AF7">void</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">)ip </span><span style="color:#89DDFF">+</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">ip)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> ((</span><span style="color:#BB9AF7">void</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">)(tcp </span><span style="color:#89DDFF">+</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5">) </span><span style="color:#BB9AF7">></span><span style="color:#9ABDF5"> data_end)</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#89DDFF">    *</span><span style="color:#9ABDF5">remote_ip </span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5"> ip</span><span style="color:#89DDFF">-></span><span style="color:#C0CAF5">saddr</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7AA2F7">SEC</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">xdp</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">int</span><span style="color:#7AA2F7"> count_tcp_connections</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> xdp_md </span><span style="color:#89DDFF">*</span><span style="color:#E0AF68">ctx</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#9ABDF5">{</span></span>
+<span class="line"><span style="color:#9ABDF5">    __u32 remote_ip </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#BB9AF7">!</span><span style="color:#7AA2F7">parse_tcp</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">ctx</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#7AA2F7">remote_ip</span><span style="color:#9ABDF5">))</span></span>
 <span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#9ABDF5"> XDP_PASS</span><span style="color:#89DDFF">;</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (</span><span style="color:#C0CAF5">eth</span><span style="color:#89DDFF">-></span><span style="color:#C0CAF5">h_proto</span><span style="color:#BB9AF7"> ==</span><span style="color:#7AA2F7"> htons</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">ETH_P_IP</span><span style="color:#9ABDF5">)) {</span></span>
-<span class="line"><span style="color:#BB9AF7">        struct</span><span style="color:#9ABDF5"> iphdr </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">ip </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> data </span><span style="color:#89DDFF">+</span><span style="color:#89DDFF"> sizeof</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">eth)</span><span style="color:#89DDFF">;</span></span>
-<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#9ABDF5"> ((</span><span style="color:#BB9AF7">void</span><span style="color:#89DDFF"> *</span><span style="color:#9ABDF5">)(ip </span><span style="color:#89DDFF">+</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5">) </span><span style="color:#BB9AF7">></span><span style="color:#9ABDF5"> data_end)</span></span>
-<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#9ABDF5"> XDP_PASS</span><span style="color:#89DDFF">;</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#9ABDF5">        __u16 dst_port </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">        // Extract port from TCP header...</span></span>
-<span class="line"><span style="color:#9ABDF5">        @</span><span style="color:#C0CAF5">port_counts</span><span style="color:#9ABDF5">[dst_port]</span><span style="color:#89DDFF">++;</span></span>
+<span class="line"><span style="color:#9ABDF5">    __u32 key </span><span style="color:#89DDFF">=</span><span style="color:#9ABDF5"> remote_ip</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    __u64 </span><span style="color:#89DDFF">*</span><span style="color:#9ABDF5">val </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> bpf_map_lookup_elem</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">conn_counts</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#7AA2F7">key</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (val) {</span></span>
+<span class="line"><span style="color:#7AA2F7">        __sync_fetch_and_add</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">val</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#9ABDF5">    } </span><span style="color:#BB9AF7">else</span><span style="color:#9ABDF5"> {</span></span>
+<span class="line"><span style="color:#9ABDF5">        __u64 init </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#7AA2F7">        bpf_map_update_elem</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">&#x26;</span><span style="color:#7AA2F7">conn_counts</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#7AA2F7">key</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> &#x26;</span><span style="color:#7AA2F7">init</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> BPF_ANY</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
 <span class="line"><span style="color:#9ABDF5">    }</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#9ABDF5"> XDP_PASS</span><span style="color:#89DDFF">;</span></span>
 <span class="line"><span style="color:#9ABDF5">}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">char</span><span style="color:#A9B1D6"> _license</span><span style="color:#9D7CD8;font-style:italic">[]</span><span style="color:#7AA2F7"> SEC</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">license</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> =</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">GPL</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">;</span></span>
 <span class="line"></span></code></pre>
-<h3 id="2-security-monitoring-with-lsm-hooks">2. Security Monitoring with LSM Hooks</h3>
-<p>The LSM (Linux Security Module) eBPF program type lets you enforce security policies:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#51597D;font-style:italic">// Blockexec if process isn't in allowlist</span></span>
-<span class="line"><span style="color:#7AA2F7">SEC</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">lsm/socket_bind</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">int</span><span style="color:#7AA2F7"> socket_bind</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">struct</span><span style="color:#A9B1D6"> sock </span><span style="color:#89DDFF">*</span><span style="color:#E0AF68">sk</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#9ABDF5">{</span></span>
-<span class="line"><span style="color:#9ABDF5">    __u32 uid </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> bpf_get_current_uid_gid</span><span style="color:#9ABDF5">()</span><span style="color:#89DDFF">;</span></span>
-<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#9ABDF5"> (@</span><span style="color:#C0CAF5">blocked_uid</span><span style="color:#9ABDF5">[uid])</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#89DDFF"> -</span><span style="color:#9ABDF5">EPERM</span><span style="color:#89DDFF">;</span></span>
-<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">;</span></span>
-<span class="line"><span style="color:#9ABDF5">}</span></span>
-<span class="line"></span></code></pre>
-<h3 id="3-continuous-profiling">3. Continuous Profiling</h3>
-<p>Tools like Pixie and Parca use eBPF to continuously profile CPU usage without the overhead of traditional profiling:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Profile CPU usage by stack trace (bcc version)</span></span>
-<span class="line"><span style="color:#C0CAF5">sudo</span><span style="color:#9ECE6A"> /usr/share/bcc/tools/profile</span><span style="color:#E0AF68"> -F</span><span style="color:#FF9E64"> 99</span><span style="color:#FF9E64"> 1</span></span>
-<span class="line"></span></code></pre>
-<h2 id="the-ebpf-ecosystem">The eBPF Ecosystem</h2>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<table><thead><tr><th>Tool</th><th>What It Does</th></tr></thead><tbody><tr><td><strong>bcc</strong></td><td>BPF Compiler Collection — C/Python/Lua frontends for writing eBPF tools</td></tr><tr><td><strong>bpftrace</strong></td><td>High-level DSL for one-liners and scripts</td></tr><tr><td><strong>libbpf</strong></td><td>C library for loading eBPF programs, used by standalone programs</td></tr><tr><td><strong>cilium/ebpf</strong></td><td>Go library for eBPF programs</td></tr><tr><td><strong>Aya</strong></td><td>Rust eBPF framework</td></tr><tr><td><strong>Pixie</strong></td><td>Kubernetes observability using eBPF</td></tr><tr><td><strong>Cilium</strong></td><td>CNI plugin using eBPF for networking and security</td></tr><tr><td><strong>Falco</strong></td><td>Security auditing via eBPF</td></tr></tbody></table>
-<h2 id="requirements">Requirements</h2>
-<p>eBPF requires:</p>
+<p>Compile with <code>clang -target=bpf -O2 -c prog.c</code>, load with <code>ip link set dev eth0 xdp obj prog.o sec xdp</code>, and read counts with a Python script.</p>
+<h2 id="further-reading">Further Reading</h2>
 <ul>
-<li>Linux kernel 4.4+ (for basic features)</li>
-<li>Linux kernel 5.8+ (for many newer features like BTF, ring buffers)</li>
-<li><code>CONFIG_BPF=y</code> and related options enabled in kernel</li>
-<li><code>CAP_BPF</code> or root for most operations</li>
+<li><a href="https://www.brendangregg.com/bpf-performance-tools-book.html">BPF Performance Tools</a> — Brendan Gregg’s definitive book on eBPF tracing</li>
+<li><a href="https://github.com/iovisor/bpftrace/blob/master/docs/reference_guide.md">bpftrace reference guide</a> — Full syntax and builtin reference</li>
+<li><a href="https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md">BCC reference guide</a> — Tools and Python API</li>
+<li><a href="https://docs.cilium.io/en/latest/bpf/">Cilium BPF and XDP documentation</a> — Deep dive on networking eBPF</li>
+<li><a href="https://github.com/torvalds/linux/blob/master/kernel/bpf/verifier.c">eBPF verifier source</a> — The code that makes eBPF safe (for the truly curious)</li>
 </ul>
-<p>Check your system:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Check kernel version</span></span>
-<span class="line"><span style="color:#C0CAF5">uname</span><span style="color:#E0AF68"> -r</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Check eBPF support</span></span>
-<span class="line"><span style="color:#C0CAF5">cat</span><span style="color:#9ECE6A"> /proc/sys/kernel/bpf_stats_enabled</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># or</span></span>
-<span class="line"><span style="color:#C0CAF5">bpftool</span><span style="color:#9ECE6A"> prog</span><span style="color:#9ECE6A"> list</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Check available hook points</span></span>
-<span class="line"><span style="color:#C0CAF5">ls</span><span style="color:#9ECE6A"> /sys/kernel/debug/tracing/events/</span></span>
-<span class="line"></span></code></pre>
-<h2 id="conclusion">Conclusion</h2>
-<p>eBPF represents a fundamental shift in how we observe and interact with the Linux kernel. It gives us kernel-level insight with user-space safety, programmable hooks into almost any kernel subsystem, and the ability to write production-safe instrumentation without risking system stability.</p>
-<p>The tools have matured significantly. <code>bpftrace</code> for exploration and one-off debugging. <code>bcc</code> for production-grade tools. <code>libbpf</code> and higher-level frameworks for building your own eBPF programs.</p>
-<p>The learning curve is real — you’re writing code that runs in the kernel, and the eBPF instruction set has its own quirks. But the safety guarantees mean you can iterate without fear of crashing production systems, and the power is unmatched: microsecond-resolution tracing of anything the kernel does, with overhead low enough for continuous production use.</p>
-<p>If you’re serious about Linux observability, eBPF isn’t optional anymore — it’s the foundation.</p>
-<hr>
-<p><strong>External Resources</strong></p>
+<h2 id="related-posts">Related Posts</h2>
 <ul>
-<li><a href="https://www.brendangregg.com/bpf-performance-tools-book.html">BPF Performance Tools book</a> — Brendan Gregg’s comprehensive guide</li>
-<li><a href="https://github.com/iovisor/bpftrace/blob/master/docs/reference_guide.md">bpftrace reference guide</a> — Syntax and builtins</li>
-<li><a href="https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md">bcc documentation</a> — Tools and API reference</li>
-<li><a href="https://docs.cilium.io/en/latest/bpf/">Cilium BPF and XDP reference</a> — Deep dive into networking eBPF</li>
-<li><a href="https://github.com/torvalds/linux/blob/master/kernel/bpf/verifier.c">eBPF verifier source</a> — For the truly curious</li>
-</ul>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/linux-memory-debugging-profiling" data-astro-cid-gjtny2mx>Linux Memory Debugging: From vmstat to Memory Leaks</a> <p data-astro-cid-gjtny2mx>Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/linux-proc-filesystem-deep-dive" data-astro-cid-gjtny2mx>Linux /proc Filesystem: A Deep Dive into Process Information</a> <p data-astro-cid-gjtny2mx>Explore the Linux /proc filesystem to monitor processes, inspect memory, CPU info, and understand how tools like ps and top read kernel data.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/strace-debugging-linux-system-calls" data-astro-cid-gjtny2mx>strace: Debugging Linux System Calls Like a Pro</a> <p data-astro-cid-gjtny2mx>Learn how strace works under the hood, how to read its output, and how to debug real-world Linux problems with it.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"eBPF: Linux's Most Powerful Observation Framework","description":"What eBPF is, how it works, why it matters compared to kernel modules, and practical tools like bpftrace, tcpdump -B, and execsnoop.","datePublished":"2026-05-03T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/ebpf-linux-observability-framework"},"keywords":"linux, ebpf, observability, performance, kernel, debugging, bpf","articleSection":"linux","about":[{"@type":"Thing","name":"linux"},{"@type":"Thing","name":"ebpf"},{"@type":"Thing","name":"observability"},{"@type":"Thing","name":"performance"},{"@type":"Thing","name":"kernel"},{"@type":"Thing","name":"debugging"},{"@type":"Thing","name":"bpf"}]}</script> 
+<li><a href="/posts/strace-debugging-linux-system-calls">strace Debugging</a> — strace uses <code>ptrace</code>, the same underlying mechanism eBPF’s predecessor traced</li>
+<li><a href="/posts/linux-proc-filesystem-deep-dive">Linux /proc Filesystem</a> — /proc is the data source for many eBPF programs that instrument running systems</li>
+<li><a href="/posts/gdb-debugging-core-dumps-live-processes">GDB Debugging</a> — For user-space debugging contrast; GDB inspects coredumps while eBPF inspects the live kernel</li>
+</ul>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/linux-io-debugging-iostat-iotop-pidstat" data-astro-cid-gjtny2mx>Linux I/O Debugging: From iostat to iotop to pidstat</a> <p data-astro-cid-gjtny2mx>A practical guide to diagnosing I/O bottlenecks in Linux using iostat, iotop, pidstat, and blktrace — with real output, interpretation, and tuning.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/linux-memory-debugging-profiling" data-astro-cid-gjtny2mx>Linux Memory Debugging: From vmstat to Memory Leaks</a> <p data-astro-cid-gjtny2mx>Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/linux-proc-filesystem-deep-dive" data-astro-cid-gjtny2mx>Linux /proc Filesystem: A Deep Dive into Process Information</a> <p data-astro-cid-gjtny2mx>Explore the Linux /proc filesystem to monitor processes, inspect memory, CPU info, and understand how tools like ps and top read kernel data.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"eBPF: Linux Observability That Will Change How You Debug","description":"A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules.","datePublished":"2026-05-04T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/ebpf-linux-observability-framework"},"keywords":"linux, ebpf, observability, performance, kernel, debugging, bpf, tracing","articleSection":"linux","about":[{"@type":"Thing","name":"linux"},{"@type":"Thing","name":"ebpf"},{"@type":"Thing","name":"observability"},{"@type":"Thing","name":"performance"},{"@type":"Thing","name":"kernel"},{"@type":"Thing","name":"debugging"},{"@type":"Thing","name":"bpf"},{"@type":"Thing","name":"tracing"}]}</script> 

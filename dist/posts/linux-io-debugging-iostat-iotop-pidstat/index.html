@@ -1,0 +1,351 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A practical guide to diagnosing I/O bottlenecks in Linux using iostat, iotop, pidstat, and blktrace — with real output, interpretation, and tuning."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Linux I/O Debugging: From iostat to iotop to pidstat</title><meta property="og:title" content="Linux I/O Debugging: From iostat to iotop to pidstat"><meta property="og:description" content="A practical guide to diagnosing I/O bottlenecks in Linux using iostat, iotop, pidstat, and blktrace — with real output, interpretation, and tuning."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/linux-io-debugging-iostat-iotop-pidstat"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Linux I/O Debugging: From iostat to iotop to pidstat"><meta name="twitter:description" content="A practical guide to diagnosing I/O bottlenecks in Linux using iostat, iotop, pidstat, and blktrace — with real output, interpretation, and tuning."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/linux-io-debugging-iostat-iotop-pidstat"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Linux I/O Debugging: From iostat to iotop to pidstat</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-06T00:00:00.000Z" data-astro-cid-gjtny2mx>May 5, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>11 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>linux</span><span class="tag" data-astro-cid-gjtny2mx>performance</span><span class="tag" data-astro-cid-gjtny2mx>io</span><span class="tag" data-astro-cid-gjtny2mx>debugging</span><span class="tag" data-astro-cid-gjtny2mx>storage</span><span class="tag" data-astro-cid-gjtny2mx>sysadmin</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Your server is slow. CPU is mostly idle. Memory is fine. But disk I/O is spiking to 100% utilization and every request is queuing up behind the disk. Sound familiar?</p>
+<p>I/O bottlenecks are among the most insidious performance problems because the disk is orders of magnitude slower than everything else, and by the time you see the symptoms (high latency, request timeouts), the damage is already done.</p>
+<p>This post is about seeing the disk clearly: which process is doing it, which device is saturated, whether it’s read or write, and what you can actually do about it.</p>
+<blockquote>
+<p><strong>Prerequisites:</strong> Familiarity with the Linux process model and <code>/proc</code> filesystem. If you need a refresher, see <a href="/posts/linux-process-management-ps-top-htop/">Linux Process Management: ps, top, and htop Explained</a> and <a href="/posts/linux-proc-filesystem-deep-dive/">Linux /proc Filesystem Deep Dive</a>.</p>
+</blockquote>
+<h2 id="the-io-stack-where-things-can-go-wrong">The I/O Stack: Where Things Can Go Wrong</h2>
+<p>Before diving into tools, let’s map the path data takes from your application to the physical disk:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Application (write(fd, buf, len))</span></span>
+<span class="line"><span>    ↓</span></span>
+<span class="line"><span>VFS (virtual filesystem switch)</span></span>
+<span class="line"><span>    ↓</span></span>
+<span class="line"><span>Filesystem (ext4, xfs, btrfs...)</span></span>
+<span class="line"><span>    ↓</span></span>
+<span class="line"><span>Block Layer (I/O scheduler, request merging)</span></span>
+<span class="line"><span>    ↓</span></span>
+<span class="line"><span>SCSI/SATA/NVMe driver</span></span>
+<span class="line"><span>    ↓</span></span>
+<span class="line"><span>Storage Device (SSD, HDD)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>A slowdown can occur at any layer:</p>
+<ul>
+<li><strong>Application:</strong> Writing too much at once, synchronous I/O</li>
+<li><strong>Filesystem:</strong> Journal commits, fragmentation, metadata storms</li>
+<li><strong>Block layer:</strong> I/O scheduler queue full, request merging</li>
+<li><strong>Driver:</strong> Queue depth limits, firmware issues</li>
+<li><strong>Hardware:</strong> Device saturation, latency spikes</li>
+</ul>
+<p>Each tool in this post covers a different layer of this stack.</p>
+<h2 id="iostat-device-level-overview">iostat: Device-Level Overview</h2>
+<p><code>iostat</code> (from the <code>sysstat</code> package) is your first stop for device-level I/O visibility. It shows throughput,ops per second, and utilization per device.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Basic iostat output</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> iostat</span><span style="color:#E0AF68"> -x</span><span style="color:#FF9E64"> 2</span><span style="color:#FF9E64"> 5</span></span>
+<span class="line"><span style="color:#C0CAF5">Linux</span><span style="color:#9ECE6A"> 5.15.0-generic</span><span style="color:#A9B1D6"> (hostname)   05/06/2026   _x86_64_   (</span><span style="color:#C0CAF5">8</span><span style="color:#9ECE6A"> CPU</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#C0CAF5">avg-cpu:</span><span style="color:#9ECE6A">  %user</span><span style="color:#9ECE6A">   %nice</span><span style="color:#9ECE6A"> %system</span><span style="color:#9ECE6A"> %iowait</span><span style="color:#9ECE6A"> %steal</span><span style="color:#9ECE6A">   %idle</span></span>
+<span class="line"><span style="color:#C0CAF5">           2.3</span><span style="color:#FF9E64">     0.0</span><span style="color:#FF9E64">     1.2</span><span style="color:#FF9E64">     4.1</span><span style="color:#FF9E64">     0.0</span><span style="color:#FF9E64">    92.4</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#C0CAF5">Device:</span><span style="color:#9ECE6A">   r/s</span><span style="color:#9ECE6A">     w/s</span><span style="color:#9ECE6A">     rkB/s</span><span style="color:#9ECE6A">   wkB/s</span><span style="color:#9ECE6A">   rrqm/s</span><span style="color:#9ECE6A">  wrqm/s</span><span style="color:#9ECE6A">  %util</span></span>
+<span class="line"><span style="color:#C0CAF5">sda</span><span style="color:#FF9E64">       12.00</span><span style="color:#FF9E64">   45.00</span><span style="color:#FF9E64">   600.0</span><span style="color:#FF9E64">   2400.0</span><span style="color:#FF9E64">  0.00</span><span style="color:#FF9E64">    5.00</span><span style="color:#FF9E64">    78.50</span></span>
+<span class="line"><span style="color:#C0CAF5">nvme0n1</span><span style="color:#FF9E64">    0.00</span><span style="color:#FF9E64">   120.00</span><span style="color:#FF9E64">  0.0</span><span style="color:#FF9E64">     9600.0</span><span style="color:#FF9E64">  0.00</span><span style="color:#FF9E64">    0.00</span><span style="color:#FF9E64">    15.20</span></span>
+<span class="line"></span></code></pre>
+<h3 id="reading-the-columns">Reading the Columns</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>r/s</code>, <code>w/s</code></td><td>Read/write operations per second (IOPS)</td></tr><tr><td><code>rkB/s</code>, <code>wkB/s</code></td><td>Read/write kilobytes per second (throughput)</td></tr><tr><td><code>rrqm/s</code>, <code>wrqm/s</code></td><td>Merged read/write operations per second (request merging by the block layer)</td></tr><tr><td><code>%util</code></td><td>Device utilization — the percentage of time the device had at least one request in flight</td></tr></tbody></table>
+<p><strong>That <code>%util</code> column is your first red flag.</strong> Above 70% sustained means the device is busy. Above 90% means you’re almost certainly queuing.</p>
+<p>The <code>iowait</code> in the CPU section (<code>%iowait</code>) tells you how much CPU time is spent waiting for I/O to complete — but it’s an aggregate across all CPUs and doesn’t tell you <em>which</em> process or device.</p>
+<h3 id="deep-dive-with--x-and--z">Deep Dive with -x and -z</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Extended stats, 2-second interval, 3 iterations, skip CPU report</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> iostat</span><span style="color:#E0AF68"> -xzh</span><span style="color:#FF9E64"> 2</span><span style="color:#FF9E64"> 3</span></span>
+<span class="line"><span style="color:#0DB9D7">...</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#C0CAF5">Device:</span><span style="color:#9ECE6A">  r/s</span><span style="color:#9ECE6A">    w/s</span><span style="color:#9ECE6A">     rkB/s</span><span style="color:#9ECE6A">   wkB/s</span><span style="color:#9ECE6A">  await</span><span style="color:#9ECE6A">  %util</span></span>
+<span class="line"><span style="color:#C0CAF5">sda</span><span style="color:#FF9E64">     12.00</span><span style="color:#FF9E64">  45.00</span><span style="color:#FF9E64">    600.0</span><span style="color:#FF9E64">  2400.0</span><span style="color:#FF9E64">  12.4</span><span style="color:#FF9E64">   78.50</span></span>
+<span class="line"><span style="color:#C0CAF5">nvme0n1</span><span style="color:#FF9E64">  0.00</span><span style="color:#FF9E64"> 120.00</span><span style="color:#FF9E64">      0.0</span><span style="color:#FF9E64">  9600.0</span><span style="color:#FF9E64">   0.8</span><span style="color:#FF9E64">   15.20</span></span>
+<span class="line"></span></code></pre>
+<p>New columns:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>await</code></td><td>Average time (ms) for I/O requests to complete — from issue to finish. Includes time in the queue + time being serviced</td></tr><tr><td><code>%util</code></td><td>Same as above — device saturation</td></tr></tbody></table>
+<p>Compare <code>await</code> between devices. A spinning HDD with <code>await: 15ms</code> is healthy. An SSD with <code>await: 15ms</code> is a problem — something is wrong at a higher layer.</p>
+<h3 id="which-partitions-are-hot">Which Partitions are Hot?</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># iostat with partition-level detail</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> iostat</span><span style="color:#E0AF68"> -p</span><span style="color:#9ECE6A"> ALL</span><span style="color:#FF9E64"> 2</span><span style="color:#FF9E64"> 1</span></span>
+<span class="line"><span style="color:#C0CAF5">Linux</span><span style="color:#9ECE6A"> 5.15.0-generic</span><span style="color:#A9B1D6"> (hostname)   05/06/2026   _x86_64_   (</span><span style="color:#C0CAF5">8</span><span style="color:#9ECE6A"> CPU</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#C0CAF5">Device:</span><span style="color:#9ECE6A">         tps</span><span style="color:#9ECE6A">    kB_read/s</span><span style="color:#9ECE6A">   kB_wrtn/s</span><span style="color:#9ECE6A">   kB_read</span><span style="color:#9ECE6A">   kB_wrtn</span></span>
+<span class="line"><span style="color:#C0CAF5">sda</span><span style="color:#FF9E64">            57.00</span><span style="color:#FF9E64">       600.0</span><span style="color:#FF9E64">      2400.0</span><span style="color:#FF9E64">      1200</span><span style="color:#FF9E64">       4800</span></span>
+<span class="line"><span style="color:#C0CAF5">sda1</span><span style="color:#FF9E64">           10.00</span><span style="color:#FF9E64">       200.0</span><span style="color:#FF9E64">       100.0</span><span style="color:#FF9E64">       400</span><span style="color:#FF9E64">        200</span></span>
+<span class="line"><span style="color:#C0CAF5">sda2</span><span style="color:#FF9E64">            0.00</span><span style="color:#FF9E64">         0.0</span><span style="color:#FF9E64">         0.0</span><span style="color:#FF9E64">         0</span><span style="color:#FF9E64">          0</span></span>
+<span class="line"><span style="color:#C0CAF5">sda5</span><span style="color:#FF9E64">           47.00</span><span style="color:#FF9E64">       400.0</span><span style="color:#FF9E64">      2300.0</span><span style="color:#FF9E64">       800</span><span style="color:#FF9E64">       4600</span></span>
+<span class="line"></span></code></pre>
+<p>This tells you which partition is generating the load. <code>sda5</code> is your data partition — that’s where the I/O pressure is.</p>
+<h2 id="iotop-per-process-io-at-a-glance">iotop: Per-Process I/O at a Glance</h2>
+<p><code>iostat</code> tells you <em>which device</em> is busy. <code>iotop</code> tells you <em>which process</em> is doing it, in real time, like <code>top</code> for I/O.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> sudo</span><span style="color:#9ECE6A"> iotop</span><span style="color:#E0AF68"> --only</span></span>
+<span class="line"><span style="color:#C0CAF5">Total</span><span style="color:#9ECE6A"> DISK</span><span style="color:#9ECE6A"> READ:</span><span style="color:#FF9E64">        0.00</span><span style="color:#9ECE6A"> B/s</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> Total</span><span style="color:#9ECE6A"> DISK</span><span style="color:#9ECE6A"> WRITE:</span><span style="color:#FF9E64">     820.23</span><span style="color:#9ECE6A"> M/s</span></span>
+<span class="line"><span style="color:#C0CAF5">TID</span><span style="color:#9ECE6A">  PRIO</span><span style="color:#9ECE6A">  USER</span><span style="color:#9ECE6A">     DISK</span><span style="color:#9ECE6A"> READ</span><span style="color:#9ECE6A">  DISK</span><span style="color:#9ECE6A"> WRITE</span><span style="color:#9ECE6A">  SWAPIN</span><span style="color:#9ECE6A">   IO</span><span style="color:#9ECE6A">    COMMAND</span></span>
+<span class="line"><span style="color:#C0CAF5">1218</span><span style="color:#9ECE6A"> be/4</span><span style="color:#9ECE6A"> root</span><span style="color:#FF9E64">        0.00</span><span style="color:#9ECE6A"> B/s</span><span style="color:#FF9E64">  820.23</span><span style="color:#9ECE6A"> M/s</span><span style="color:#FF9E64">   0.00</span><span style="color:#9ECE6A"> %</span><span style="color:#FF9E64"> 95.54</span><span style="color:#9ECE6A"> %</span><span style="color:#9ECE6A"> dd</span><span style="color:#9ECE6A"> if=/dev/zero</span><span style="color:#9ECE6A"> of=/mnt/testfile</span><span style="color:#9ECE6A"> bs=1M</span><span style="color:#9ECE6A"> count=</span><span style="color:#FF9E64">1000</span></span>
+<span class="line"><span style="color:#C0CAF5">  932</span><span style="color:#9ECE6A"> be/4</span><span style="color:#9ECE6A"> root</span><span style="color:#FF9E64">        0.00</span><span style="color:#9ECE6A"> B/s</span><span style="color:#FF9E64">    5.23</span><span style="color:#9ECE6A"> M/s</span><span style="color:#FF9E64">   0.00</span><span style="color:#9ECE6A"> %</span><span style="color:#FF9E64">  1.23</span><span style="color:#9ECE6A"> %</span><span style="color:#A9B1D6"> [jbd2/sda5-8]</span></span>
+<span class="line"><span style="color:#C0CAF5">  1</span><span style="color:#9ECE6A"> be/3</span><span style="color:#9ECE6A"> root</span><span style="color:#FF9E64">          0.00</span><span style="color:#9ECE6A"> B/s</span><span style="color:#FF9E64">    0.00</span><span style="color:#9ECE6A"> B/s</span><span style="color:#FF9E64">   0.00</span><span style="color:#9ECE6A"> %</span><span style="color:#FF9E64">  0.00</span><span style="color:#9ECE6A"> %</span><span style="color:#9ECE6A"> init</span></span>
+<span class="line"></span></code></pre>
+<p>Key columns:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>DISK READ/WRITE</code></td><td>Per-process throughput</td></tr><tr><td><code>IO</code></td><td>Percentage of time the process spent doing I/O (summed over the interval)</td></tr><tr><td><code>SWAPIN</code></td><td>Percentage of time the process spent waiting for swap-in (if applicable)</td></tr></tbody></table>
+<p>The <code>--only</code> flag shows only processes doing actual I/O, filtering out the idle system.</p>
+<h3 id="interactive-mode">Interactive Mode</h3>
+<p>Run <code>iotop</code> without flags for a live TUI that updates every second:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> sudo</span><span style="color:#9ECE6A"> iotop</span></span>
+<span class="line"></span></code></pre>
+<p>Use arrow keys to sort by different columns. Press <code>r</code> to reverse sort. Press <code>q</code> to quit.</p>
+<h3 id="batch-mode-for-scripting">Batch Mode for Scripting</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Capture 10 samples at 1-second intervals, no TUI</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> sudo</span><span style="color:#9ECE6A"> iotop</span><span style="color:#E0AF68"> -b</span><span style="color:#E0AF68"> -n</span><span style="color:#FF9E64"> 10</span><span style="color:#E0AF68"> -d</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF"> ></span><span style="color:#9ECE6A"> iotop.log</span></span>
+<span class="line"></span></code></pre>
+<p>Useful for capturing I/O patterns over time before you root-cause an issue.</p>
+<h2 id="pidstat-per-process-io-with-more-detail">pidstat: Per-Process I/O with More Detail</h2>
+<p><code>pidstat</code> (also from <code>sysstat</code>) provides per-process I/O statistics with more granularity than <code>iotop</code>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># 2-second intervals, 5 iterations, show I/O stats</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> pidstat</span><span style="color:#E0AF68"> -d</span><span style="color:#FF9E64"> 2</span><span style="color:#FF9E64"> 5</span></span>
+<span class="line"><span style="color:#C0CAF5">Linux</span><span style="color:#9ECE6A"> 5.15.0-generic</span><span style="color:#A9B1D6"> (hostname)   05/06/2026   _x86_64_   (</span><span style="color:#C0CAF5">8</span><span style="color:#9ECE6A"> CPU</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#C0CAF5">Average:</span><span style="color:#9ECE6A">      UID</span><span style="color:#9ECE6A">       PID</span><span style="color:#9ECE6A">       kB_rd/s</span><span style="color:#9ECE6A">       kB_wr/s</span><span style="color:#9ECE6A">       kB_ccwr/s</span><span style="color:#9ECE6A">   iodelay</span><span style="color:#9ECE6A">        Command</span></span>
+<span class="line"><span style="color:#C0CAF5">----------</span><span style="color:#E0AF68">  -----</span><span style="color:#E0AF68">  ---------</span><span style="color:#E0AF68">  -----------</span><span style="color:#E0AF68">  -----------</span><span style="color:#E0AF68">  ------------</span><span style="color:#E0AF68">  ---------</span><span style="color:#E0AF68">  ---------------</span></span>
+<span class="line"><span style="color:#C0CAF5">Average:</span><span style="color:#FF9E64">      0</span><span style="color:#FF9E64">     1218</span><span style="color:#FF9E64">      0.00</span><span style="color:#FF9E64">          820230.00</span><span style="color:#FF9E64">     0.00</span><span style="color:#FF9E64">          0</span><span style="color:#9ECE6A">          dd</span></span>
+<span class="line"><span style="color:#C0CAF5">Average:</span><span style="color:#FF9E64">      0</span><span style="color:#FF9E64">      932</span><span style="color:#FF9E64">      0.00</span><span style="color:#FF9E64">          5320.00</span><span style="color:#FF9E64">       0.00</span><span style="color:#FF9E64">          0</span><span style="color:#9ECE6A">          jbd2/sda5-8</span></span>
+<span class="line"></span></code></pre>
+<p>New columns:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Column</th><th>Meaning</th></tr></thead><tbody><tr><td><code>kB_rd/s</code>, <code>kB_wr/s</code></td><td>KB read/written per second</td></tr><tr><td><code>kB_ccwr/s</code></td><td>KB cancelled per second (writes that were issued but then cancelled — e.g., a file was truncated after being written)</td></tr><tr><td><code>iodelay</code></td><td>I/O delay in clock ticks — time the process spent blocked waiting for I/O scheduler and block device</td></tr></tbody></table>
+<p>The <code>iodelay</code> metric is particularly valuable. If <code>dd</code> has <code>iodelay: 0</code> but your database has <code>iodelay: 1500</code>, you know the database is sitting in the I/O queue.</p>
+<h3 id="pidstat--p-for-a-specific-process">pidstat -p for a Specific Process</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Watch a specific process's I/O</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> pidstat</span><span style="color:#E0AF68"> -p</span><span style="color:#89DDFF"> $(</span><span style="color:#C0CAF5">pgrep</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> mysqld</span><span style="color:#89DDFF">)</span><span style="color:#E0AF68"> -d</span><span style="color:#FF9E64"> 1</span><span style="color:#FF9E64"> 10</span></span>
+<span class="line"></span></code></pre>
+<h3 id="pidstat--t-for-threads">pidstat -t for Threads</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Break down I/O by thread within a process</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> pidstat</span><span style="color:#E0AF68"> -t</span><span style="color:#E0AF68"> -p</span><span style="color:#89DDFF"> $(</span><span style="color:#C0CAF5">pgrep</span><span style="color:#E0AF68"> -f</span><span style="color:#9ECE6A"> mysqld</span><span style="color:#89DDFF">)</span><span style="color:#E0AF68"> -d</span><span style="color:#FF9E64"> 1</span><span style="color:#FF9E64"> 3</span></span>
+<span class="line"><span style="color:#C0CAF5">Average:</span><span style="color:#9ECE6A">      UID</span><span style="color:#9ECE6A">       TGID</span><span style="color:#9ECE6A">       TID</span><span style="color:#9ECE6A">       kB_rd/s</span><span style="color:#9ECE6A">    kB_wr/s</span><span style="color:#9ECE6A">   iodelay</span><span style="color:#9ECE6A">  Command</span></span>
+<span class="line"><span style="color:#C0CAF5">----------</span><span style="color:#E0AF68">  -----</span><span style="color:#E0AF68">  ---------</span><span style="color:#E0AF68">  ---------</span><span style="color:#E0AF68">  ----------</span><span style="color:#E0AF68">  ---------</span><span style="color:#E0AF68">  ---------</span><span style="color:#E0AF68">  -------</span></span>
+<span class="line"><span style="color:#C0CAF5">Average:</span><span style="color:#FF9E64">      999</span><span style="color:#FF9E64">    2345</span><span style="color:#9ECE6A">       -</span><span style="color:#FF9E64">         120.00</span><span style="color:#FF9E64">      0.00</span><span style="color:#FF9E64">       0</span><span style="color:#9ECE6A">          mysqld</span></span>
+<span class="line"><span style="color:#C0CAF5">Average:</span><span style="color:#FF9E64">      999</span><span style="color:#9ECE6A">    -</span><span style="color:#FF9E64">         2345</span><span style="color:#FF9E64">       0.00</span><span style="color:#FF9E64">        0.00</span><span style="color:#FF9E64">       0</span><span style="color:#89DDFF">          |</span><span style="color:#C0CAF5">-</span><span style="color:#9ECE6A"> mysqld</span></span>
+<span class="line"><span style="color:#C0CAF5">Average:</span><span style="color:#FF9E64">      999</span><span style="color:#9ECE6A">    -</span><span style="color:#FF9E64">         2346</span><span style="color:#FF9E64">       120.00</span><span style="color:#FF9E64">      0.00</span><span style="color:#FF9E64">       0</span><span style="color:#89DDFF">          |</span><span style="color:#C0CAF5">-</span><span style="color:#9ECE6A"> mysqld</span><span style="color:#A9B1D6"> (innodb: </span><span style="color:#9ECE6A">write</span><span style="color:#9ECE6A"> thread0</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#C0CAF5">Average:</span><span style="color:#FF9E64">      999</span><span style="color:#9ECE6A">    -</span><span style="color:#FF9E64">         2347</span><span style="color:#FF9E64">       0.00</span><span style="color:#FF9E64">        0.00</span><span style="color:#FF9E64">       0</span><span style="color:#89DDFF">          |</span><span style="color:#C0CAF5">-</span><span style="color:#9ECE6A"> mysqld</span><span style="color:#A9B1D6"> (innodb: </span><span style="color:#9ECE6A">write</span><span style="color:#9ECE6A"> thread1</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"></span></code></pre>
+<p>This is critical for MySQL/PostgreSQL where you have multiple I/O threads and need to understand which ones are active.</p>
+<h2 id="blktrace-the-block-layer-under-a-microscope">blktrace: The Block Layer Under a Microscope</h2>
+<p><code>iostat</code> and <code>pidstat</code> tell you <em>that</em> I/O is happening. <code>blktrace</code> tells you <em>exactly what the block layer is doing</em> — every I/O operation, categorized by the stage it passed through.</p>
+<p><code>blktrace</code> traces events at the block I/O layer, before the scheduler merges and queues them. This is the deepest possible look at I/O behavior.</p>
+<h3 id="how-blktrace-works">How blktrace Works</h3>
+<p><code>blktrace</code> attaches to a block device and captures events as I/O requests flow through the block layer:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Application: write(2)</span></span>
+<span class="line"><span>    ↓</span></span>
+<span class="line"><span>Generic Block Layer: make_request()</span></span>
+<span class="line"><span>    ↓</span></span>
+<span class="line"><span>I/O Scheduler: insert request, merge requests, dispatch</span></span>
+<span class="line"><span>    ↓</span></span>
+<span class="line"><span>Device Driver: issue to hardware</span></span>
+<span class="line"><span>    ↓</span></span>
+<span class="line"><span>Device: completes</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Each stage emits an event. <code>blktrace</code> captures these via the <code>relay</code> filesystem.</p>
+<h3 id="running-blktrace">Running blktrace</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Trace sda, 30-second capture</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> sudo</span><span style="color:#9ECE6A"> blktrace</span><span style="color:#E0AF68"> -d</span><span style="color:#9ECE6A"> /dev/sda</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> sda_trace</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># This creates sda_trace.blktrace.* files (one per CPU)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Stop with Ctrl-C after capturing</span></span>
+<span class="line"></span></code></pre>
+<h3 id="reading-blktrace-with-blkparse">Reading blktrace with blkparse</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Merge and display the trace files</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> blkparse</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> sda_trace</span></span>
+<span class="line"><span style="color:#C0CAF5">  8,0</span><span style="color:#FF9E64">   3</span><span style="color:#FF9E64">        1</span><span style="color:#FF9E64">     0.000000000</span><span style="color:#FF9E64">  1218</span><span style="color:#9ECE6A">  A</span><span style="color:#9ECE6A">  W</span><span style="color:#FF9E64"> 73275264</span><span style="color:#9ECE6A"> +</span><span style="color:#FF9E64"> 8</span><span style="color:#89DDFF"> &#x3C;</span><span style="color:#9ECE6A">-</span><span style="color:#A9B1D6"> (8,5) 73274624</span></span>
+<span class="line"><span style="color:#C0CAF5">  8,0</span><span style="color:#FF9E64">   3</span><span style="color:#FF9E64">        2</span><span style="color:#FF9E64">     0.000001234</span><span style="color:#FF9E64">  1218</span><span style="color:#9ECE6A">  Q</span><span style="color:#9ECE6A">  W</span><span style="color:#FF9E64"> 73275264</span><span style="color:#9ECE6A"> +</span><span style="color:#FF9E64"> 8</span><span style="color:#A9B1D6"> [dd]</span></span>
+<span class="line"><span style="color:#C0CAF5">  8,0</span><span style="color:#FF9E64">   3</span><span style="color:#FF9E64">        3</span><span style="color:#FF9E64">     0.000002456</span><span style="color:#FF9E64">  1218</span><span style="color:#9ECE6A">  G</span><span style="color:#9ECE6A">  W</span><span style="color:#FF9E64"> 73275264</span><span style="color:#9ECE6A"> +</span><span style="color:#FF9E64"> 8</span><span style="color:#A9B1D6"> [dd]</span></span>
+<span class="line"><span style="color:#C0CAF5">  8,0</span><span style="color:#FF9E64">   3</span><span style="color:#FF9E64">        4</span><span style="color:#FF9E64">     0.000003678</span><span style="color:#FF9E64">  1218</span><span style="color:#9ECE6A">  I</span><span style="color:#9ECE6A">  W</span><span style="color:#FF9E64"> 73275264</span><span style="color:#9ECE6A"> +</span><span style="color:#FF9E64"> 8</span><span style="color:#A9B1D6"> [dd]</span></span>
+<span class="line"><span style="color:#C0CAF5">  8,0</span><span style="color:#FF9E64">   3</span><span style="color:#FF9E64">        5</span><span style="color:#FF9E64">     0.000005890</span><span style="color:#FF9E64">  1218</span><span style="color:#9ECE6A">  D</span><span style="color:#9ECE6A">  W</span><span style="color:#FF9E64"> 73275264</span><span style="color:#9ECE6A"> +</span><span style="color:#FF9E64"> 8</span><span style="color:#A9B1D6"> [dd]</span></span>
+<span class="line"><span style="color:#C0CAF5">  8,0</span><span style="color:#FF9E64">   3</span><span style="color:#FF9E64">        6</span><span style="color:#FF9E64">     0.012345678</span><span style="color:#FF9E64">  1218</span><span style="color:#9ECE6A">  C</span><span style="color:#9ECE6A">  W</span><span style="color:#FF9E64"> 73275264</span><span style="color:#9ECE6A"> +</span><span style="color:#FF9E64"> 8</span><span style="color:#A9B1D6"> [dd]</span></span>
+<span class="line"></span></code></pre>
+<p>The action letters are the key:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Action</th><th>Meaning</th></tr></thead><tbody><tr><td><code>A</code></td><td>I/O is queued (remapped by device mapper)</td></tr><tr><td><code>Q</code></td><td>I/O queued to the I/O scheduler</td></tr><tr><td><code>G</code></td><td>I/O get request (scheduler created a request struct)</td></tr><tr><td><code>I</code></td><td>I/O inserted into the scheduler queue</td></tr><tr><td><code>D</code></td><td>I/O dispatched to the device driver</td></tr><tr><td><code>C</code></td><td>I/O completed</td></tr></tbody></table>
+<p>The time delta between <code>Q</code> and <code>D</code> tells you how long the request sat in the scheduler queue. If that’s large, your scheduler is the bottleneck, not the device.</p>
+<h3 id="btt-analyzing-blktrace-reports">btt: Analyzing blktrace Reports</h3>
+<p>The <code>btt</code> tool (part of the <code>blktrace</code> suite) produces latency analysis:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> blkparse</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> sda_trace</span><span style="color:#E0AF68"> -d</span><span style="color:#9ECE6A"> sda_trace.bin</span></span>
+<span class="line"><span style="color:#C0CAF5">$</span><span style="color:#9ECE6A"> btt</span><span style="color:#E0AF68"> -i</span><span style="color:#9ECE6A"> sda_trace.bin</span></span>
+<span class="line"></span></code></pre>
+<p>Output includes per-device and per-CPU summaries: average queue depth, I/O latencies by block, and time breakdowns between stages.</p>
+<h2 id="the-diagnostic-flow">The Diagnostic Flow</h2>
+<p>When you notice I/O wait in <code>top</code> or <code>%util</code> near 100%, here’s the sequence:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>1. iostat -x 2        → which device is saturated?</span></span>
+<span class="line"><span>       ↓</span></span>
+<span class="line"><span>2. iostat -p ALL 2    → which partition on that device?</span></span>
+<span class="line"><span>       ↓</span></span>
+<span class="line"><span>3. iotop --only       → which process is doing it?</span></span>
+<span class="line"><span>       ↓</span></span>
+<span class="line"><span>4. pidstat -p &#x3C;pid> -d 1  → what's that process's I/O rate and iodelay?</span></span>
+<span class="line"><span>       ↓</span></span>
+<span class="line"><span>5. blktrace (if needed) → what's the block layer doing? Queue depth? Latency per stage?</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>By step 4, you usually know enough to fix the problem. <code>blktrace</code> is for when you suspect the block layer itself is the culprit (scheduler tuning, queue depth issues).</p>
+<h2 id="common-patterns-and-fixes">Common Patterns and Fixes</h2>
+<h3 id="pattern-high-write-io-low-read-io-jbd2-process">Pattern: High write I/O, low read I/O, jbd2 process</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Device:  w/s: 400, wkB/s: 8000, %util: 90</span></span>
+<span class="line"><span>Process: jbd2/sda5-8  IO: 80%</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>This is filesystem journal activity. Your options:</p>
+<ul>
+<li>Reduce <code>commit=</code> interval in <code>/etc/fstab</code> (default: 5s)</li>
+<li>Use <code>data=writeback</code> mode for ext4 (vs default <code>data=ordered</code>)</li>
+<li>Switch to a filesystem with a smaller journal (xfs) or SSD with capacitor-backed write cache</li>
+</ul>
+<h3 id="pattern-many-small-reads-high-iodelay-on-a-specific-process">Pattern: Many small reads, high iodelay on a specific process</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Process: postgres  kB_rd/s: 500, iodelay: 1200</span></span>
+<span class="line"><span>Device:  r/s: 200, await: 45ms</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Random read I/O from a database. The <code>await</code> is high because the disk is seeking (HDD) or the I/O queue is deep. Options:</p>
+<ul>
+<li>Increase <code>random_read_ahead</code> in PostgreSQL</li>
+<li>Add RAM for more buffer cache</li>
+<li>Move to an SSD</li>
+<li>Partition the database across multiple volumes</li>
+</ul>
+<h3 id="pattern-synchronous-io-from-application">Pattern: Synchronous I/O from application</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Device:  w/s: 100, wkB/s: 500, await: 8ms</span></span>
+<span class="line"><span>Process: myapp  iodelay: 750</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The process is synchronous — it’s waiting on every write before continuing. The <code>iodelay</code> >> <code>await</code> means it’s spending most of its time blocked in the I/O layer. Options:</p>
+<ul>
+<li>Switch to <code>O_DIRECT</code> with async I/O</li>
+<li>Use <code>libaio</code> or <code>io_uring</code> for async I/O</li>
+<li>Batch writes in the application</li>
+</ul>
+<h2 id="linux-sysctl-for-io-tuning">Linux sysctl for I/O Tuning</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Increase the I/O scheduler queue depth (for high-end NVMe)</span></span>
+<span class="line"><span style="color:#C0CAF5">sysctl</span><span style="color:#E0AF68"> -w</span><span style="color:#9ECE6A"> dev.</span><span style="color:#89DDFF">$(</span><span style="color:#C0CAF5">lsblk</span><span style="color:#E0AF68"> -d</span><span style="color:#E0AF68"> -o</span><span style="color:#9ECE6A"> NAME</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> tail</span><span style="color:#E0AF68"> -n1</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> tr</span><span style="color:#E0AF68"> -d</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">[:space:]</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">)</span><span style="color:#9ECE6A">.queue_depth=</span><span style="color:#FF9E64">1024</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Set the I/O scheduler (per-device)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">#noop for fast NVMe, bfq for spinning disk, mq-deadline for general use</span></span>
+<span class="line"><span style="color:#0DB9D7">echo</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">none</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF"> ></span><span style="color:#9ECE6A"> /sys/block/nvme0n1/queue/scheduler</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Reduce I/O scheduler latency for reads</span></span>
+<span class="line"><span style="color:#0DB9D7">echo</span><span style="color:#FF9E64"> 16</span><span style="color:#89DDFF"> ></span><span style="color:#9ECE6A"> /sys/block/sda/queue/iosched/read_lat_nsec</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Enable discard/TRIM for SSDs (mount option)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Add discard to /etc/fstab: /dev/sda1 / ext4 defaults,discard 0 1</span></span>
+<span class="line"></span></code></pre>
+<h2 id="putting-it-together">Putting It Together</h2>
+<p>I/O debugging is a three-layer problem:</p>
+<ol>
+<li><strong>Device layer</strong> — Is the disk itself saturated? (<code>iostat %util</code>)</li>
+<li><strong>Process layer</strong> — Which process is driving the load? (<code>iotop</code>, <code>pidstat</code>)</li>
+<li><strong>Block layer</strong> — What’s happening inside the kernel? (<code>blktrace</code>)</li>
+</ol>
+<p>Most of the time, <code>iostat</code> + <code>iotop</code> gets you 90% of the answer in 2 minutes. The remaining 10% requires <code>blktrace</code>, but it’s invaluable when the block layer itself is the constraint — scheduler latency, request queue overflow, or driver bugs.</p>
+<p>Now you have the tools. Go find your bottleneck.</p>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/ebpf-linux-observability-framework" data-astro-cid-gjtny2mx>eBPF: Linux Observability That Will Change How You Debug</a> <p data-astro-cid-gjtny2mx>A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/linux-memory-debugging-profiling" data-astro-cid-gjtny2mx>Linux Memory Debugging: From vmstat to Memory Leaks</a> <p data-astro-cid-gjtny2mx>Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/gdb-debugging-core-dumps-live-processes" data-astro-cid-gjtny2mx>GDB Debugging: From Core Dumps to Live Processes</a> <p data-astro-cid-gjtny2mx>Master GDB for debugging C/C++ programs — set breakpoints, inspect memory, analyze core dumps, and attach to live processes for production debugging.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Linux I/O Debugging: From iostat to iotop to pidstat","description":"A practical guide to diagnosing I/O bottlenecks in Linux using iostat, iotop, pidstat, and blktrace — with real output, interpretation, and tuning.","datePublished":"2026-05-06T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/linux-io-debugging-iostat-iotop-pidstat"},"keywords":"linux, performance, io, debugging, storage, sysadmin","articleSection":"linux","about":[{"@type":"Thing","name":"linux"},{"@type":"Thing","name":"performance"},{"@type":"Thing","name":"io"},{"@type":"Thing","name":"debugging"},{"@type":"Thing","name":"storage"},{"@type":"Thing","name":"sysadmin"}]}</script> 

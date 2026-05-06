@@ -1,0 +1,297 @@
+---
+// Interactive Kubernetes Architecture Diagram
+---
+
+<div class="canvas-container">
+  <canvas id="kubernetes-arch" width="750" height="420"></canvas>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('kubernetes-arch');
+  const ctx = canvas.getContext('2d');
+
+  let tick = 0;
+  let animPhase = 0;
+  let lastPhaseTime = 0;
+
+  const W = 750, H = 420;
+
+  // Control plane nodes
+  const controlPlane = [
+    { label: 'API Server', x: 120, y: 60, color: '#60a5fa', icon: 'K8s' },
+    { label: 'etcd', x: 320, y: 60, color: '#a78bfa', icon: 'DB' },
+    { label: 'Scheduler', x: 520, y: 60, color: '#34d399', icon: 'SCH' },
+  ];
+
+  // Worker nodes
+  const workers = [
+    { label: 'Node-1', x: 120, y: 260, color: '#f59e0b', sub: 'kubelet\ncontainerd\nCNI' },
+    { label: 'Node-2', x: 340, y: 260, color: '#f59e0b', sub: 'kubelet\ncontainerd\nCNI' },
+    { label: 'Node-3', x: 560, y: 260, color: '#f59e0b', sub: 'kubelet\ncontainerd\nCNI' },
+  ];
+
+  // Pods on nodes (for showing scheduling)
+  const pods = [
+    { node: 0, x: 70, y: 340, label: 'Pod A' },
+    { node: 0, x: 130, y: 340, label: 'Pod B' },
+    { node: 1, x: 290, y: 340, label: 'Pod C' },
+    { node: 1, x: 350, y: 340, label: 'Pod D' },
+    { node: 2, x: 510, y: 340, label: 'Pod E' },
+    { node: 2, x: 570, y: 340, label: 'Pod F' },
+  ];
+
+  // Flow messages
+  const flows = [
+    { from: [620, 60], to: [380, 60], label: 'Watch', color: '#fbbf24', animOffset: 0 },
+    { from: [180, 60], to: [270, 60], label: '', color: '#60a5fa', animOffset: 0.3 },
+    { from: [420, 60], to: [340, 60], label: '', color: '#60a5fa', animOffset: 0.6 },
+    { from: [520, 95], to: [520, 170], label: 'Schedule Pod', color: '#34d399', animOffset: 0 },
+    { from: [520, 170], to: [560, 230], label: '', color: '#34d399', animOffset: 0.4 },
+    { from: [560, 230], to: [560, 260], label: '', color: '#34d399', animOffset: 0.7 },
+  ];
+
+  function drawArrow(x1, y1, x2, y2, color, label) {
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const len = Math.hypot(x2 - x1, y2 - y1);
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Arrowhead
+    const headLen = 8;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - headLen * Math.cos(angle - 0.4), y2 - headLen * Math.sin(angle - 0.4));
+    ctx.lineTo(x2 - headLen * Math.cos(angle + 0.4), y2 - headLen * Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    if (label) {
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+      ctx.fillStyle = '#888';
+      ctx.font = '400 9px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, midX, midY - 5);
+    }
+  }
+
+  function drawNode(x, y, label, color, sub, r) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color + '33';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = color;
+    ctx.font = '600 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, y + 4);
+
+    if (sub) {
+      ctx.fillStyle = '#888';
+      ctx.font = '400 9px Inter, sans-serif';
+      const lines = sub.split('\n');
+      lines.forEach((l, i) => ctx.fillText(l, x, y + r + 12 + i * 11));
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter, sans-serif';
+    ctx.fillText('Kubernetes Architecture: Control Plane → Worker Nodes', 20, 20);
+
+    // Subtitle
+    ctx.fillStyle = '#888';
+    ctx.font = '400 10px Inter, sans-serif';
+    ctx.fillText('Click canvas to advance phases: API → etcd → Schedule → Kubelet → Pods', 20, 38);
+
+    // Section labels
+    ctx.fillStyle = '#888';
+    ctx.font = '600 11px Inter, sans-serif';
+    ctx.fillText('CONTROL PLANE', 20, 55);
+    ctx.fillText('DATA PLANE', 20, 250);
+
+    // Control plane components
+    controlPlane.forEach(n => drawNode(n.x, n.y, n.label, n.color, null, 28));
+
+    // Control plane inner label
+    ctx.fillStyle = '#888';
+    ctx.font = '400 9px Inter, sans-serif';
+    ctx.fillText('API Server writes to etcd,\nother components watch API', 320, 105);
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '400 9px Inter, sans-serif';
+    ctx.fillText('Watch → Apply ←', 320, 115);
+
+    // Connection: API server to etcd
+    drawArrow(180, 60, 270, 60, '#a78bfa', 'state');
+
+    // Flow 1: API server watches etcd
+    drawArrow(420, 60, 280, 60, '#60a5fa', 'watch');
+    drawArrow(280, 60, 180, 60, '#60a5fa', '');
+
+    // Worker nodes
+    workers.forEach((w, i) => {
+      // Node box
+      ctx.shadowColor = w.color;
+      ctx.shadowBlur = 6;
+
+      ctx.fillStyle = w.color + '22';
+      ctx.strokeStyle = w.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(w.x - 75, w.y - 15, 150, 40, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = w.color;
+      ctx.font = '600 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(w.label, w.x, w.y + 4);
+
+      // kubelet label
+      ctx.fillStyle = '#888';
+      ctx.font = '400 9px Inter, sans-serif';
+      ctx.fillText('kubelet + containerd + CNI', w.x, w.y + 16);
+    });
+
+    // Phase-based animations
+    const now = Date.now();
+    if (now - lastPhaseTime > 3500) {
+      animPhase = (animPhase + 1) % 4;
+      lastPhaseTime = now;
+    }
+
+    // Phase 0: API server writes to etcd
+    if (animPhase >= 0) {
+      ctx.fillStyle = '#888';
+      ctx.font = '400 10px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('① API server writes desired state to etcd', 620, 65);
+    }
+
+    // Phase 1: Watch flows
+    if (animPhase >= 1) {
+      ctx.fillStyle = '#888';
+      ctx.font = '400 10px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('② Scheduler watches for unscheduled pods', 620, 65);
+    }
+
+    // Phase 2: Schedule
+    if (animPhase >= 2) {
+      drawArrow(520, 93, 560, 170, '#34d399', 'bind pod');
+      drawArrow(560, 170, 560, 240, '#34d399', '');
+      ctx.fillStyle = '#34d399';
+      ctx.font = '500 10px Inter, sans-serif';
+      ctx.fillText('③ Scheduler assigns pod to node', 620, 65);
+    }
+
+    // Phase 3: Kubelet pulls and starts
+    if (animPhase >= 3) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '500 10px Inter, sans-serif';
+      ctx.fillText('④ kubelet pulls image, starts container', 620, 65);
+    }
+
+    // Animated packet from API to etcd
+    const packetPhase = (tick / 80) % 1;
+    const apix = 180 + 90 * packetPhase;
+    ctx.beginPath();
+    ctx.arc(apix, 60, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#a78bfa';
+    ctx.fill();
+
+    // Pods on nodes (show running state)
+    pods.forEach((pod, i) => {
+      ctx.shadowColor = '#34d399';
+      ctx.shadowBlur = 4;
+
+      ctx.fillStyle = '#34d39922';
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(pod.x - 22, pod.y - 12, 44, 24, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#34d399';
+      ctx.font = '400 9px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(pod.label, pod.x, pod.y + 4);
+    });
+
+    // Legend
+    const legendY = 390;
+    ctx.fillStyle = '#888';
+    ctx.font = '400 9px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Control plane: ', 20, legendY);
+
+    const legendItems = [
+      { color: '#60a5fa', label: 'API Server' },
+      { color: '#a78bfa', label: 'etcd' },
+      { color: '#34d399', label: 'Scheduler' },
+      { color: '#f59e0b', label: 'Worker' },
+    ];
+    let lx = 85;
+    legendItems.forEach(item => {
+      ctx.fillStyle = item.color;
+      ctx.beginPath();
+      ctx.arc(lx, legendY - 3, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillText(item.label, lx + 8, legendY);
+      lx += ctx.measureText(item.label).width + 25;
+    });
+
+    // etcd note
+    ctx.fillStyle = '#888';
+    ctx.font = '400 9px Inter, sans-serif';
+    ctx.fillText('etcd uses Raft for distributed consensus (see [Raft deep dive](/posts/raft-consensus-algorithm-deep-dive))', 20, 408);
+
+    tick++;
+    requestAnimationFrame(draw);
+  }
+
+  canvas.addEventListener('click', () => {
+    animPhase = (animPhase + 1) % 4;
+    lastPhaseTime = Date.now();
+  });
+
+  draw();
+})();
+</script>
+
+<style>
+.canvas-container {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+canvas {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  cursor: pointer;
+}
+</style>

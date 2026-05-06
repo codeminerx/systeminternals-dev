@@ -107,3 +107,9 @@ Smaller index = faster lookups = less storage.
 5. Don't over-index—it slows down writes
 
 Start with the slow queries in your logs. Add indexes surgically. Measure the impact.
+
+## Related Posts
+
+- [PostgreSQL vs MySQL 2024](/posts/postgresql-vs-mysql-2024) — Different planners handle indexes differently; knowing which database you're using changes how you design indexes
+- [Database Transactions and Isolation Levels](/posts/database-transactions-isolation-levels) — Indexes affect lock contention and contention under concurrent writes
+- [Database Normalization](/posts/database-normalization-practical-guide) — Denormalization is sometimes chosen over indexing for read-heavy workloads

@@ -1,363 +1,426 @@
 ---
-title: "eBPF: Linux's Most Powerful Observation Framework"
-description: "What eBPF is, how it works, why it matters compared to kernel modules, and practical tools like bpftrace, tcpdump -B, and execsnoop."
-date: 2026-05-03
-tags: ["linux", "ebpf", "observability", "performance", "kernel", "debugging", "bpf"]
+title: "eBPF: Linux Observability That Will Change How You Debug"
+description: "A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules."
+date: 2026-05-04
+tags: ["linux", "ebpf", "observability", "performance", "kernel", "debugging", "bpf", "tracing"]
 ---
 
-For decades, if you wanted to observe Linux kernel behavior in real time — every system call, every network packet, every function call inside the kernel — you had two options: kernel modules (dangerous, can crash your system) or adding printk statements and rebuilding the kernel (slow, impractical in production). Neither was good.
+If you've ever used `strace` to watch a process make system calls, or `perf` to sample CPU hotspots, you've already benefited from Linux's observability infrastructure. But there's a technology underneath both of those tools — and much more — that changes the entire calculus of kernel-level debugging: **eBPF** (extended Berkeley Packet Filter).
 
-eBPF changed all of that. It provides a safe, programmable interface to the Linux kernel that lets you run custom logic in response to events — without modifying kernel code, without loading potentially unstable modules, and with minimal overhead.
+eBPF lets you run custom programs inside the kernel, attached to almost any interesting event — a function call, a network packet, a scheduler decision — with guarantees that your code cannot crash the system. That's not a small thing. Kernel modules can crash your machine. eBPF programs go through a static verifier that proves safety before they load.
 
-If you're debugging production systems, writing observability tools, or building security instrumentation, eBPF is the most powerful tool in your arsenal.
+This post is about how eBPF actually works, how to write your first programs, and which tools to reach for depending on the problem.
 
-## What Problem eBPF Solves
+## The History: BPF → eBPF
 
-The Linux kernel is the arbiter of everything: every file open, every network packet, every process creation, every memory allocation. Observing it has always been a trade-off between depth and safety.
+The original Berkeley Packet Filter was designed in 1992 for packet filtering in the kernel. It was a small bytecode interpreter for network filters — efficient enough for the time, limited in scope.
 
-**Kernel modules** can do anything — but they run with full kernel privileges. A bug crashes the whole system. They're also tied to specific kernel versions and require source or ABI compatibility.
+eBPF arrived in Linux 3.18 (2014), but the version that changed everything was Linux 4.4 (2016), which added many program types and map support. Linux 5.8 (2020) brought BTF (BPF Type Format), CO-RE (Compile Once – Run Everywhere), and ring buffers. The ecosystem has matured rapidly since then.
 
-**User-space tools** like `strace` or `tcpdump` are safe, but they sample or filter after the fact. `strace` intercepts system calls but adds significant overhead. `tcpdump` copies network packets to userspace for analysis. You're always one step removed from the event.
+The key difference: original BPF was just for network filtering. eBPF became a general-purpose kernel execution environment with:
+- Many more registers (10 virtual registers vs 2)
+- A richer instruction set
+- Maps for stateful storage
+- Helper functions (kernel-provided syscalls for the programs)
+- A verifier that proofs-of-correctness before loading
 
-eBPF sits in between: kernel-level execution speed with user-space safety, and the ability to observe almost any kernel event.
+## How eBPF Works: Verifier, Bytecode, JIT
 
-## How eBPF Works: Bytecode, Verifier, and JIT
-
-When you write an eBPF program, you're writing code that will run inside the kernel. This sounds terrifying, but eBPF has multiple safety guards.
-
-### The eBPF Program Lifecycle
+When you write an eBPF program, it goes through a strict pipeline before it ever runs:
 
 ```
-User writes eBPF program (in C, Go, or eBPF assembly)
+You write eBPF code (C, Go, Rust, or bpftrace DSL)
          │
          ▼
-    Compiler (clang) compiles to eBPF bytecode
+    Compiler (clang) → eBPF bytecode
          │
          ▼
-    Load program into kernel via bpf() syscall
+    bpf() syscall loads program into kernel
          │
          ▼
-    Kernel Verifier: validates the program is safe
-    - No infinite loops (or loops that are proven to terminate)
-    - No out-of-bounds memory access
-    - No unsafe pointer operations
-    - Must complete within a bounded number of instructions
+    Kernel Verifier static analysis
+    ├── Rejects programs that could OOB access memory
+    ├── Rejects programs with unbounded loops
+    │   (unless loop is provably bounded and exits)
+    ├── Rejects unsafe pointer operations
+    ├── Simulates every possible execution path
+    └── Must complete in bounded instructions
          │
          ▼ (if verified)
-    JIT compiler converts bytecode to native machine code
+    JIT compiler → native machine code
          │
          ▼
-    Program attached to a kernel hook (probe, tracepoint, etc.)
+    Program attached to hook point
          │
          ▼
-    Kernel executes program when hook triggers
+    Kernel executes on every trigger event
 ```
 
-The verifier is key. It performs static analysis on your program before loading it, simulating all possible execution paths. If your program could ever access memory it shouldn't, loop forever, or cause a kernel panic, the verifier rejects it.
+The verifier is the critical piece. It runs your program through static analysis, exploring every possible execution path. If any path could dereference an invalid pointer, read out of bounds, or loop forever, the verifier rejects it.
 
-### Types of eBPF Programs
+This is why eBPF is safe: the verifier proves properties about your code before it runs. Unlike kernel modules, which can panic the system with a null pointer dereference, an eBPF program that fails verification never loads.
 
-eBPF isn't one thing — there are many hook points:
+### BTF and CO-RE
 
-| Type | Hook | Use Case |
-|------|------|----------|
-| **kprobe** | Dynamic kernel function entry/exit | Trace any kernel function |
-| **uprobe** | Dynamic userspace function entry/exit | Trace library or application functions |
-| **tracepoint** | Static, stable kernel tracepoints | Low-overhead kernel tracing |
-| **sched** | Scheduler events | Trace process scheduling |
-| **xdp** | Network packet at NIC driver | Fast packet filtering, DDoS mitigation |
-| **tc** | Traffic control at qdisc | Network traffic shaping and filtering |
-| **lsm** | Linux Security Module hooks | Security policy enforcement |
-| **perf** | Hardware and software perf events | CPU profiling, sampling |
+Writing eBPF programs that work across kernel versions used to be painful. Kernel structures change layout between versions — a field at offset 8 in one kernel might be at offset 16 in another.
 
-The distinction between kprobe and tracepoint matters: kprobes can attach to any kernel function (even internal, unstable ones), but those functions can change between kernel versions. Tracepoints are stable ABI — they're guaranteed to not break across kernel versions.
+**BTF** (BPF Type Format) embeds type information into the kernel. **CO-RE** (Compile Once – Run Everywhere) uses BTF to let the eBPF loader patch your program's memory accesses for the target kernel at load time. You compile once, and it works across kernels. This is what makes modern eBPF practical for distribution.
 
-## Maps: eBPF's Data Store
+## Your First eBPF Program
 
-eBPF programs need somewhere to store data. That's what **eBPF maps** are for:
+Let's start simple. The canonical first eBPF program attaches to a kernel function and reads some data.
+
+### Using bpftrace (One-Liner)
+
+The fastest path is `bpftrace`, which provides a high-level DSL that compiles down to eBPF. You can get real insight with a single command:
+
+```bash
+# Count system calls by process name
+sudo bpftrace -e 'tracepoint:raw_syscalls:sys_enter { @[comm] = count(); }'
+
+# Time spent in the write() syscall, per PID
+sudo bpftrace -e 'tracepoint:syscalls:sys_exit_write /pid == 1234/ { @latency = hist(elapsed); }'
+
+# Watch all file opens with the filename
+sudo bpftrace -e 'tracepoint:syscalls:sys_enter_openat { printf("%s: %s\n", comm, str(args->filename)); }'
+
+# Count kernel function calls matching a pattern
+sudo bpftrace -e 'kprobe:vfs_* { @[probe] = count(); }'
+```
+
+These run instantly, no compilation needed. The output is aggregated in a map (`@`) and printed on Ctrl+C or on an interval.
+
+### Using bcc (C + Python)
+
+For more control, the BPF Compiler Collection (bcc) lets you write eBPF programs in C, attach them from Python, and have full access to maps and complex logic:
 
 ```c
-// A hash map from UID to counter
+// ebpf_first.c — trace all write() syscalls and print the string
+#include <uapi/linux/ptrace.h>
+#include <bcc/proto.h>
+
+// A map to count writes per process name
+BPF_HASH(counter, char *, u64);
+
+int trace_write(struct pt_regs *ctx, int fd, const char *buf) {
+    // Get current process name
+    char comm[16];
+    bpf_get_current_comm(&comm, sizeof(comm));
+
+    // Look up or create entry for this process
+    u64 *p = counter.lookup(&comm);
+    if (p) {
+        (*p)++;
+    } else {
+        u64 one = 1;
+        counter.update(&comm, &one);
+    }
+
+    // Print the string being written (up to 32 bytes)
+    bpf_trace_printk("write from %s: %s\n", comm, buf);
+    return 0;
+}
+```
+
+```python
+# attach_ebpf.py
+from bcc import BPF
+
+program = open("ebpf_first.c").read()
+b = BPF(text=program)
+
+# Attach to the write syscall entry
+b.attach_kprobe(event="__x64_sys_write", fn_name="trace_write")
+
+# Print output
+b.trace_print()
+```
+
+### Using bpftrace Script File
+
+For reusable tools, write a `.bt` script:
+
+```bpftrace
+#!/usr/bin/env bpftrace
+
+// Trace all process executions (execve syscalls)
+tracepoint:syscalls:sys_enter_execve
+{
+    printf("%s %s\n", comm, str(args->argv[0]));
+}
+
+// Print stats every 5 seconds
+interval:5s
+{
+    print("=== Exec counts ===");
+    print(@);
+    clear(@);
+}
+
+END
+{
+    print("=== Final counts ===");
+    print(@);
+}
+```
+
+Run it with `sudo bpftrace ./trace_exec.bt`.
+
+## eBPF Programs and Maps
+
+### Types of Program Hooks
+
+eBPF programs attach to different kernel hooks depending on what you want to observe:
+
+| Program Type | Hook Point | Stability | Use Case |
+|---|---|---|---|
+| **kprobe** | Kernel function entry/exit | Unstable | Trace any kernel function dynamically |
+| **uprobe** | Userspace function entry/exit | Unstable | Trace library calls or app functions |
+| **tracepoint** | Static kernel tracepoints | Stable ABI | Low-overhead kernel tracing |
+| **raw_tracepoint** | Same as tracepoint, raw args | Stable ABI | Slightly lower overhead |
+| **sched** | Scheduler events | Stable | Process/thread scheduling analysis |
+| **xdp** | Packet at NIC driver | Stable | Fast packet processing, DDoS mitigation |
+| **tc** | Traffic control (qdisc) | Stable | Network traffic shaping |
+| **lsm** | Linux Security Module hooks | Stable | Security policy enforcement |
+| **perf_event** | Hardware/software perf events | Stable | CPU profiling, sampling |
+
+**Tracepoints are better than kprobes when available.** They're part of the kernel's stable ABI — they won't change between kernel versions. kprobes attach to any function, but internal functions move around between kernel versions, breaking your program.
+
+### Maps: Stateful Storage
+
+eBPF programs are side-effect-free by nature — they can't call arbitrary functions or access memory outside of what's provided. To store state between invocations or stream data to userspace, you use **maps**.
+
+```c
+// Define a hash map: key = PID (u32), value = count (u64)
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 10240);
     __type(key, __u32);
     __type(value, __u64);
-} counter_map SEC(".maps");
+} pid_counts SEC(".maps");
 ```
 
-Maps are shared between the eBPF program (kernel-space) and user-space helpers. Common map types:
+Common map types:
 
-- **Hash** — Key-value store, O(1) lookup
-- **Array** — Index-based, good for counters
-- **Per-CPU Array** — Each CPU has its own copy, avoids locking
-- **Ring Buffer** — Efficient event streaming to userspace
-- **Stack Trace** — Capture kernel stack traces
+- **BPF_MAP_TYPE_HASH** — Key-value store, O(1) lookup. Good for counting, tracking state.
+- **BPF_MAP_TYPE_ARRAY** — Index-based array. Fast, fixed size. Good for histogramming.
+- **BPF_MAP_TYPE_PERCPU_HASH / ARRAY** — Each CPU has its own copy. Avoids lock contention in high-frequency tracing.
+- **BPF_MAP_TYPE_RINGBUF** — Single-producer, multi-consumer circular buffer. Efficient event streaming to userspace (replaces perf buffer in newer kernels).
+- **BPF_MAP_TYPE_STACK_TRACE** — Stores kernel stack traces. Great for flame graph generation.
 
-From userspace, you can read and write maps via the `bpf()` syscall:
+From userspace, you access maps via the `bpf()` syscall:
 
 ```python
-import ctypes
-# Access the map from Python using bcc
 from bcc import BPF
 
-program = """
-BPF_HASH(counter, u32);
-"""
-
 b = BPF(text=program)
+counter = b["pid_counts"]
+
+# Read all entries
+for k, v in counter.items():
+    print(f"PID {k.value}: {v.value} writes")
 ```
 
-## bpftrace: One-Liners to Full Scripts
+## Practical Tools Built on eBPF
 
-`bpftrace` is the quickest way to get started with eBPF. It provides a high-level DSL that compiles down to eBPF programs.
+### bpftrace
 
-### Installation
+The swiss army knife. One-liners for quick investigation:
 
 ```bash
-# Ubuntu/Debian
-sudo apt install bpftrace
+# Count context switches (scheduler activity)
+sudo bpftrace -e 'tracepoint:sched:sched_switch { @[comm] = count(); }'
 
-# macOS (with DTrace alternative, limited)
-brew install bpftrace
+# Watch memory allocations by process
+sudo bpftrace -e 'kmalloc { @[comm] = hist(siz); }'
+
+# TCP connect attempt origins
+sudo bpftrace -e 'tracepoint:syscalls:sys_enter_connect { printf("%s -> %s\n", comm, ntop(AF_INET, args->uservaddr)); }'
+
+# Disk I/O by process (using block devices)
+sudo bpftrace -e 'tracepoint:block:block_bio_queue { @[comm] = hist(args->nr_sector * 512); }'
 ```
 
-### One-liners
+### BCC Tools
+
+BCC ships with dozens of production-grade tools:
 
 ```bash
-# Count system calls by process
-bpftrace -e 'tracepoint:raw_syscalls:sys_enter { @[comm] = count(); }'
-
-# Time spent in the write() system call
-bpftrace -e 'tracepoint:raw_syscalls:sys_exit /pid == 1234/ { @[comm] = hist(arg1); }'
-
-# Trace file opens with process name and filename
-bpftrace -e 'tracepoint:syscalls:sys_enter_open { printf("%s: %s\n", comm, str(args->filename)); }'
-
-# Count kernel function calls containing "alloc"
-bpftrace -e 'kprobe:vfs_* { @[probe] = count(); }'
-
-# Show network packets per process (requires root)
-bpftrace -e 'tracepoint:net:netif_receive_skb { @[comm] = count(); }'
-```
-
-### bpftrace Scripts
-
-For more complex behavior, write a full script:
-
-```bpftrace
-#!/usr/bin/env bpftrace
-
-// Trace new processes and show arguments
-tracepoint:sched:sched_process_fork
-{
-    $child_pid = args->child_pid;
-    $child_comm = comm;
-
-    join(args->child_comm);
-}
-
-// Trace all system calls and measure latency
-tracepoint:raw_syscalls:sys_enter
-{
-    @syscall[syscall] = count();
-}
-
-tracepoint:raw_syscalls:sys_exit
-/@syscall[syscall]/
-{
-    @latency[syscall] = hist(elapsed * 1000);
-}
-
-// Print every 5 seconds
-interval:5
-{
-    print("=== Syscall counts ===");
-    print(@syscall);
-    print("=== Latency histogram (ms) ===");
-    print(@latency);
-    clear(@syscall);
-}
-
-END
-{
-    clear(@syscall);
-    clear(@latency);
-}
-```
-
-## execsnoop: Capturing Every Process Execution
-
-`execsnoop` is a classic eBPF demonstration tool. It traces every `execve()` system call — every time a process runs another program — and prints the command line arguments.
-
-Here's how it works:
-
-```bash
-# Use bpftrace directly
-sudo bpftrace -e 'tracepoint:syscalls:sys_enter_execve { join(args->argv); }'
-
-# Or use the bcc version (often pre-installed)
+# execsnoop — every execve() call
 sudo execsnoop
+
+# opensnoop — every open/openat call
+sudo opensnoop
+
+# tcpconnect — every outbound TCP connection
+sudo tcpconnect
+
+# tcpaccept — every inbound TCP connection
+sudo tcpaccept
+
+# biolatency — block I/O latency histogram
+sudo biolatency
+
+# runqlat — scheduler latency histogram (how long processes wait to run)
+sudo runqlat
+
+# funccount — count calls to kernel functions matching a pattern
+sudo funccount 'vfs_*'
+
+# profile — CPU sampling (like perf top, but in BPF)
+sudo profile 49 -F 99
 ```
 
-The output looks like:
+These tools are installed at `/usr/share/bcc/tools/` on most distros. They're real programs, not scripts — written in C for the eBPF part, Python for the user-space control.
 
+### Cilium
+
+Cilium is a Kubernetes CNI (Container Network Interface) plugin that uses eBPF for all networking and security policy enforcement. Instead of iptables rules, Cilium compiles network policies into eBPF programs that run at the XDP or tc hook point.
+
+The advantage: eBPF-based networking scales to thousands of nodes without the iptables rule explosion problem. It also provides deep observability — per-connection metrics, latency histograms, dropped packet tracking — all without sidecars or application-level agents.
+
+### Falco
+
+Falco is a security auditing tool that uses eBPF to monitor syscall activity and detect anomalous behavior. You write rules that trigger on specific syscall patterns:
+
+```yaml
+- rule: Unexpected outbound connection
+  desc: A process outside the expected set makes an outbound connection
+  condition: outbound and not proc.name in (expected_procs)
+  output: Unexpected connection by unexpected process
 ```
-PCOMM            PID     PPID    ARGS
-bash             12345   12300   ls -la /tmp
-python           12346   12340   python3 -c "import socket; ..."
-curl             12347   12346   curl -s https://api.example.com/health
-```
 
-This is incredibly useful for:
-- **Security auditing** — Who ran what, when, with what arguments
-- **Debugging** — Understanding what a complex program is actually spawning
-- **Performance analysis** — Catching shell spawns in hot paths (looking at you, Java)
+Falco's eBPF driver runs at the syscall level, capturing everything without needing kernel modules.
 
-## tcpdump -B: eBPF-Powered Packet Capture
+### Pixie
 
-The `-B` flag in `tcpdump` uses eBPF to filter packets in the kernel, before they reach userspace. Traditional `tcpdump` copies packets to userspace and then filters them — with `-B`, the filter runs in-kernel, dramatically reducing overhead.
+Pixie does automatic distributed tracing in Kubernetes using eBPF. No instrumenting your application code — it automatically captures protocol-level data (HTTP, gRPC, Kafka, etc.) from the kernel, and can even auto-instrument Go, Python, and Node applications by tracing their runtime functions.
+
+## eBPF vs strace vs perf
+
+These tools overlap, but each has a specific niche:
+
+| Tool | Mechanism | Overhead | Best For |
+|---|---|---|---|
+| **strace** | ptrace() syscall interception | Very high (every syscall has enter+exit context switches) | Debugging a specific process, short traces |
+| **perf** | Hardware PMU + kernel采样 | Low to medium | CPU profiling, understanding where cycles go |
+| **eBPF** | Kernel programs attached to hooks | Minimal, in-kernel aggregation | Production debugging, high-frequency events, continuous monitoring |
+
+**Use strace when:** You need to see exact syscall arguments and return values for a specific process for a short time. Not for production — the overhead is 10x+.
+
+**Use perf when:** You need to understand where CPU time is spent. `perf record -F 99 -a -g` for flame graphs. `perf stat` for counting hardware events.
+
+**Use eBPF when:** You need high-frequency events, per-process aggregation, or want to debug production systems without adding 10x overhead.
+
+## Security Considerations
+
+eBPF requires significant privileges. The basic requirement is:
 
 ```bash
-# Traditional tcpdump (copies to userspace, then filter)
-sudo tcpdump -i eth0 port 80
+# Check kernel support
+uname -r  # needs 4.4+ for basic features, 5.8+ for modern features
 
-# eBPF-powered (filter in kernel, less overhead)
-sudo tcpdump -B 4096 -i eth0 port 80
+# Check if eBPF is enabled
+ls /sys/kernel/debug/tracing/events/
+
+# Check available programs
+sudo bpftool prog list
+
+# List maps
+sudo bpftool map list
 ```
 
-The number after `-B` is the buffer size in KB. Larger buffers mean fewer dropped packets under load.
+To load eBPF programs, you need:
 
-More importantly, modern `tcpdump` can use eBPF's expression optimizer:
+- **Root** — or `CAP_BPF` capability (Linux 5.6+), or `CAP_SYS_ADMIN`
+- **Kernel compiled with `CONFIG_BPF=y`** and `CONFIG_BPF_SYSCALL=y`
+- For some program types (XDP, tc), you also need CAP_NET_ADMIN
 
-```bash
-# Complex filtering in kernel
-sudo tcpdump -B 8192 -i eth0 'tcp[tcpflags] & (tcp-syn|tcp-fin) != 0 and dst port 80'
-```
+The security model: eBPF is safer than kernel modules, but it's still running in kernel space. The verifier constrains what you can do, but a loaded eBPF program with write access to maps can consume resources (fill up a map, spin CPU in allowed operations). For production, use `bpftool` to inspect loaded programs and `ulimit -l` to limit memory locked for eBPF maps.
 
-With eBPF, this expression gets compiled into eBPF bytecode and runs in-kernel, so only matching packets are copied to userspace.
+### Unprivileged eBPF
 
-## eBPF vs Kernel Modules: Why Safe Is Better
+Since Linux 5.13, unprivileged eBPF is more restricted. You can load some program types (flow dissectors, sched_ext) without CAP_SYS_ADMIN, but most production use cases still need elevated privileges.
 
-| Aspect | Kernel Module | eBPF |
-|--------|---------------|------|
-| Safety | Can crash kernel | Verified before loading, can't crash |
-| Update | Must unload and reload | Hot-reload without disrupting |
-| Portability | Kernel version dependent | Portable across kernel versions (with CO-RE) |
-| Access | Full kernel access | Limited to what you attach to |
-| Distribution | Requires signed module (in production) | Works out of the box on modern kernels |
+## Example: Building a Network Connection Counter
 
-**CO-RE (Compile Once – Run Everywhere)** solves the portability problem. eBPF programs compiled with BTF (BPF Type Format) information can be relocated across kernel versions without recompilation. The loader adjusts memory offsets based on the target kernel's actual structure layouts.
-
-## Practical Production Use Cases
-
-### 1. Network Performance Monitoring
-
-XDP programs can inspect and count packets at line rate — before the kernel networking stack even processes them:
+Here's a practical example: counting TCP connections by remote address, using a per-CPU array to avoid lock contention:
 
 ```c
-// Count packets by destination port, in-kernel
-SEC("xdp")
-int xdp_prog(struct xdp_md *ctx)
-{
+#include <uapi/linux/bpf.h>
+#include <bcc/bpf_helpers.h>
+#include <linux/if_ether.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+
+// Per-CPU array: avoids cross-CPU locking overhead
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 65536);
+    __type(key, __u32);   // remote IP as u32
+    __type(value, __u64);  // connection count
+} conn_counts SEC(".maps");
+
+static __always_inline int parse_tcp(struct xdp_md *ctx, __u32 *remote_ip) {
     void *data_end = (void *)(long)ctx->data_end;
     void *data = (void *)(long)ctx->data;
 
     struct ethhdr *eth = data;
     if ((void *)(eth + 1) > data_end)
+        return 0;
+
+    if (eth->h_proto != htons(ETH_P_IP))
+        return 0;
+
+    struct iphdr *ip = data + sizeof(*eth);
+    if ((void *)(ip + 1) > data_end)
+        return 0;
+
+    if (ip->protocol != IPPROTO_TCP)
+        return 0;
+
+    struct tcphdr *tcp = (void *)ip + sizeof(*ip);
+    if ((void *)(tcp + 1) > data_end)
+        return 0;
+
+    *remote_ip = ip->saddr;
+    return 1;
+}
+
+SEC("xdp")
+int count_tcp_connections(struct xdp_md *ctx)
+{
+    __u32 remote_ip = 0;
+    if (!parse_tcp(ctx, &remote_ip))
         return XDP_PASS;
 
-    if (eth->h_proto == htons(ETH_P_IP)) {
-        struct iphdr *ip = data + sizeof(*eth);
-        if ((void *)(ip + 1) > data_end)
-            return XDP_PASS;
-
-        __u16 dst_port = 0;
-        // Extract port from TCP header...
-        @port_counts[dst_port]++;
+    __u32 key = remote_ip;
+    __u64 *val = bpf_map_lookup_elem(&conn_counts, &key);
+    if (val) {
+        __sync_fetch_and_add(val, 1);
+    } else {
+        __u64 init = 1;
+        bpf_map_update_elem(&conn_counts, &key, &init, BPF_ANY);
     }
 
     return XDP_PASS;
 }
+
+char _license[] SEC("license") = "GPL";
 ```
 
-### 2. Security Monitoring with LSM Hooks
+Compile with `clang -target=bpf -O2 -c prog.c`, load with `ip link set dev eth0 xdp obj prog.o sec xdp`, and read counts with a Python script.
 
-The LSM (Linux Security Module) eBPF program type lets you enforce security policies:
+## Further Reading
 
-```c
-// Blockexec if process isn't in allowlist
-SEC("lsm/socket_bind")
-int socket_bind(struct sock *sk)
-{
-    __u32 uid = bpf_get_current_uid_gid();
-    if (@blocked_uid[uid])
-        return -EPERM;
-    return 0;
-}
-```
+- [BPF Performance Tools](https://www.brendangregg.com/bpf-performance-tools-book.html) — Brendan Gregg's definitive book on eBPF tracing
+- [bpftrace reference guide](https://github.com/iovisor/bpftrace/blob/master/docs/reference_guide.md) — Full syntax and builtin reference
+- [BCC reference guide](https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md) — Tools and Python API
+- [Cilium BPF and XDP documentation](https://docs.cilium.io/en/latest/bpf/) — Deep dive on networking eBPF
+- [eBPF verifier source](https://github.com/torvalds/linux/blob/master/kernel/bpf/verifier.c) — The code that makes eBPF safe (for the truly curious)
 
-### 3. Continuous Profiling
+## Related Posts
 
-Tools like Pixie and Parca use eBPF to continuously profile CPU usage without the overhead of traditional profiling:
-
-```bash
-# Profile CPU usage by stack trace (bcc version)
-sudo /usr/share/bcc/tools/profile -F 99 1
-```
-
-## The eBPF Ecosystem
-
-| Tool | What It Does |
-|------|-------------|
-| **bcc** | BPF Compiler Collection — C/Python/Lua frontends for writing eBPF tools |
-| **bpftrace** | High-level DSL for one-liners and scripts |
-| **libbpf** | C library for loading eBPF programs, used by standalone programs |
-| **cilium/ebpf** | Go library for eBPF programs |
-| **Aya** | Rust eBPF framework |
-| **Pixie** | Kubernetes observability using eBPF |
-| **Cilium** | CNI plugin using eBPF for networking and security |
-| **Falco** | Security auditing via eBPF |
-
-## Requirements
-
-eBPF requires:
-- Linux kernel 4.4+ (for basic features)
-- Linux kernel 5.8+ (for many newer features like BTF, ring buffers)
-- `CONFIG_BPF=y` and related options enabled in kernel
-- `CAP_BPF` or root for most operations
-
-Check your system:
-
-```bash
-# Check kernel version
-uname -r
-
-# Check eBPF support
-cat /proc/sys/kernel/bpf_stats_enabled
-# or
-bpftool prog list
-
-# Check available hook points
-ls /sys/kernel/debug/tracing/events/
-```
-
-## Conclusion
-
-eBPF represents a fundamental shift in how we observe and interact with the Linux kernel. It gives us kernel-level insight with user-space safety, programmable hooks into almost any kernel subsystem, and the ability to write production-safe instrumentation without risking system stability.
-
-The tools have matured significantly. `bpftrace` for exploration and one-off debugging. `bcc` for production-grade tools. `libbpf` and higher-level frameworks for building your own eBPF programs.
-
-The learning curve is real — you're writing code that runs in the kernel, and the eBPF instruction set has its own quirks. But the safety guarantees mean you can iterate without fear of crashing production systems, and the power is unmatched: microsecond-resolution tracing of anything the kernel does, with overhead low enough for continuous production use.
-
-If you're serious about Linux observability, eBPF isn't optional anymore — it's the foundation.
-
----
-
-**External Resources**
-
-- [BPF Performance Tools book](https://www.brendangregg.com/bpf-performance-tools-book.html) — Brendan Gregg's comprehensive guide
-- [bpftrace reference guide](https://github.com/iovisor/bpftrace/blob/master/docs/reference_guide.md) — Syntax and builtins
-- [bcc documentation](https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md) — Tools and API reference
-- [Cilium BPF and XDP reference](https://docs.cilium.io/en/latest/bpf/) — Deep dive into networking eBPF
-- [eBPF verifier source](https://github.com/torvalds/linux/blob/master/kernel/bpf/verifier.c) — For the truly curious
+- [strace Debugging](/posts/strace-debugging-linux-system-calls) — strace uses `ptrace`, the same underlying mechanism eBPF's predecessor traced
+- [Linux /proc Filesystem](/posts/linux-proc-filesystem-deep-dive) — /proc is the data source for many eBPF programs that instrument running systems
+- [GDB Debugging](/posts/gdb-debugging-core-dumps-live-processes) — For user-space debugging contrast; GDB inspects coredumps while eBPF inspects the live kernel

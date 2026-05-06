@@ -1,0 +1,400 @@
+<!-- Interactive Chat System Architecture Flow -->
+---
+
+<div class="canvas-container">
+  <div class="mode-tabs">
+    <button class="tab active" data-mode="one-to-one">1:1 Messaging</button>
+    <button class="tab" data-mode="group">Group Chat Fan-out</button>
+    <button class="tab" data-mode="connection">WebSocket Lifecycle</button>
+  </div>
+  <canvas id="chat-system-flow" width="700" height="340"></canvas>
+  <div class="legend">
+    <span class="legend-item"><span class="dot client"></span>Client</span>
+    <span class="legend-item"><span class="dot ws"></span>WebSocket Gateway</span>
+    <span class="legend-item"><span class="dot msg"></span>Message Broker (Redis Pub/Sub)</span>
+    <span class="legend-item"><span class="dot db"></span>Message Store (Cassandra)</span>
+  </div>
+  <div class="controls">
+    <button id="step-btn">Next Step</button>
+    <button id="auto-btn">Auto Play</button>
+    <button id="reset-btn">Reset</button>
+  </div>
+  <div class="step-description" id="step-desc">Step 1: User A opens app → WebSocket connection established to gateway</div>
+</div>
+
+<style>
+.canvas-container {
+  background: #12121a;
+  border: 1px solid #2a2a3a;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 2rem 0;
+  font-family: 'Inter', sans-serif;
+}
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.tab {
+  background: #1e1e2e;
+  border: 1px solid #2a2a3a;
+  color: #9ca3af;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.tab:hover { color: #e5e5e5; border-color: #4a4a5a; }
+.tab.active { background: #1a2a3a; border-color: #60a5fa; color: #60a5fa; }
+canvas { display: block; border-radius: 8px; background: #0a0a14; margin-bottom: 12px; }
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 14px;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot.client { background: #60a5fa; }
+.dot.ws { background: #a78bfa; }
+.dot.msg { background: #34d399; }
+.dot.db { background: #f97316; }
+.controls { display: flex; gap: 8px; }
+.controls button {
+  background: #1e1e2e;
+  border: 1px solid #2a2a3a;
+  color: #e5e5e5;
+  padding: 7px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.controls button:hover { border-color: #60a5fa; color: #60a5fa; }
+.step-description {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #1a1a2a;
+  border-left: 3px solid #60a5fa;
+  border-radius: 0 6px 6px 0;
+  font-size: 13px;
+  color: #d1d5db;
+  min-height: 20px;
+}
+</style>
+
+<script>
+(function() {
+  const canvas = document.getElementById('chat-system-flow');
+  const ctx = canvas.getContext('2d');
+
+  let mode = 'one-to-one';
+  let step = 0;
+  let autoTimer = null;
+  const MAX_STEPS = 8;
+
+  // Node positions
+  const clients = [
+    { x: 60, y: 140, label: 'User A', color: '#60a5fa' },
+    { x: 60, y: 270, label: 'User B', color: '#60a5fa' },
+  ];
+  const gw = { x: 250, y: 205, label: 'WS Gateway', color: '#a78bfa' };
+  const broker = { x: 430, y: 205, label: 'Redis Pub/Sub', color: '#34d399' };
+  const cassandra = { x: 590, y: 205, label: 'Cassandra', color: '#f97316' };
+  const groupClients = [
+    { x: 60, y: 80, label: 'User A', color: '#60a5fa' },
+    { x: 60, y: 160, label: 'User B', color: '#34d399' },
+    { x: 60, y: 240, label: 'User C', color: '#f97316' },
+    { x: 60, y: 320, label: 'User D', color: '#a78bfa' },
+  ];
+
+  const steps = {
+    'one-to-one': [
+      'Step 1: User A opens app → WebSocket TCP handshake completes with gateway',
+      'Step 2: Gateway registers connection in Redis (user:A → conn:ws-123)',
+      'Step 3: User A types message → sent over WebSocket to gateway',
+      'Step 4: Gateway writes message to Cassandra (partition by conversation_id)',
+      'Step 5: Gateway publishes to Redis channel: "conv:123"',
+      'Step 6: User B\'s gateway subscriber receives the message instantly',
+      'Step 7: Gateway pushes message over User B\'s WebSocket connection',
+      'Step 8: User B receives push notification + in-app message',
+    ],
+    'group': [
+      'Step 1: User A sends group message → WS → Gateway',
+      'Step 2: Gateway writes message to Cassandra with group_id partition',
+      'Step 3: Gateway reads group membership from Redis cache',
+      'Step 4: For each member, gateway publishes to their personal Redis channel',
+      'Step 5: Each member\'s WS gateway receives the fan-out message',
+      'Step 6: All 3 other members receive message in real-time via WS',
+      'Step 7: Message marked delivered when all WS gateways ACK',
+      'Step 8: Read receipts fan back (optional, adds complexity)',
+    ],
+    'connection': [
+      'Step 1: Client sends HTTP upgrade request (Connection: Upgrade)',
+      'Step 2: Server responds 101 Switching Protocols (WebSocket handshake)',
+      'Step 3: TCP connection established — full-duplex byte stream',
+      'Step 4: Client sends CONNECT with auth token → gateway validates',
+      'Step 5: Gateway stores mapping: user_id → gateway_instance in Redis',
+      'Step 6: Heartbeat ping/pong every 30s to keep NAT mapping alive',
+      'Step 7: On app background → connection drops, user goes "offline"',
+      'Step 8: On reconnect → receive pending messages from message_id > last_ack',
+    ],
+  };
+
+  function drawNetwork(clients, showBroker, showDB) {
+    ctx.clearRect(0, 0, 700, 340);
+
+    // Title
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 13px Inter, sans-serif';
+    ctx.fillText('Chat System Architecture — ' + mode.replace('-', ' ').toUpperCase(), 14, 22);
+
+    // Draw clients
+    clients.forEach((c, i) => {
+      ctx.fillStyle = c.color + '22';
+      ctx.strokeStyle = c.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(c.x, c.y, 90, 40, 6);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = c.color;
+      ctx.font = '500 11px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(c.label, c.x + 45, c.y + 25);
+    });
+
+    // Draw gateway
+    const gwColor = gw.color;
+    ctx.fillStyle = gwColor + '22';
+    ctx.strokeStyle = gwColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(gw.x, gw.y, 110, 50, 8);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = gwColor;
+    ctx.font = '600 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(gw.label, gw.x + 55, gw.y + 21);
+    ctx.font = '400 10px Inter, sans-serif';
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText('Long-lived TCP', gw.x + 55, gw.y + 36);
+
+    if (showBroker) {
+      ctx.fillStyle = broker.color + '22';
+      ctx.strokeStyle = broker.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(broker.x, broker.y, 110, 50, 8);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = broker.color;
+      ctx.font = '600 11px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(broker.label, broker.x + 55, broker.y + 21);
+      ctx.font = '400 10px Inter, sans-serif';
+      ctx.fillStyle = '#9ca3af';
+      ctx.fillText('Pub/Sub fan-out', broker.x + 55, broker.y + 36);
+
+      if (showDB) {
+        ctx.fillStyle = cassandra.color + '22';
+        ctx.strokeStyle = cassandra.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(cassandra.x, cassandra.y, 110, 50, 8);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = cassandra.color;
+        ctx.font = '600 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(cassandra.label, cassandra.x + 55, cassandra.y + 21);
+        ctx.font = '400 10px Inter, sans-serif';
+        ctx.fillStyle = '#9ca3af';
+        ctx.fillText('Partition: conv_id', cassandra.x + 55, cassandra.y + 36);
+      }
+    }
+
+    ctx.textAlign = 'left';
+  }
+
+  function drawArrows(mode, step) {
+    ctx.strokeStyle = '#60a5fa';
+    ctx.lineWidth = 2;
+    ctx.fillStyle = '#60a5fa';
+    ctx.setLineDash([]);
+
+    function arrow(x1, y1, x2, y2, color, dashed) {
+      ctx.strokeStyle = color || '#60a5fa';
+      ctx.fillStyle = color || '#60a5fa';
+      ctx.lineWidth = 2;
+      if (dashed) ctx.setLineDash([5, 4]);
+      else ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      // Arrowhead
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - 8 * Math.cos(angle - Math.PI / 6), y2 - 8 * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(x2 - 8 * Math.cos(angle + Math.PI / 6), y2 - 8 * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function label(x, y, text, color) {
+      ctx.fillStyle = color || '#f59e0b';
+      ctx.font = '500 10px Inter, sans-serif';
+      ctx.fillText(text, x, y);
+    }
+
+    if (mode === 'one-to-one') {
+      const A = clients[0], B = clients[1];
+      if (step >= 1) {
+        arrow(A.x + 90, A.y + 20, gw.x, gw.y + 15, '#60a5fa');
+        label(A.x + 95, A.y + 15, 'WS connect');
+      }
+      if (step >= 2) {
+        arrow(B.x + 90, B.y + 20, gw.x, gw.y + 35, '#60a5fa');
+        label(B.x + 95, B.y + 35, 'WS connect');
+      }
+      if (step >= 3) {
+        arrow(A.x + 90, A.y + 20, gw.x, gw.y + 25, '#34d399');
+        label(A.x + 98, A.y + 10, '"Hi B"');
+      }
+      if (step >= 4) {
+        arrow(gw.x + 110, gw.y + 25, broker.x, broker.y + 25, '#a78bfa');
+        label(gw.x + 115, gw.y + 18, 'pub: conv:123');
+      }
+      if (step >= 5) {
+        arrow(broker.x + 110, broker.y + 25, gw.x + 110, gw.y + 25, '#34d399');
+      }
+      if (step >= 6) {
+        arrow(broker.x + 110, broker.y + 25, cassandra.x, cassandra.y + 25, '#f97316', true);
+        label(broker.x + 112, broker.y + 18, 'write msg');
+      }
+      if (step >= 7) {
+        arrow(gw.x + 110, gw.y + 25, B.x, B.y + 20, '#34d399');
+        label(gw.x + 115, gw.y + 18, 'push "Hi B"');
+      }
+    } else if (mode === 'group') {
+      const A = groupClients[0], B = groupClients[1], C = groupClients[2], D = groupClients[3];
+      if (step >= 1) {
+        arrow(A.x + 90, A.y + 20, gw.x, gw.y + 10, '#60a5fa');
+        label(A.x + 95, A.y + 14, 'group msg');
+      }
+      if (step >= 2) {
+        arrow(gw.x + 110, gw.y + 25, broker.x, broker.y + 25, '#a78bfa');
+        label(gw.x + 112, gw.y + 18, 'pub × 3');
+      }
+      if (step >= 3) {
+        arrow(broker.x + 110, broker.y + 10, B.x, B.y + 20, '#34d399');
+        arrow(broker.x + 110, broker.y + 25, C.x, C.y + 20, '#f97316');
+        arrow(broker.x + 110, broker.y + 40, D.x, D.y + 20, '#a78bfa');
+      }
+      if (step >= 4) {
+        label(broker.x + 10, broker.y - 6, 'fan-out ✓');
+      }
+    } else if (mode === 'connection') {
+      const A = clients[0];
+      const steps_conn = [
+        () => {
+          arrow(A.x + 90, A.y + 10, gw.x, gw.y + 10, '#f59e0b', true);
+          label(A.x + 94, A.y + 4, 'HTTP Upgrade');
+        },
+        () => {
+          arrow(gw.x + 110, gw.y + 15, A.x + 90, A.y + 10, '#34d399', true);
+          label(gw.x + 112, gw.y + 8, '101 Switching');
+        },
+        () => {
+          ctx.fillStyle = '#34d399';
+          ctx.font = '500 10px Inter, sans-serif';
+          ctx.fillText('✓ Full-duplex ready', A.x + 95, A.y + 24);
+        },
+        () => {
+          arrow(A.x + 90, A.y + 28, gw.x, gw.y + 35, '#60a5fa');
+          label(A.x + 92, A.y + 22, 'CONNECT + token');
+        },
+        () => {
+          arrow(gw.x + 110, gw.y + 35, broker.x, broker.y + 20, '#a78bfa');
+          label(gw.x + 112, gw.y + 28, 'set: A → ws-123');
+        },
+        () => {
+          arrow(A.x + 45, A.y + 42, A.x + 45, gw.y + 5, '#9ca3af', true);
+          label(A.x + 48, A.y + 55, 'ping/pong 30s');
+        },
+        () => {
+          ctx.fillStyle = '#ef4444';
+          ctx.font = '500 10px Inter, sans-serif';
+          ctx.fillText('✗ Connection dropped', A.x + 5, A.y + 55);
+          ctx.fillStyle = '#9ca3af';
+          ctx.fillText('→ "Offline" status', A.x + 5, A.y + 67);
+        },
+        () => {
+          arrow(A.x + 90, A.y + 20, gw.x, gw.y + 25, '#34d399');
+          label(A.x + 92, A.y + 14, 'reconnect + last_id');
+          ctx.fillStyle = '#34d399';
+          ctx.font = '500 10px Inter, sans-serif';
+          ctx.fillText('catch-up messages ✓', A.x + 5, A.y + 55);
+        },
+      ];
+      if (step >= 1 && step <= 8) steps_conn[step - 1]();
+    }
+  }
+
+  function draw() {
+    const showBroker = mode !== 'connection' || step >= 4;
+    const showDB = mode === 'one-to-one' && step >= 6;
+    const drawClients = mode === 'one-to-one' ? clients : groupClients;
+    drawNetwork(drawClients, showBroker, showDB);
+    drawArrows(mode, step);
+  }
+
+  function setMode(newMode) {
+    mode = newMode;
+    step = 0;
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+    document.getElementById('step-desc').textContent = steps[mode][0];
+    draw();
+  }
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => setMode(tab.dataset.mode));
+  });
+
+  document.getElementById('step-btn').addEventListener('click', () => {
+    if (step < MAX_STEPS) {
+      step++;
+      document.getElementById('step-desc').textContent = steps[mode][step - 1];
+      draw();
+    }
+  });
+
+  document.getElementById('auto-btn').addEventListener('click', () => {
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; return; }
+    autoTimer = setInterval(() => {
+      if (step < MAX_STEPS) { step++; document.getElementById('step-desc').textContent = steps[mode][step - 1]; draw(); }
+      else { clearInterval(autoTimer); autoTimer = null; }
+    }, 1800);
+  });
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    step = 0;
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    document.getElementById('step-desc').textContent = steps[mode][0];
+    draw();
+  });
+
+  draw();
+})();
+</script>

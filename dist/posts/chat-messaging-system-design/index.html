@@ -1,0 +1,359 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Design a real-time chat system like WhatsApp from first principles. Cover WebSockets, message storage with Cassandra, fan-out patterns, online/offline presence, and the architecture decisions that scale to billions of messages per day."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Chat System Design: How to Build a WhatsApp-Scale Messaging System</title><meta property="og:title" content="Chat System Design: How to Build a WhatsApp-Scale Messaging System"><meta property="og:description" content="Design a real-time chat system like WhatsApp from first principles. Cover WebSockets, message storage with Cassandra, fan-out patterns, online/offline presence, and the architecture decisions that scale to billions of messages per day."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/chat-messaging-system-design"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Chat System Design: How to Build a WhatsApp-Scale Messaging System"><meta name="twitter:description" content="Design a real-time chat system like WhatsApp from first principles. Cover WebSockets, message storage with Cassandra, fan-out patterns, online/offline presence, and the architecture decisions that scale to billions of messages per day."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/chat-messaging-system-design"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Chat System Design: How to Build a WhatsApp-Scale Messaging System</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-05T00:00:00.000Z" data-astro-cid-gjtny2mx>May 4, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>11 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>system-design</span><span class="tag" data-astro-cid-gjtny2mx>distributed-systems</span><span class="tag" data-astro-cid-gjtny2mx>messaging</span><span class="tag" data-astro-cid-gjtny2mx>real-time</span><span class="tag" data-astro-cid-gjtny2mx>scalability</span><span class="tag" data-astro-cid-gjtny2mx>interviews</span><span class="tag" data-astro-cid-gjtny2mx>websockets</span><span class="tag" data-astro-cid-gjtny2mx>cassandra</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every time you send a message and it appears instantly on your friend’s phone, you’ve triggered one of the most fascinating distributed systems running at planetary scale. This post walks through designing a chat system—covering WebSocket connections, message ordering, fan-out patterns, and the trade-offs that separate a toy chat app from WhatsApp.</p>
+<h2 id="the-scale-problem">The Scale Problem</h2>
+<p>Before diving in, let the numbers sink in:</p>
+<ul>
+<li><strong>WhatsApp</strong>: 65+ billion messages per day</li>
+<li><strong>Peak throughput</strong>: ~1 million messages per second during New Year’s Eve</li>
+<li><strong>User expectations</strong>: &#x3C;100ms message delivery, always-on connections</li>
+<li><strong>Constraint</strong>: Users are mobile, behind NAT, with intermittent connectivity</li>
+</ul>
+<p>The core challenge isn’t storing messages—it’s maintaining real-time, bidirectional communication with hundreds of millions of always-connected devices.</p>
+<h2 id="requirements-gathering">Requirements Gathering</h2>
+<h3 id="functional-requirements">Functional Requirements</h3>
+<ul>
+<li><strong>1:1 messaging</strong>: Instant delivery between two users</li>
+<li><strong>Group chats</strong>: 1 to N delivery, up to 256+ members</li>
+<li><strong>Message persistence</strong>: Messages readable after logout/re-login</li>
+<li><strong>Online/offline status</strong>: Presence indicators</li>
+<li><strong>Push notifications</strong>: Delivered even when app is closed</li>
+<li><strong>End-to-end encryption</strong>: Nobody, including the server, can read messages</li>
+</ul>
+<h3 id="non-functional-requirements">Non-Functional Requirements</h3>
+<ul>
+<li><strong>Latency</strong>: &#x3C;100ms for message delivery within the same region</li>
+<li><strong>Availability</strong>: 99.99% uptime (≤52 min downtime/year)</li>
+<li><strong>Scalability</strong>: Millions of concurrent connections</li>
+<li><strong>Consistency</strong>: Messages must appear in correct order per conversation</li>
+</ul>
+<h2 id="long-polling-vs-websockets">Long Polling vs WebSockets</h2>
+<p>The first architectural decision: how do clients maintain a connection to the server?</p>
+<h3 id="http-long-polling">HTTP Long Polling</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Client → Server: "Any messages?" (request hangs)</span></span>
+<span class="line"><span>... 30 seconds pass ...</span></span>
+<span class="line"><span>Server → Client: "No, try again"</span></span>
+<span class="line"><span>Client → Server: "Any messages?" (new request)</span></span>
+<span class="line"><span>... repeat forever ...</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Problems at scale:</strong></p>
+<ul>
+<li>New TCP connection per poll = massive connection churn</li>
+<li>Server must hold request open = thread/memory exhaustion</li>
+<li>Average latency = poll interval / 2 = 15s with 30s polls</li>
+<li>Expensive in terms of headers (~800 bytes overhead per request)</li>
+</ul>
+<h3 id="websockets-the-right-abstraction">WebSockets: The Right Abstraction</h3>
+<p>WebSocket starts as an HTTP handshake, then “upgrades” to a persistent TCP connection:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="http"><code><span class="line"><span style="color:#BB9AF7">GET</span><span style="color:#A9B1D6"> /ws </span><span style="color:#89DDFF">HTTP</span><span style="color:#A9B1D6">/</span><span style="color:#FF9E64">1.1</span></span>
+<span class="line"><span style="color:#F7768E">Host</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> chat.example.com</span></span>
+<span class="line"><span style="color:#F7768E">Upgrade</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> websocket</span></span>
+<span class="line"><span style="color:#F7768E">Connection</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Upgrade</span></span>
+<span class="line"><span style="color:#F7768E">Sec-WebSocket-Key</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> dGhlIHNhbXBsZSBub25jZQ==</span></span>
+<span class="line"></span></code></pre>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="http"><code><span class="line"><span style="color:#89DDFF">HTTP</span><span style="color:#A9B1D6">/</span><span style="color:#FF9E64">1.1</span><span style="color:#FF9E64"> 101</span><span style="color:#9ECE6A"> Switching Protocols</span></span>
+<span class="line"><span style="color:#F7768E">Upgrade</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> websocket</span></span>
+<span class="line"><span style="color:#F7768E">Connection</span><span style="color:#89DDFF">:</span><span style="color:#9ECE6A"> Upgrade</span></span>
+<span class="line"></span></code></pre>
+<p>After the handshake, both client and server can send frames at any time—no request-response pairing required. This is the fundamental primitive for real-time messaging.</p>
+<p><strong>Why WebSockets win for chat:</strong></p>
+<ul>
+<li>Single TCP connection per user = efficient</li>
+<li>Full-duplex = server pushes without client polling</li>
+<li>Lower latency = messages arrive as soon as they’re sent</li>
+<li>Better battery life on mobile = no constant polling</li>
+</ul>
+<h2 id="the-websocket-gateway">The WebSocket Gateway</h2>
+<p>At scale, you can’t just spin up a chat server and expect it to handle millions of connections. The architecture uses a <strong>WebSocket Gateway</strong> tier:</p>
+<chatsystemflow client:load="">
+<h3 id="gateway-responsibilities">Gateway Responsibilities</h3>
+<ol>
+<li><strong>Connection management</strong>: Maintain millions of long-lived WebSocket connections</li>
+<li><strong>Authentication</strong>: Validate JWT on connect, associate user_id with connection</li>
+<li><strong>Message routing</strong>: Route incoming messages to appropriate downstream services</li>
+<li><strong>Presence tracking</strong>: Update online/offline status in Redis</li>
+<li><strong>Health monitoring</strong>: Detect stale connections via heartbeat</li>
+</ol>
+<h3 id="gateway-as-a-stateful-service">Gateway as a Stateful Service</h3>
+<p>Here’s the key insight: the gateway is <em>stateful</em>. It needs to know which user is connected to which gateway instance:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># In Redis, per gateway instance:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Key: "presence:{user_id}"</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Value: JSON { "gateway_id": "gw-us-east-1-a", "connected_at": 1715000000 }</span></span>
+<span class="line"></span></code></pre>
+<p>When a message needs to go to User B, you look up their gateway, then push the message to that specific instance.</p>
+<h2 id="11-message-flow">1:1 Message Flow</h2>
+<p>Here’s what actually happens when User A sends “Hi B”:</p>
+<p><strong>Step 1: A → Gateway (WebSocket frame)</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>WebSocket frame:</span></span>
+<span class="line"><span>  opcode: 1 (text)</span></span>
+<span class="line"><span>  payload: { "type": "message", "to": "user_b", "text": "Hi B", "client_msg_id": "abc123" }</span></span>
+<span class="line"><span></span></span></code></pre>
+<p><strong>Step 2: Gateway validates and persists</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Generate globally unique message ID</span></span>
+<span class="line"><span style="color:#A9B1D6">msg_id </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> snowflake</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">generate</span><span style="color:#9ABDF5">()</span><span style="color:#51597D;font-style:italic">  # 64-bit: timestamp + node + seq</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Write to Cassandra</span></span>
+<span class="line"><span style="color:#BB9AF7">await</span><span style="color:#A9B1D6"> cassandra</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">execute</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"""</span></span>
+<span class="line"><span style="color:#9ECE6A">    INSERT INTO messages (conversation_id, message_id, sender_id, text, created_at)</span></span>
+<span class="line"><span style="color:#9ECE6A">    VALUES (?, ?, ?, ?, ?)</span></span>
+<span class="line"><span style="color:#89DDFF">"""</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> [</span><span style="color:#C0CAF5">conversation_id</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> msg_id</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_a_id</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">Hi B</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> now</span><span style="color:#89DDFF">]</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Step 3: Gateway publishes to Redis Pub/Sub</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Each user's "inbox" is a Redis channel</span></span>
+<span class="line"><span style="color:#BB9AF7">await</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">publish</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_b_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">{</span></span>
+<span class="line"><span style="color:#89DDFF">    "</span><span style="color:#9ECE6A">msg_id</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#C0CAF5"> msg_id</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">    "</span><span style="color:#9ECE6A">from</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#C0CAF5"> user_a_id</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">    "</span><span style="color:#9ECE6A">text</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">Hi B</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">    "</span><span style="color:#9ECE6A">ts</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#C0CAF5"> now</span></span>
+<span class="line"><span style="color:#89DDFF">}</span><span style="color:#9ABDF5">))</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Step 4: B’s Gateway receives via Redis subscription</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># On each gateway instance, a background task subscribes to its users' channels</span></span>
+<span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> start_subscriber</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">gateway_id</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#A9B1D6">    users </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> await</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">smembers</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"gateway:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">gateway_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:users"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    pubsub </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">pubsub</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#BB9AF7">    await</span><span style="color:#A9B1D6"> pubsub</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">subscribe</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">*[</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">uid</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#BB9AF7"> for</span><span style="color:#C0CAF5"> uid </span><span style="color:#BB9AF7">in</span><span style="color:#C0CAF5"> users</span><span style="color:#89DDFF">]</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    async</span><span style="color:#BB9AF7"> for</span><span style="color:#A9B1D6"> msg </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> pubsub</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">listen</span><span style="color:#9ABDF5">()</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        await</span><span style="color:#7AA2F7"> push_to_websocket</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">msg</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">user_id</span><span style="color:#89DDFF">'</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> msg</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">data</span><span style="color:#89DDFF">'</span><span style="color:#9ABDF5">])</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Step 5: B’s device receives push</strong></p>
+<ul>
+<li>If app open: push over WebSocket (instant)</li>
+<li>If app closed: send APNs (Apple) / FCM (Android) push notification</li>
+</ul>
+<p><strong>End-to-end latency: ~50-80ms within same region</strong></p>
+<h2 id="message-storage-the-schema">Message Storage: The Schema</h2>
+<p>WhatsApp-scale messaging requires a database optimized for write-heavy workloads with range queries. Cassandra is the canonical choice:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#89DDFF">CREATE</span><span style="color:#89DDFF"> TABLE</span><span style="color:#7AA2F7"> messages</span><span style="color:#A9B1D6"> (</span></span>
+<span class="line"><span style="color:#A9B1D6">    conversation_id  </span><span style="color:#BB9AF7">bigint</span><span style="color:#A9B1D6">,       </span><span style="color:#51597D;font-style:italic">-- partition key (sharded by conversation)</span></span>
+<span class="line"><span style="color:#A9B1D6">    message_id      </span><span style="color:#BB9AF7">bigint</span><span style="color:#A9B1D6">,        </span><span style="color:#51597D;font-style:italic">-- clustering key (descending for reverse scan)</span></span>
+<span class="line"><span style="color:#A9B1D6">    sender_id       </span><span style="color:#BB9AF7">bigint</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#BB9AF7">    text</span><span style="color:#BB9AF7">            text</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#A9B1D6">    delivered_at    </span><span style="color:#BB9AF7">timestamp</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#A9B1D6">    read_at         </span><span style="color:#BB9AF7">timestamp</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#9D7CD8;font-style:italic">    PRIMARY KEY</span><span style="color:#A9B1D6"> ((conversation_id), message_id)</span></span>
+<span class="line"><span style="color:#A9B1D6">) </span><span style="color:#89DDFF">WITH</span><span style="color:#A9B1D6"> CLUSTERING </span><span style="color:#7DCFFF">ORDER BY</span><span style="color:#A9B1D6"> (message_id </span><span style="color:#89DDFF">DESC</span><span style="color:#A9B1D6">);</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Why this schema:</strong></p>
+<ul>
+<li><code>conversation_id</code> as partition key = all messages for a conversation on same shard</li>
+<li><code>message_id DESC</code> = fast “most recent messages” query</li>
+<li>Wide partitions = reading a conversation loads contiguous messages efficiently</li>
+<li>Append-only = ideal write pattern for SSDs</li>
+</ul>
+<p><strong>Sharding strategy:</strong></p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_shard</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">conversation_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> num_shards</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> conversation_id </span><span style="color:#89DDFF">%</span><span style="color:#A9B1D6"> num_shards</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Route to Cassandra cluster for that shard</span></span>
+<span class="line"><span style="color:#A9B1D6">cluster </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cassandra_clusters</span><span style="color:#9ABDF5">[</span><span style="color:#7AA2F7">get_shard</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">conversation_id</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> NUM_SHARDS</span><span style="color:#9ABDF5">)]</span></span>
+<span class="line"></span></code></pre>
+<h3 id="why-not-postgresql">Why Not PostgreSQL?</h3>
+<p>PostgreSQL works fine for &#x3C;1M users. But at WhatsApp scale:</p>
+<ul>
+<li><strong>B-tree splits</strong>: High write volume causes page splits and index bloat</li>
+<li><strong>Connection per shard</strong>: 1M users × each with a connection = impossible</li>
+<li><strong>Single-node writes</strong>: Hot spots on leader = throughput ceiling</li>
+</ul>
+<h2 id="group-chat-the-fan-out-problem">Group Chat: The Fan-Out Problem</h2>
+<p>Group messaging is where it gets interesting. When User A sends to a 100-person group, you need to deliver to 99 other members.</p>
+<h3 id="naive-approach-dont-do-this">Naive Approach (Don’t Do This)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>For each member in group:</span></span>
+<span class="line"><span>    publish to member's channel</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>With 100 members and 1M messages/day, that’s 99M Pub/Sub publishes. This works but wastes resources delivering to offline users.</p>
+<h3 id="better-presence-aware-fan-out">Better: Presence-Aware Fan-Out</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> deliver_group_message</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">group_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> sender</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> message</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> dict</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Get all ONLINE members from Redis</span></span>
+<span class="line"><span style="color:#A9B1D6">    online_members </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> await</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">smembers</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"group:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">group_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:online"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Get all OFFLINE members  </span></span>
+<span class="line"><span style="color:#A9B1D6">    all_members </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> await</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">smembers</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"group:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">group_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:members"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    offline_members </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> all_members </span><span style="color:#89DDFF">-</span><span style="color:#A9B1D6"> online_members</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Deliver to online users via Pub/Sub (instant)</span></span>
+<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> member_id </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> online_members</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        await</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">publish</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">member_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">message</span><span style="color:#9ABDF5">))</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Mark message as pending for offline users</span></span>
+<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> member_id </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> offline_members</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        await</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">rpush</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">member_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:pending"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">message</span><span style="color:#9ABDF5">))</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Optimization</strong>: When an offline user comes back online, their gateway pulls from the <code>pending</code> queue.</p>
+<h3 id="fan-out-on-write-vs-fan-out-on-read">Fan-Out on Write vs Fan-Out on Read</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Strategy</th><th>Description</th><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td>Fan-out on write</td><td>Replicate message to each recipient’s inbox on send</td><td>Fast reads</td><td>Slow writes for large groups</td></tr><tr><td>Fan-out on read</td><td>Store message once, expand on read</td><td>Fast writes</td><td>Slow reads, must deduplicate</td></tr><tr><td>Hybrid</td><td>Small groups write, large groups read</td><td>Tunable</td><td>Complexity</td></tr></tbody></table>
+<p>WhatsApp uses <strong>hybrid</strong>: groups up to 256 members use fan-out-on-write. Larger “channels” (like Telegram channels) use fan-out-on-read.</p>
+<h2 id="message-ordering-getting-it-right">Message Ordering: Getting It Right</h2>
+<p>Users expect messages to appear in the order they were sent. Sounds simple—until you consider:</p>
+<ul>
+<li>Messages can arrive out of order due to network retries</li>
+<li>A user might send from multiple devices</li>
+<li>Server-side processing delays vary</li>
+</ul>
+<h3 id="causality-and-sequence-numbers">Causality and Sequence Numbers</h3>
+<p>Each message gets a <strong>logical timestamp</strong> (Lamport clock):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Client-side</span></span>
+<span class="line"><span style="color:#A9B1D6">local_seq </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> counter</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">increment</span><span style="color:#9ABDF5">()</span><span style="color:#51597D;font-style:italic">  # 1, 2, 3, ...</span></span>
+<span class="line"><span style="color:#A9B1D6">message </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> {</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">seq</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> local_seq</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">text</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">Hi</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">ts</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#7AA2F7"> now</span><span style="color:#9ABDF5">()</span><span style="color:#89DDFF"> }</span></span>
+<span class="line"><span style="color:#7AA2F7">send_to_server</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">message</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<p>The server assigns a <strong>server-side sequence number</strong>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Server-side</span></span>
+<span class="line"><span style="color:#A9B1D6">server_seq </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">incr</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"conversation:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">conv_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:seq"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">message</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">server_seq</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF"> =</span><span style="color:#A9B1D6"> server_seq</span></span>
+<span class="line"></span></code></pre>
+<p>On the client, messages are displayed sorted by <code>server_seq</code>. If a message arrives with <code>seq</code> earlier than the last-displayed <code>seq</code>, it’s a duplicate (ignore).</p>
+<h3 id="vector-clocks-for-multi-device">Vector Clocks for Multi-Device</h3>
+<p>If User A is on phone and laptop simultaneously, each device has its own counter:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>User A (phone):  [A: 5]</span></span>
+<span class="line"><span>User A (laptop): [A: 3]</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>Vector clocks detect causality: if device A sends to device B, B can detect whether a message is “newer” or “stale” by comparing vector clocks.</p>
+<h2 id="onlineoffline-presence">Online/Offline Presence</h2>
+<p>“How do I show the green dot?” is a surprisingly hard distributed systems problem.</p>
+<h3 id="architecture">Architecture</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Redis sorted set: "presence:{user_id}"</span></span>
+<span class="line"><span>  Score: Unix timestamp of last heartbeat</span></span>
+<span class="line"><span>  Member: gateway_id</span></span>
+<span class="line"><span>  TTL: 60 seconds (if no heartbeat, key expires)</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="heartbeat-protocol">Heartbeat Protocol</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Client sends heartbeat every 30 seconds</span></span>
+<span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> heartbeat</span><span style="color:#9ABDF5">():</span></span>
+<span class="line"><span style="color:#BB9AF7">    await</span><span style="color:#A9B1D6"> websocket</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">send</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">{</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">type</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">ping</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF"> }</span><span style="color:#9ABDF5">))</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Server responds</span></span>
+<span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> server_heartbeat</span><span style="color:#9ABDF5">():</span></span>
+<span class="line"><span style="color:#BB9AF7">    await</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">zadd</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"presence:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#7AA2F7"> now</span><span style="color:#9ABDF5">()</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> gateway_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    await</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">expire</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"presence:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 60</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<h3 id="presence-updates-efficient-delivery">Presence Updates: Efficient Delivery</h3>
+<p>Broadcasting “User A is online” to all their contacts is expensive (O(friends)). Two approaches:</p>
+<p><strong>1. Polling (simpler)</strong>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="javascript"><code><span class="line"><span style="color:#51597D;font-style:italic">// On contact list page load, fetch presence</span></span>
+<span class="line"><span style="color:#FF9E64">GET</span><span style="color:#89DDFF"> /</span><span style="color:#C0CAF5">api</span><span style="color:#89DDFF">/</span><span style="color:#C0CAF5">presence</span><span style="color:#BB9AF7">?</span><span style="color:#C0CAF5">users</span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5">id1</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5">id2</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5">id3</span></span>
+<span class="line"><span style="color:#A9B1D6">→ </span><span style="color:#9ABDF5">{</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">id1</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">online</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">id2</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">offline</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">id3</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">online</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5"> }</span></span>
+<span class="line"></span></code></pre>
+<p><strong>2. Delta pushes (more efficient)</strong>:</p>
+<ul>
+<li>Subscribe to a “presence channel” when user opens contact list</li>
+<li>Receive incremental updates: “user_123 went online”</li>
+<li>Close subscription when user navigates away</li>
+</ul>
+<h2 id="end-to-end-encryption-simplified">End-to-End Encryption (Simplified)</h2>
+<p>WhatsApp uses the <strong>Signal Protocol</strong> (Curve25519 + HMAC-SHA256 + Double Ratchet):</p>
+<h3 id="key-exchange-on-first-message">Key Exchange on First Message</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Alice generates: identity_key (long-term), ephemeral_key (per-session)</span></span>
+<span class="line"><span>Bob generates:   identity_key (long-term), ephemeral_key (per-session)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>1. Alice → Bob: [identity_key_A, ephemeral_key_A]</span></span>
+<span class="line"><span>2. Bob   → Alice: [identity_key_B, ephemeral_key_B]</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Both derive: shared_secret = ECDH(identity_key_A, ephemeral_key_B)</span></span>
+<span class="line"><span>                         ⊕ ECDH(identity_key_B, ephemeral_key_A)</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="ratcheting-forward-secrecy">Ratcheting: Forward Secrecy</h3>
+<p>After each message, keys evolve so compromise of current key doesn’t expose past messages:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Ratchet state: chain_key_1 → chain_key_2 → chain_key_3 → ...</span></span>
+<span class="line"><span>Message key_1 = HMAC(chain_key_1, "msg_key")</span></span>
+<span class="line"><span>Message key_2 = HMAC(chain_key_2, "msg_key")</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>If someone steals Alice’s phone, they can only read future messages—not past ones.</p>
+<h2 id="scaling-to-millions-of-connections">Scaling to Millions of Connections</h2>
+<h3 id="the-c10m-problem">The C10M Problem</h3>
+<p>A single server can handle ~1M WebSocket connections with proper tuning:</p>
+<ul>
+<li>Increase file descriptors (<code>ulimit -n</code>)</li>
+<li>Use <code>SO_REUSEPORT</code> for load balancing</li>
+<li>Tune kernel <code>tcp_tw_reuse</code></li>
+<li>Use <code>epoll</code> (Linux) or <code>kqueue</code> (macOS) for event-driven I/O</li>
+</ul>
+<h3 id="horizontal-scaling-connection-routing">Horizontal Scaling: Connection Routing</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>                    ┌─────────────────────────────────┐</span></span>
+<span class="line"><span>Client → DNS → LB → │  WS Gateway Pool (N instances)  │</span></span>
+<span class="line"><span>                    │  ┌──────┐ ┌──────┐ ┌──────┐    │</span></span>
+<span class="line"><span>                    │  │ gw-1 │ │ gw-2 │ │ gw-N │    │</span></span>
+<span class="line"><span>                    │  └──────┘ └──────┘ └──────┘    │</span></span>
+<span class="line"><span>                    └─────────────────────────────────┘</span></span>
+<span class="line"><span>                              │</span></span>
+<span class="line"><span>                        Redis Pub/Sub</span></span>
+<span class="line"><span>                        (in-memory broker)</span></span>
+<span class="line"><span>                              │</span></span>
+<span class="line"><span>                    ┌─────────────────────────────────┐</span></span>
+<span class="line"><span>                    │  Message Service (stateless)   │</span></span>
+<span class="line"><span>                    │  ┌──────┐ ┌──────┐ ┌──────┐    │</span></span>
+<span class="line"><span>                    │  │ msg-1│ │msg-2 │ │msg-N │    │</span></span>
+<span class="line"><span>                    │  └──────┘ └──────┘ └──────┘    │</span></span>
+<span class="line"><span>                    └─────────────────────────────────┘</span></span>
+<span class="line"><span>                              │</span></span>
+<span class="line"><span>              ┌───────────────┼───────────────┐</span></span>
+<span class="line"><span>              ▼               ▼               ▼</span></span>
+<span class="line"><span>         Cassandra        Cassandra        Cassandra</span></span>
+<span class="line"><span>         Shard 0          Shard 1          Shard 2</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The key insight: <strong>gateways are stateful</strong> (track connections), <strong>message service is stateless</strong> (just processes and stores).</p>
+<h2 id="database-sharding-by-user-id">Database Sharding by User ID</h2>
+<p>Two common sharding strategies:</p>
+<h3 id="shard-by-sender-used-by-whatsapp">Shard by Sender (Used by WhatsApp)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#A9B1D6">shard </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> user_id </span><span style="color:#89DDFF">%</span><span style="color:#FF9E64"> NUM_SHARDS</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># All messages sent by this user are on the same shard</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Pros</strong>: Read-your-own-writes consistency (all your messages on one shard)
+<strong>Cons</strong>: Hot user problem (celebrities send 1000x more messages)</p>
+<h3 id="shard-by-conversation">Shard by Conversation</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#A9B1D6">shard </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> conversation_id </span><span style="color:#89DDFF">%</span><span style="color:#FF9E64"> NUM_SHARDS</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># All messages in a conversation on same shard</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Pros</strong>: Efficient conversation reads (all messages on same shard)
+<strong>Cons</strong>: If a conversation gets huge, it might exceed shard capacity</p>
+<p>WhatsApp uses <strong>shard by sender</strong> with careful hot-spot mitigation (rate limiting celebrity accounts).</p>
+<h2 id="the-hard-parts-nobody-talks-about">The Hard Parts Nobody Talks About</h2>
+<ol>
+<li><strong>Duplicate delivery</strong>: At scale, “at-least-once” delivery + client-side deduplication is cheaper than “exactly-once” delivery</li>
+<li><strong>Tombstone management</strong>: Deleted messages need “tombstones” in Cassandra for 30 days (hard delete = consistency nightmare)</li>
+<li><strong>Typing indicators</strong>: Broadcasting every keystroke is expensive; throttle to 1 update/second</li>
+<li><strong>Media messages</strong>: Images/videos go to object storage (S3), not Cassandra; metadata in Cassandra</li>
+<li><strong>Multi-device sync</strong>: If I delete a message on phone, it should delete on laptop too—this requires a sync protocol</li>
+</ol>
+<h2 id="related-posts">Related Posts</h2>
+<ul>
+<li><a href="/posts/rate-limiter-system-design">Rate Limiter System Design</a> — Protecting APIs from abuse</li>
+<li><a href="/posts/raft-consensus-algorithm-deep-dive">Raft Consensus Algorithm</a> — Distributed agreement fundamentals</li>
+<li><a href="/posts/url-shortener-system-design">URL Shortener System Design</a> — Database sharding and Redis patterns</li>
+<li><a href="/posts/redis-beyond-caching">Redis Beyond Caching</a> — Redis as a primary data store</li>
+</ul>
+<h2 id="further-reading">Further Reading</h2>
+<ul>
+<li><a href="http://highscalability.com/blog/2022/1/11/the-secret-life-of-whatsapp.html">The Secret Life of WhatsApp (HighScalability)</a> — Real WhatsApp architecture numbers</li>
+<li><a href="https://signal.org/docs/specifications/signal/">Signal Protocol Whitepaper</a> — E2E encryption in depth</li>
+<li><a href="https://discord.com/blog/how-discord-stores-trillions-of-messages">How Discord Stores Trillions of Messages</a> — Cassandra at scale case study</li>
+</ul></chatsystemflow>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/distributed-cache-system-design" data-astro-cid-gjtny2mx>Distributed Cache System Design: Patterns, Eviction, and Consistent Hashing</a> <p data-astro-cid-gjtny2mx>Design distributed caches from cache-aside to consistent hashing. Cover Memcached vs Redis, cache invalidation strategies, cache stampede prevention, and the interactive architecture behind systems like Memcached, Redis Cluster, and Infinispan.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/rate-limiter-system-design" data-astro-cid-gjtny2mx>Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse</a> <p data-astro-cid-gjtny2mx>Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/url-shortener-system-design" data-astro-cid-gjtny2mx>URL Shortener System Design: How to Handle Millions of Redirects Per Second</a> <p data-astro-cid-gjtny2mx>Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Chat System Design: How to Build a WhatsApp-Scale Messaging System","description":"Design a real-time chat system like WhatsApp from first principles. Cover WebSockets, message storage with Cassandra, fan-out patterns, online/offline presence, and the architecture decisions that scale to billions of messages per day.","datePublished":"2026-05-05T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/chat-messaging-system-design"},"keywords":"system-design, distributed-systems, messaging, real-time, scalability, interviews, websockets, cassandra","articleSection":"system-design","about":[{"@type":"Thing","name":"system-design"},{"@type":"Thing","name":"distributed-systems"},{"@type":"Thing","name":"messaging"},{"@type":"Thing","name":"real-time"},{"@type":"Thing","name":"scalability"},{"@type":"Thing","name":"interviews"},{"@type":"Thing","name":"websockets"},{"@type":"Thing","name":"cassandra"}]}</script> 
