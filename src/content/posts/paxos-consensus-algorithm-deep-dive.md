@@ -2,7 +2,12 @@
 title: "Paxos Consensus Algorithm: How Distributed Systems Reach Agreement"
 description: "A deep dive into the Paxos consensus algorithm—prepare phases, accept phases, multi-Paxos, and why Google Spanner, CockroachDB, and Neo4j use it for distributed agreement."
 date: 2026-05-04
-tags: ["distributed-systems", "consensus", "paxos", "system-design", "fault-tolerance", "lamport", "availability"]
+tags: ["distributed-systems", "consensus", "paxos", "system-design", "fault-tolerance", "lamport", "availability", "multi-paxos"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-04"
+  dateModified: "2026-05-04"
 draft: false
 ---
 
@@ -306,7 +311,16 @@ Use a Paxos-based system (etcd, CockroachDB, Spanner) rather than implementing P
 
 ## Related
 
+Building a Paxos implementation? [DigitalOcean's networking features](https://www.digitalocean.com/affiliates) make multi-node cluster testing straightforward. <!-- AFFILIATE: digitalocean -->
+
 Paxos and Raft solve the same problem differently. See also:
 - [Raft Consensus Algorithm Deep Dive](/posts/raft-consensus-algorithm-deep-dive) — the leader-based alternative
 - [Rate Limiter System Design](/posts/rate-limiter-system-design) — distributed consistency in practice
 - [ClickHouse Architecture](/posts/clickhouse-architecture-deep-dive) — how analytical databases use distributed consensus
+
+Building a distributed system that needs consensus? [DigitalOcean's networking features](https://www.digitalocean.com/affiliates) make it easy to spin up multi-node clusters for testing. <!-- AFFILIATE: digitalocean -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for building and testing distributed consensus implementations. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Compute instances for multi-node cluster testing. $100 free credit. <!-- AFFILIATE: digitalocean -->

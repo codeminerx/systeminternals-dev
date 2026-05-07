@@ -2,7 +2,12 @@
 title: "GDB Debugging: From Core Dumps to Live Processes"
 description: "Master GDB for debugging C/C++ programs — set breakpoints, inspect memory, analyze core dumps, and attach to live processes for production debugging."
 date: 2026-05-04
-tags: ["debugging", "gdb", "linux", "c", "c++", "core-dump", "systems-programming"]
+tags: ["debugging", "gdb", "linux", "c", "c++", "core-dump", "systems-programming", "breakpoints"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-04"
+  dateModified: "2026-05-04"
 ---
 
 Every C and C++ developer eventually needs GDB. Whether you're tracking down a segfault in a fresh build or tracing a production deadlock, GDB is the definitive tool for inspecting a running (or crashed) process at the machine level.
@@ -412,6 +417,8 @@ document crash-log
 end
 ```
 
+Need a machine to practice core dump analysis? [Vultr](https://www.vultr.com/?ref=8914132) gives you a fresh Linux server in 60 seconds. <!-- AFFILIATE: vultr -->
+
 ## Further Reading
 
 - `info gdb` — Full GDB manual inside GDB
@@ -419,6 +426,19 @@ end
 - **GDB Manual**: https://sourceware.org/gdb/current/onlinedocs/gdb/
 - `gef` — GDB Enhanced Features: https://github.com/hugsy/gef — a fantastic GDB extension with better visualization
 - `pwndbg` — Another GDB extension tuned for reverse engineering and exploit development
-- `AMD64 Manual** (Volume 2) — For register and instruction reference when reading disassembly
+- **AMD64 Manual** (Volume 2) — For register and instruction reference when reading disassembly
+
+## Further Reading
+
+- [strace: Debugging Linux System Calls Like a Pro](/posts/strace-debugging-linux-system-calls) — Both GDB and strace are debugging essentials; strace shows syscall-level behavior while GDB shows instruction-level behavior
+- [Linux /proc Filesystem Deep Dive](/posts/linux-proc-filesystem-deep-dive) — GDB inspects running processes via /proc/[pid]/; understanding /proc makes GDB's view of process memory more interpretable
+- [Linux Memory Debugging](/posts/linux-memory-debugging-profiling) — Memory leaks and corruption manifest in both GDB coredumps and /proc memory analysis; both approaches are needed for complete diagnosis
 
 GDB's learning curve is steep but the payoff is enormous. Once you're comfortable navigating coredumps, setting conditional breakpoints, and inspecting memory at the byte level, you're equipped to debug anything.
+
+Want to practice? [Spin up a Linux VPS on Vultr](https://www.vultr.com/?ref=8914132) — deploy a server with `ulimit` set high and generate some coredumps to practice on. <!-- AFFILIATE: vultr -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for practicing coredump analysis on a live Linux server. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for development and debugging environments. $100 free credit. <!-- AFFILIATE: digitalocean -->

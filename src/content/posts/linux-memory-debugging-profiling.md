@@ -2,7 +2,12 @@
 title: "Linux Memory Debugging: From vmstat to Memory Leaks"
 description: "Learn how Linux reports memory usage through vmstat, free, /proc/meminfo, and /proc/vmstat. Cover transparent hugepages, OOM killer, memory cgroups, and how to diagnose memory leaks in production."
 date: 2026-05-04
-tags: ["linux", "memory", "performance", "debugging", "vmstat", "oom"]
+tags: ["linux", "memory", "performance", "debugging", "vmstat", "oom", "cgroups"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-04"
+  dateModified: "2026-05-04"
 ---
 
 Every running program on a Linux system needs memory. When things go wrong — a runaway process eating gigabytes, the OOM killer firing unexpectedly, or a service degrading over days — you need to know where to look. Linux provides a rich set of interfaces for observing memory, but understanding what the numbers actually mean takes some unpacking.
@@ -465,3 +470,18 @@ The mental model to internalize:
 When you're debugging a memory issue, start with `vmstat 1` to see if you're swapping, then narrow down with `ps aux --sort=-rss` to find the hungry process, then drill into that process with `pmap` or `/proc/<pid>/smaps`. Only reach for `valgrind` or `bpfcc-tools/memleak` when you've confirmed there's a leak and need to find the allocation site.
 
 Linux gives you all the tools — the skill is knowing which number to trust and which to ignore.
+
+Profiling memory at scale? [Vultr](https://www.vultr.com/?ref=8914132) offers high-memory instances (256GB+) for production-like testing. <!-- AFFILIATE: vultr -->
+
+## Further Reading
+
+- [Linux /proc Filesystem Deep Dive](/posts/linux-proc-filesystem-deep-dive) — /proc/meminfo and /proc/vmstat are the canonical sources for memory data; this post covers them in depth
+- [Linux Process Management](/posts/linux-process-management-ps-top-htop) — Process memory metrics (RSS, VSZ) are the primary signal for identifying which processes consume memory
+- [Distributed Cache System Design](/posts/distributed-cache-system-design) — Caches consume memory deliberately; understanding Linux memory reporting helps you distinguish cache from leaks
+
+For production memory debugging at scale, [Vultr's high-memory instances](https://www.vultr.com/?ref=8914132) give you 256GB+ RAM to runheap profiling sessions without constraints. <!-- AFFILIATE: vultr -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — High-memory cloud VPS instances (256GB+) for production-scale memory profiling. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for memory debugging environments. $100 free credit. <!-- AFFILIATE: digitalocean -->

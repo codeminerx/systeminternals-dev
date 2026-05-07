@@ -2,7 +2,12 @@
 title: "strace Cheat Sheet: Every Syscall, Flag, and Trick You Need"
 description: "Complete strace reference with examples for every common syscall, must-know flags like -e, -c, -f, and advanced techniques like following forks and tracing attached processes."
 date: 2026-05-05
-tags: ["linux", "strace", "debugging", "system-calls", "cheat-sheet", "troubleshooting"]
+tags: ["linux", "strace", "debugging", "system-calls", "cheat-sheet", "troubleshooting", "ptrace"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-05"
+  dateModified: "2026-05-05"
 ---
 
 `strace` is the first tool to reach for when a Linux program misbehaves. It intercepts every system call, letting you see exactly what a program asks of the kernel and what the kernel sends back. This is a dense, complete reference — everything you need in one place.
@@ -469,3 +474,18 @@ strace -T -f -p PID -o /tmp/slow_calls.log
 ---
 
 `strace` won't tell you your logic is wrong, but it shows you exactly what your code asked the kernel to do. Master the filters (`-e`), learn `-f` for multi-process work, and always check `-c` before diving deep.
+
+Practicing system call tracing? [Vultr](https://www.vultr.com/?ref=8914132) provides a safe cloud environment to run strace experiments. <!-- AFFILIATE: vultr -->
+
+## Further Reading
+
+- [strace: Debugging Linux System Calls Like a Pro](/posts/strace-debugging-linux-system-calls) — The companion piece goes deeper into strace internals, ptrace, and real debugging scenarios
+- [Linux /proc Filesystem Deep Dive](/posts/linux-proc-filesystem-deep-dive) — strace reads from /proc/[pid]/syscall; understanding /proc makes strace output more interpretable
+- [eBPF Linux Observability](/posts/ebpf-linux-observability-framework) — Modern eBPF tools like bpftrace can do what strace does and more, without ptrace overhead
+
+Ready to trace system calls on a live server? [Spin up a Linux VPS on Vultr](https://www.vultr.com/?ref=8914132) — deploy a fresh server in under a minute and practice strace without touching your own machine. <!-- AFFILIATE: vultr -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for practicing strace on a live Linux server. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for system call tracing experiments. $100 free credit. <!-- AFFILIATE: digitalocean -->

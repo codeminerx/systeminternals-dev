@@ -2,7 +2,12 @@
 title: "Linux /proc Filesystem: A Deep Dive into Process Information"
 description: "Explore the Linux /proc filesystem to monitor processes, inspect memory, CPU info, and understand how tools like ps and top read kernel data."
 date: 2026-05-04
-tags: ["linux", "proc", "systems-programming", "observability", "debugging"]
+tags: ["linux", "proc", "systems-programming", "observability", "debugging", "kernel"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-04"
+  dateModified: "2026-05-04"
 ---
 
 The `/proc` filesystem is one of Linux's most elegant abstractions: a living window into the running kernel, exposed as a hierarchy of files and directories. Whether you're debugging a runaway process, profiling memory usage, or just trying to understand what `ps` is really doing under the hood, `/proc` is the source of truth.
@@ -277,6 +282,8 @@ ls /proc/[pid]/fd | wc -l    # Count open FDs
 
 **ptrace scope:** Since Linux 4.5, non-root processes cannot `ptrace` other processes unless they have `CAP_SYS_PTRACE` or `/proc/sys/kernel/yama/ptrace_scope` is set to 0. This limits some debugging capabilities by default.
 
+Exploring /proc/stat and /proc/meminfo? [Vultr](https://www.vultr.com/?ref=8914132) gives you a safe Linux environment to practice. <!-- AFFILIATE: vultr -->
+
 ## Further Reading
 
 - `man proc` — The official reference for `/proc` filesystem entries
@@ -285,4 +292,16 @@ ls /proc/[pid]/fd | wc -l    # Count open FDs
 - `strace` source — See how it uses `/proc/[pid]/syscall` for syscall interception
 - BPF Tools (`bpftrace`, `bcc`) — Modern eBPF-based tools that read `/proc` efficiently at scale
 
+## Further Reading
+
+- [strace: Debugging Linux System Calls Like a Pro](/posts/strace-debugging-linux-system-calls) — strace reads /proc/[pid]/syscall to intercept syscalls; this post and strace share the same data source
+- [eBPF Linux Observability](/posts/ebpf-linux-observability-framework) — Modern eBPF tools read /proc for kernel instrumentation; the /proc understanding from this post is foundational
+- [Linux Process Management](/posts/linux-process-management-ps-top-htop) — The /proc/[pid]/ data covered here powers the ps, top, and htop tools described in that post
+
 The `/proc` filesystem is the foundation of Linux observability. Every monitoring tool, container runtime, and container orchestrator depends on it. Now you know what's actually happening when you run `ps` or `top`.
+Want to explore /proc on a live system? [Spin up a Linux VPS on Vultr](https://www.vultr.com/?ref=8914132) — deploy Ubuntu or Fedora in 60 seconds and practice. <!-- AFFILIATE: vultr -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for exploring /proc filesystem on a live Linux system. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for Linux systems programming. $100 free credit. <!-- AFFILIATE: digitalocean -->

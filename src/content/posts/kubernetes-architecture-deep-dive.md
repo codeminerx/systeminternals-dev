@@ -646,7 +646,10 @@ Kubernetes is a distributed system built on four principles:
 3. **Loose coupling**: Components communicate only through the API server
 4. **Scalability**: All components are horizontally scalable (except etcd)
 
-The control plane (API server, etcd, scheduler, controller-manager) coordinates work. The data plane (kubelet, container runtime, CNI) executes it. The result is a system that can recover from node failures, scale workloads across hundreds of machines, and provide the self-healing capabilities that make containers practical for production.
+The control plane (API server, etcd, scheduler, controller-manager) coordinates work. Need compute resources to practice? [Vultr's high-memory instances](https://www.vultr.com/?ref=8914132) are ideal for etcd and control plane components. <!-- AFFILIATE: vultr -->
+ The data plane (kubelet, container runtime, CNI) executes it. The result is a system that can recover from node failures, scale workloads across hundreds of machines, and provide the self-healing capabilities that make containers practical for production.
+
+Building a production cluster? [Vultr](https://www.vultr.com/?ref=8914132) offers high-memory instances ideal for Kubernetes control plane components, and [DigitalOcean](https://www.digitalocean.com/affiliates) provides managed Kubernetes if you want zero operational overhead. <!-- AFFILIATE: vultr digitalocean -->
 
 ---
 
@@ -661,3 +664,8 @@ The control plane (API server, etcd, scheduler, controller-manager) coordinates 
 - [Kubernetes The Hard Way (Kelsey Hightower)](https://github.com/kelseyhightower/kubernetes-the-hard-way) — Build a cluster from scratch to understand every component
 - [etcd Documentation](https://etcd.io/docs/) — The consistency backend
 - [CNCF Landscape](https://landscape.cncf.io/) — The broader cloud-native ecosystem
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for Kubernetes worker nodes and development clusters. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Managed Kubernetes service, zero ops overhead. $100 free credit. <!-- AFFILIATE: digitalocean -->

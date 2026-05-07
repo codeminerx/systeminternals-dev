@@ -31,7 +31,9 @@ Transactions and proper isolation levels prevent this.
 **Atomicity**: All or nothing. If any part fails, the entire transaction rolls back.
 
 ```sql
-BEGIN;
+Testing isolation levels in practice? [DigitalOcean's managed PostgreSQL](https://www.digitalocean.com/affiliates) makes it easy to experiment with different isolation levels on a live database. <!-- AFFILIATE: digitalocean -->
+
+
 UPDATE accounts SET balance = balance - 100 WHERE id = 1;
 UPDATE accounts SET balance = balance + 100 WHERE id = 2;
 -- If either fails, both are rolled back
@@ -215,8 +217,15 @@ COMMIT;
 
 Race conditions in databases are real. Choose the right isolation level, understand the tradeoffs, and test your concurrent scenarios.
 
+If you're evaluating database hosting, [Vultr's managed databases](https://www.vultr.com/?ref=8914132) support PostgreSQL, MySQL, and Redis with automated failover. <!-- AFFILIATE: vultr -->
+
 ## Related Posts
 
 - [PostgreSQL vs MySQL 2024](/posts/postgresql-vs-mysql-2024) — MVCC implementations differ between databases; PostgreSQL's version-based approach affects concurrency behavior
 - [SQL Indexing Deep Dive](/posts/sql-indexing-deep-dive) — Index design directly affects lock contention under high concurrency
 - [Redis Beyond Caching](/posts/redis-beyond-caching) — Redis intentionally lacks ACID transactions; understanding why helps you choose the right tool
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for database hosting. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Managed databases with high availability and automated failover. $100 free credit. <!-- AFFILIATE: digitalocean -->

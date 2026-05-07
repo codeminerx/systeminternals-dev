@@ -2,7 +2,13 @@
 title: "HTTP/2 and HTTP/3 Internals: How the Web Actually Gets Faster"
 description: "Deep dive into HTTP/2 frames, streams, multiplexing, HPACK compression, server push, and HTTP/3's QUIC protocol, 0-RTT, and connection migration."
 date: 2026-05-06
-tags: ["networking", "http", "http2", "http3", "quic", "performance", "linux"]
+tags: ["networking", "http", "http2", "http3", "quic", "performance", "linux", "multiplexing"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-06"
+  dateModified: "2026-05-06"
+draft: false
 ---
 
 If you've ever wondered why loading a page with dozens of CSS, JS, and image requests is faster over HTTP/2 than HTTP/1.1, or why HTTP/3 eliminates the HOL blocking that plagues HTTP/2 — this is the post that gets you all the way there.
@@ -390,3 +396,18 @@ HTTP/3 is the clean break: QUIC gives streams first-class treatment, 0-RTT elimi
 For modern web performance, HTTP/3 is the target. Deploy it behind a CDN that handles the edge translation, and your users get the benefits without the QUIC deployment complexity.
 
 The web got faster by fixing the transport layer's oldest assumptions. Now go instrument it.
+
+If you're deploying HTTP/3 in production, [Cloudflare](https://www.cloudflare.com/partners/) handles QUIC at the edge and gives you HTTP/3 support without managing the complexity yourself. <!-- AFFILIATE: cloudflare -->
+
+Deploying HTTP/3? [Cloudflare](https://www.cloudflare.com/partners/) handles QUIC at the edge so you don't manage the complexity. <!-- AFFILIATE: cloudflare -->
+
+## Further Reading
+
+- [TCP/IP Internals: How a Packet Travels Across the Network](/posts/tcp-ip-internals-packet-journey) — HTTP runs on TCP/IP; understanding the transport layer explains HTTP/2 head-of-line blocking at the source
+- [TCP Congestion Control Algorithms Deep Dive](/posts/tcp-congestion-control-algorithms-deep-dive) — QUIC's congestion control is different from TCP's; understanding congestion algorithms explains the performance difference
+- [Kubernetes Architecture Deep Dive](/posts/kubernetes-architecture-deep-dive) — Kubernetes networking uses HTTP APIs extensively; HTTP/2 multiplexing benefits cluster内部 communication
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for testing HTTP/2 and HTTP/3 implementations. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[Cloudflare](https://www.cloudflare.com/partners/)** — QUIC/HTTP/3 at the edge with zero configuration. <!-- AFFILIATE: cloudflare -->

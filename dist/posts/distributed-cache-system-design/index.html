@@ -1,118 +1,110 @@
-<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Design distributed caches from cache-aside to consistent hashing. Cover Memcached vs Redis, cache invalidation strategies, cache stampede prevention, and the interactive architecture behind systems like Memcached, Redis Cluster, and Infinispan."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Distributed Cache System Design: Patterns, Eviction, and Consistent Hashing</title><meta property="og:title" content="Distributed Cache System Design: Patterns, Eviction, and Consistent Hashing"><meta property="og:description" content="Design distributed caches from cache-aside to consistent hashing. Cover Memcached vs Redis, cache invalidation strategies, cache stampede prevention, and the interactive architecture behind systems like Memcached, Redis Cluster, and Infinispan."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/distributed-cache-system-design"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Distributed Cache System Design: Patterns, Eviction, and Consistent Hashing"><meta name="twitter:description" content="Design distributed caches from cache-aside to consistent hashing. Cover Memcached vs Redis, cache invalidation strategies, cache stampede prevention, and the interactive architecture behind systems like Memcached, Redis Cluster, and Infinispan."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/distributed-cache-system-design"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Design distributed caches from LRU eviction to consistent hashing rings. Cover Redis, Memcached, cache-aside, write-through, thundering herd, and the architecture that keeps services fast at scale."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Distributed Cache System Design: Building a Memory Layer for High-Traffic Applications</title><meta property="og:title" content="Distributed Cache System Design: Building a Memory Layer for High-Traffic Applications"><meta property="og:description" content="Design distributed caches from LRU eviction to consistent hashing rings. Cover Redis, Memcached, cache-aside, write-through, thundering herd, and the architecture that keeps services fast at scale."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/distributed-cache-system-design"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Distributed Cache System Design: Building a Memory Layer for High-Traffic Applications"><meta name="twitter:description" content="Design distributed caches from LRU eviction to consistent hashing rings. Cover Redis, Memcached, cache-aside, write-through, thundering herd, and the architecture that keeps services fast at scale."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/distributed-cache-system-design"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
 .post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
-</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Distributed Cache System Design: Patterns, Eviction, and Consistent Hashing</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-06T00:00:00.000Z" data-astro-cid-gjtny2mx>May 5, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>14 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>system-design</span><span class="tag" data-astro-cid-gjtny2mx>distributed-systems</span><span class="tag" data-astro-cid-gjtny2mx>redis</span><span class="tag" data-astro-cid-gjtny2mx>memcached</span><span class="tag" data-astro-cid-gjtny2mx>caching</span><span class="tag" data-astro-cid-gjtny2mx>scalability</span><span class="tag" data-astro-cid-gjtny2mx>interviews</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every fast system in the world is fast because of a cache. Netflix serves 15% of global internet traffic—but the vast majority of those requests never touch a database. Neither does your browser, your CDN, your API gateway, or the person who just loaded this page. Caching is the backbone of every scalable system, and designing one wrong means your database melts under load at 2 AM.</p>
-<p>This post walks through designing a distributed cache from the ground up: the patterns that govern read/write, the eviction policies that keep memory bounded, the sharding strategies that distribute load, and the failure modes that kill production systems.</p>
-<h2 id="why-caching-matters">Why Caching Matters</h2>
-<p>A database query takes 5–20ms. A cache lookup takes 0.1–1ms. At 100,000 requests/second, that difference is the difference between 500–2,000 seconds of database time versus 10–100 seconds.</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Without cache:</span></span>
-<span class="line"><span>  100,000 req/s × 10ms = 1,000,000ms/s = 1,000 backend threads saturating</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span>With cache (95% hit rate):</span></span>
-<span class="line"><span>  5,000 req/s × 10ms = 50ms of actual DB time</span></span>
-<span class="line"><span>  95,000 req/s × 0.5ms = 47.5ms of cache time</span></span>
-<span class="line"><span>  Total: ~100ms effective backend time</span></span>
-<span class="line"><span></span></span></code></pre>
-<p>Databases are shared resources. Every millisecond you save per request compounds at scale.</p>
-<h2 id="the-five-cache-patterns">The Five Cache Patterns</h2>
-<distributedcacheflow client:load="">
-<h3 id="1-cache-aside-lazy-loading">1. Cache-Aside (Lazy Loading)</h3>
-<p>The most common pattern. The application manages the cache explicitly:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_user</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> dict</span><span style="color:#9ABDF5">:</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # Step 1: Check cache first</span></span>
-<span class="line"><span style="color:#A9B1D6">    cached </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span></span>
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">Blog</a> <a href="/about">About</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Distributed Cache System Design: Building a Memory Layer for High-Traffic Applications</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-07T00:00:00.000Z" data-astro-cid-gjtny2mx>May 6, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>11 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>system-design</span><span class="tag" data-astro-cid-gjtny2mx>distributed-systems</span><span class="tag" data-astro-cid-gjtny2mx>redis</span><span class="tag" data-astro-cid-gjtny2mx>memcached</span><span class="tag" data-astro-cid-gjtny2mx>caching</span><span class="tag" data-astro-cid-gjtny2mx>scalability</span><span class="tag" data-astro-cid-gjtny2mx>consistency</span><span class="tag" data-astro-cid-gjtny2mx>cache-invalidation</span><span class="tag" data-astro-cid-gjtny2mx>consistent-hashing</span><span class="tag" data-astro-cid-gjtny2mx>interviews</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every fast system in the world has a secret: it cheats. It remembers answers instead of recalculating them. It keeps hot data in memory instead of hitting disk every time. That’s the cache—a simple idea with brutal complexity when you distribute it across a hundred machines.</p>
+<p>This post dissects distributed cache design from the algorithms that decide what to keep, to the architectures that keep it fast and consistent across a cluster.</p>
+<h2 id="why-you-need-a-distributed-cache">Why You Need a Distributed Cache</h2>
+<p>Before designing anything, understand the concrete problems a distributed cache solves:</p>
+<p><strong>Latency</strong>: A Redis lookup takes ~0.5ms. A PostgreSQL query with indexes takes ~5-50ms. A disk read takes ~10ms. Three orders of magnitude difference.</p>
+<p><strong>Throughput</strong>: Your database can handle 10,000 queries/second. Your application needs 500,000. Cache the hot 20% of data and you serve 80% of requests from memory.</p>
+<p><strong>Database cost</strong>: AWS RDS costs ~$0.40/vCPU-hour. A Redis cluster costs ~$0.40/node-hour but handles 10-50x more queries per dollar.</p>
+<p><strong>Availability</strong>: A cache miss on a Redis cluster is gracefully slow. A cache miss on a crashed database is a 503.</p>
+<p>The rule of thumb: 80% of your requests hit 20% of your data. Cache that 20%.</p>
+<distributedcachevisualizer client:load="">
+<h2 id="the-three-caching-strategies">The Three Caching Strategies</h2>
+<p>Every caching strategy is a variation on when you write to the cache relative to the database.</p>
+<h3 id="cache-aside-lazy-loading">Cache-Aside (Lazy Loading)</h3>
+<p>The most common pattern. Your application checks the cache first; on miss, it reads from the database and populates the cache:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_user</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#A9B1D6"> User </span><span style="color:#BB9AF7">|</span><span style="color:#FF9E64"> None</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Step 1: Check cache</span></span>
+<span class="line"><span style="color:#A9B1D6">    cache_key </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span></span>
+<span class="line"><span style="color:#A9B1D6">    cached </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cache_key</span><span style="color:#9ABDF5">)</span></span>
 <span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> cached</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">loads</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cached</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> User</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">from_json</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cached</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">  # Cache HIT</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # Step 2: Cache miss — load from database</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Step 2: Cache miss — read from database</span></span>
 <span class="line"><span style="color:#A9B1D6">    user </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">SELECT * FROM users WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> user </span><span style="color:#BB9AF7">is</span><span style="color:#FF9E64"> None</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#FF9E64"> None</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#51597D;font-style:italic">    # Step 3: Populate cache with TTL</span></span>
-<span class="line"><span style="color:#A9B1D6">    redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 300</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">user</span><span style="color:#9ABDF5">))</span><span style="color:#51597D;font-style:italic">  # 5 min TTL</span></span>
+<span class="line"><span style="color:#A9B1D6">    redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cache_key</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ttl</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">3600</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> value</span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5">user</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">to_json</span><span style="color:#9ABDF5">())</span></span>
 <span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> user</span></span>
 <span class="line"></span></code></pre>
-<p><strong>Pros:</strong></p>
-<ul>
-<li>Application controls everything: when to cache, what to cache, when to invalidate</li>
-<li>Cache only contains data that’s actually read (no wasted memory)</li>
-<li>Database is always the source of truth</li>
-</ul>
-<p><strong>Cons:</strong></p>
-<ul>
-<li>First request after deployment or restart is always a cache miss (cold start)</li>
-<li>Cache and database can drift: application updates DB but forgets to invalidate cache</li>
-<li>Three round trips per cache miss (check cache → query DB → write cache)</li>
-</ul>
-<h3 id="2-read-through">2. Read-Through</h3>
-<p>The cache is a “smart” layer that loads data on miss automatically:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Application just asks the cache — it handles loading</span></span>
-<span class="line"><span style="color:#A9B1D6">user </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">  # Block直到 cache fetches from DB</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># The cache's loader function does the work:</span></span>
-<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> user_loader</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> bytes</span><span style="color:#9ABDF5">:</span></span>
-<span class="line"><span style="color:#A9B1D6">    user_id </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> key</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">split</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">:</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">[</span><span style="color:#FF9E64">1</span><span style="color:#89DDFF">]</span></span>
-<span class="line"><span style="color:#A9B1D6">    user </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">SELECT * FROM users WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">user</span><span style="color:#9ABDF5">)</span></span>
+<p><strong>Pros</strong>: Simple, only caches what’s actually read, tolerant of cache failures (fallback to DB)
+<strong>Cons</strong>: First request is always cold (cache stampede on startup), stale data possible</p>
+<h3 id="write-through">Write-Through</h3>
+<p>You write to both the cache and database simultaneously:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> create_user</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> User</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#A9B1D6"> User</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Write to both simultaneously</span></span>
+<span class="line"><span style="color:#A9B1D6">    db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">INSERT INTO users ...</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    cache_key </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span></span>
+<span class="line"><span style="color:#A9B1D6">    redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cache_key</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ttl</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">3600</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> value</span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5">user</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">to_json</span><span style="color:#9ABDF5">())</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> user</span></span>
 <span class="line"></span></code></pre>
-<p>With Redis Modules or a library like <code>cache-aside-redis</code>:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">from</span><span style="color:#A9B1D6"> dogpile</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache </span><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> RedisBackend</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#A9B1D6">region </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> Region</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">backend</span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5">RedisBackend</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> executor</span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7">ThreadPoolExecutor</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">1</span><span style="color:#9ABDF5">))</span></span>
-<span class="line"><span style="color:#89DDFF">@</span><span style="color:#7AA2F7">region</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">cache_on_arguments</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">expiration</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">300</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_user</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> dict</span><span style="color:#9ABDF5">:</span></span>
-<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">SELECT * FROM users WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"></span></code></pre>
-<p><strong>Pros:</strong> Cleaner application code, cache handles loading automatically
-<strong>Cons:</strong> More complex cache implementation, application less explicit about what’s happening</p>
-<h3 id="3-write-through">3. Write-Through</h3>
-<p>Every write goes to cache AND database simultaneously:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> update_user</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> data</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> dict</span><span style="color:#9ABDF5">):</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # Write to cache and DB in the same transaction</span></span>
-<span class="line"><span style="color:#A9B1D6">    db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">UPDATE users SET ... WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#A9B1D6">    redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">set</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">data</span><span style="color:#9ABDF5">))</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # Both succeed or the operation fails</span></span>
-<span class="line"></span></code></pre>
-<p><strong>Pros:</strong> Cache is always consistent with the database. Read-after-write always hits cache.
-<strong>Cons:</strong> Adds latency to every write (cache write + DB write). Wasted memory for data nobody reads.</p>
-<h3 id="4-write-behind-write-back">4. Write-Behind (Write-Back)</h3>
-<p>Writes go to the cache first, and the cache asynchronously flushes to the database:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> update_user</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> data</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> dict</span><span style="color:#9ABDF5">):</span></span>
+<p><strong>Pros</strong>: Cache is always warm for reads, no cache stampede, strong consistency
+<strong>Cons</strong>: Writes are slower (two stores), cache fills with data nobody reads</p>
+<h3 id="write-behind-write-back">Write-Behind (Write-Back)</h3>
+<p>You write to the cache and return immediately; the cache asynchronously flushes to the database:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> update_user</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> updates</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> dict</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#FF9E64"> None</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#A9B1D6">    cache_key </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span></span>
 <span class="line"><span style="color:#51597D;font-style:italic">    # Write to cache immediately</span></span>
-<span class="line"><span style="color:#A9B1D6">    redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">set</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">data</span><span style="color:#9ABDF5">))</span></span>
+<span class="line"><span style="color:#A9B1D6">    cached </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cache_key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    user </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> User</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">from_json</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cached</span><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7"> if</span><span style="color:#A9B1D6"> cached </span><span style="color:#BB9AF7">else</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">user_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    user</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">merge</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">updates</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cache_key</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ttl</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">3600</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> value</span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5">user</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">to_json</span><span style="color:#9ABDF5">())</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # Mark as dirty — a background worker flushes to DB</span></span>
-<span class="line"><span style="color:#A9B1D6">    redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">sadd</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">dirty:users</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Mark for async DB write (in a background worker)</span></span>
+<span class="line"><span style="color:#A9B1D6">    event_queue</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">push</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">{</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">table</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">users</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">id</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#C0CAF5"> user_id</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">op</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">upsert</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">}</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Pros</strong>: Writes are extremely fast, excellent for write-heavy workloads
+<strong>Cons</strong>: Data loss risk if cache crashes before DB write, complexity in eventual consistency</p>
+<h2 id="cache-eviction-what-to-kick-out">Cache Eviction: What to Kick Out</h2>
+<p>When memory is full, you need to decide what stays and what goes.</p>
+<h3 id="lru--least-recently-used">LRU — Least Recently Used</h3>
+<p>The workhorse. Evict the data accessed furthest in the past:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">from</span><span style="color:#A9B1D6"> collections </span><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> OrderedDict</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Background job (e.g., every 10 seconds):</span></span>
-<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> flush_dirty_users</span><span style="color:#9ABDF5">():</span></span>
-<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> user_id </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">smembers</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">dirty:users</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#A9B1D6">        user_data </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#A9B1D6">        db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">UPDATE users SET ... WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_data</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#A9B1D6">        redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">srem</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">dirty:users</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"></span></code></pre>
-<p><strong>Pros:</strong> Writes are fast (cache only, not DB). Excellent for write-heavy workloads.
-<strong>Cons:</strong> Data loss risk if cache crashes before flushing. Complicated to implement correctly.</p>
-<h3 id="5-refresh-ahead-proactive">5. Refresh-Ahead (Proactive)</h3>
-<p>The cache proactively refreshes entries before they expire:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># A background refresher monitors cache and refreshes before TTL expires</span></span>
-<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> refresh_hot_entries</span><span style="color:#9ABDF5">():</span></span>
-<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> key </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> hot_keys</span><span style="color:#89DDFF">:</span><span style="color:#51597D;font-style:italic">  # Tracked by access frequency</span></span>
-<span class="line"><span style="color:#A9B1D6">        ttl </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">ttl</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> ttl </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 60</span><span style="color:#89DDFF">:</span><span style="color:#51597D;font-style:italic">  # Refresh when 60 seconds left</span></span>
-<span class="line"><span style="color:#A9B1D6">            data </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">SELECT * FROM users WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#A9B1D6">            redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 300</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">data</span><span style="color:#9ABDF5">))</span></span>
-<span class="line"></span></code></pre>
-<p><strong>Pros:</strong> Users never see cache misses on hot data.
-<strong>Cons:</strong> Wasted resources refreshing entries nobody reads. Complex to tune correctly.</p>
-<h2 id="cache-invalidation-the-hard-part">Cache Invalidation: The Hard Part</h2>
-<p>“Caches are lies you tell yourself to feel better about your database.” — The problem is when the lie gets too old.</p>
-<h3 id="ttl-time-to-live">TTL (Time-To-Live)</h3>
-<p>The simplest strategy: every cache entry has an expiration time.</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Short TTL for rapidly changing data</span></span>
-<span class="line"><span style="color:#A9B1D6">redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:session:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">session_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 1800</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> data</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">  # 30 min</span></span>
+<span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> LRUCache</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> capacity</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">capacity </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> capacity</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> OrderedDict</span><span style="color:#9ABDF5">()</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Longer TTL for stable reference data</span></span>
-<span class="line"><span style="color:#A9B1D6">redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"product:categories"</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 86400</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> data</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">        # 24 hours</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> get</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#BB9AF7"> |</span><span style="color:#FF9E64"> None</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> key </span><span style="color:#BB9AF7">not</span><span style="color:#BB9AF7"> in</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#FF9E64"> None</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Move to end (most recently used)</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">move_to_end</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">key</span><span style="color:#9ABDF5">]</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> put</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> value</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#FF9E64"> None</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> key </span><span style="color:#BB9AF7">in</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">move_to_end</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">key</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF"> =</span><span style="color:#A9B1D6"> value</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#0DB9D7"> len</span><span style="color:#9ABDF5">(</span><span style="color:#F7768E">self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">cache</span><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7"> ></span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">capacity</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">            # Evict LRU (first item)</span></span>
+<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">popitem</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">last</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">False</span><span style="color:#9ABDF5">)</span></span>
 <span class="line"></span></code></pre>
+<p>Redis uses an approximated LRU (sampling <code>maxmemory-samples</code> keys) for performance. True LRU requires a linked list that wastes memory on metadata.</p>
+<h3 id="lfu--least-frequently-used">LFU — Least Frequently Used</h3>
+<p>Evict the least-accessed item. Better for workloads where frequency matters more than recency:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">from</span><span style="color:#A9B1D6"> collections </span><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> Counter</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> LFUCache</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> capacity</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">capacity </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> capacity</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> {}</span><span style="color:#51597D;font-style:italic">       # key -> (value, freq)</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">freq_counter </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> Counter</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> get</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#BB9AF7"> |</span><span style="color:#FF9E64"> None</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> key </span><span style="color:#BB9AF7">not</span><span style="color:#BB9AF7"> in</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#FF9E64"> None</span></span>
+<span class="line"><span style="color:#A9B1D6">        freq </span><span style="color:#89DDFF">=</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">key</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">[</span><span style="color:#FF9E64">1</span><span style="color:#89DDFF">]</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">freq_counter</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">freq</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF"> -=</span><span style="color:#FF9E64"> 1</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">freq_counter</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">freq </span><span style="color:#89DDFF">+</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF"> +=</span><span style="color:#FF9E64"> 1</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">key</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF"> =</span><span style="color:#89DDFF"> (</span><span style="color:#F7768E">self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">key</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">[</span><span style="color:#FF9E64">0</span><span style="color:#89DDFF">],</span><span style="color:#A9B1D6"> freq </span><span style="color:#89DDFF">+</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cache</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">key</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">[</span><span style="color:#FF9E64">0</span><span style="color:#89DDFF">]</span></span>
+<span class="line"></span></code></pre>
+<p>Redis 4.0+ supports LFU via <code>maxmemory-policy allkeys-lfu</code>. MongoDB uses LRU for in-memory reads. The right eviction policy depends on your access pattern:</p>
 
 
 
@@ -143,363 +135,262 @@
 
 
 
-<table><thead><tr><th>Data Type</th><th>TTL</th><th>Rationale</th></tr></thead><tbody><tr><td>User sessions</td><td>15–60 min</td><td>Must reflect logout quickly</td></tr><tr><td>Product catalog</td><td>1–24 hours</td><td>Changes infrequently</td></tr><tr><td>Social media feeds</td><td>5–15 min</td><td>Balance freshness vs speed</td></tr><tr><td>Leaderboards</td><td>5–30 sec</td><td>Real-time competition</td></tr></tbody></table>
-<h3 id="eviction-policies">Eviction Policies</h3>
-<p>When memory is full, the cache must evict something. The most common policies:</p>
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<table><thead><tr><th>Policy</th><th>How it works</th><th>Best for</th></tr></thead><tbody><tr><td><strong>LRU</strong> (Least Recently Used)</td><td>Evict the least recently accessed item</td><td>General purpose, most workloads</td></tr><tr><td><strong>LFU</strong> (Least Frequently Used)</td><td>Evict least-accessed item overall</td><td>Stable hot dataset</td></tr><tr><td><strong>FIFO</strong> (First In, First Out)</td><td>Evict oldest entry</td><td>Simple, predictable latency</td></tr><tr><td><strong>Random</strong></td><td>Evict a random entry</td><td>Works well at scale (simpler, no bookkeeping)</td></tr><tr><td><strong>TTL</strong></td><td>Evict expired entries first</td><td>Time-sensitive data</td></tr></tbody></table>
-<p>Redis uses LRU by default but supports all of these:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span># redis.conf — set eviction policy</span></span>
-<span class="line"><span>maxmemory-policy allkeys-lru</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span># Available policies:</span></span>
-<span class="line"><span># noeviction, allkeys-lru, allkeys-random,</span></span>
-<span class="line"><span># volatile-lru, volatile-ttl, volatile-random, allkeys-lfu, volatile-lfu</span></span>
-<span class="line"><span></span></span></code></pre>
-<h3 id="eviction-in-memcached">Eviction in Memcached</h3>
-<p>Memcached uses LRU with a slab allocator:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span># Memcached eviction: pages → slabs → chunks</span></span>
-<span class="line"><span># Each slab class has chunks of a fixed size</span></span>
-<span class="line"><span># LRU per slab class (not global)</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span>Slab 1:  64-byte chunks     ← Items ≤ 64 bytes</span></span>
-<span class="line"><span>Slab 2:  128-byte chunks     ← Items ≤ 128 bytes</span></span>
-<span class="line"><span>Slab 3:  256-byte chunks</span></span>
-<span class="line"><span>...</span></span>
-<span class="line"><span>Slab 42: 1MB chunks         ← Large objects</span></span>
-<span class="line"><span></span></span></code></pre>
-<p>When a slab class runs out of free chunks, it evicts from the <strong>tail</strong> of its per-slab LRU. This means large items can expire before small ones even if the small items are older—a footgun in production.</p>
+<table><thead><tr><th>Policy</th><th>Best For</th><th>Avoid When</th></tr></thead><tbody><tr><td>LRU</td><td>General purpose, web apps</td><td>Access frequency matters</td></tr><tr><td>LFU</td><td>Stable hot datasets, leaderboards</td><td>Burst traffic, cache cold starts</td></tr><tr><td>TTL-only</td><td>Session stores, rate data</td><td>Need persistence of hot items</td></tr><tr><td>Random</td><td>Uniformly distributed data, cache-through</td><td>Hot spots exist</td></tr><tr><td>W-TinyLFU</td><td>Workload isolation, mixed read/write</td><td>Simple implementation needed</td></tr></tbody></table>
+<h2 id="the-thundering-herd-problem">The Thundering Herd Problem</h2>
+<p>When a popular cache key expires, 10,000 requests can hit the database simultaneously—all of them discovering the cache is empty at the same time. This is the thundering herd.</p>
+<h3 id="probabilistic-early-expiration">Probabilistic Early Expiration</h3>
+<p>Instead of serving a stale value or hitting the database, you probabilistically extend the TTL:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> hashlib</span></span>
+<span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> random</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_with_probabilistic_early_expiry</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">cache</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> db</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ttl</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">3600</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    """Serve stale with low probability while refreshing in background."""</span></span>
+<span class="line"><span style="color:#A9B1D6">    cached </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> cached</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        value</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> expiry </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cached</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # If within 10% of TTL, 10% chance of early refresh</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> expiry </span><span style="color:#89DDFF">-</span><span style="color:#A9B1D6"> time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">time</span><span style="color:#9ABDF5">()</span><span style="color:#BB9AF7"> &#x3C;</span><span style="color:#A9B1D6"> ttl </span><span style="color:#89DDFF">*</span><span style="color:#FF9E64"> 0.10</span><span style="color:#BB9AF7"> and</span><span style="color:#A9B1D6"> random</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">random</span><span style="color:#9ABDF5">()</span><span style="color:#BB9AF7"> &#x3C;</span><span style="color:#FF9E64"> 0.10</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">            # Asynchronously refresh</span></span>
+<span class="line"><span style="color:#A9B1D6">            asyncio</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">create_task</span><span style="color:#9ABDF5">(</span><span style="color:#7AA2F7">refresh_cache</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cache</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> db</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> key</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> ttl</span><span style="color:#9ABDF5">))</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> value</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Cold miss — refresh synchronously</span></span>
+<span class="line"><span style="color:#A9B1D6">    value </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> ttl</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> value</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> value</span></span>
+<span class="line"></span></code></pre>
+<h3 id="lock-based-cache-stampede-prevention">Lock-Based Cache Stampede Prevention</h3>
+<p>Use a distributed lock so only one request refreshes while others wait:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> redis</span></span>
+<span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> time</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_with_lock</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">cache</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">Redis</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> db</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ttl</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF"> =</span><span style="color:#FF9E64"> 3600</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#A9B1D6">    cached </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> cached</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> cached</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Try to acquire lock for cache population</span></span>
+<span class="line"><span style="color:#A9B1D6">    lock_key </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"lock:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span></span>
+<span class="line"><span style="color:#A9B1D6">    lock_acquired </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">set</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">lock_key</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">1</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> nx</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">True</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ex</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">10</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> lock_acquired</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # We got the lock — refresh the cache</span></span>
+<span class="line"><span style="color:#A9B1D6">        value </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> ttl</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> value</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">delete</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">lock_key</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">  # Release lock</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> value</span></span>
+<span class="line"><span style="color:#BB9AF7">    else</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Another request is refreshing — wait and retry</span></span>
+<span class="line"><span style="color:#BB9AF7">        for</span><span style="color:#A9B1D6"> _ </span><span style="color:#BB9AF7">in</span><span style="color:#0DB9D7"> range</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">10</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">            time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">sleep</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">0.1</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">            cached </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">            if</span><span style="color:#A9B1D6"> cached</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">                return</span><span style="color:#A9B1D6"> cached</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Timeout — hit the database</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<p>Redis SETNX (SET if Not eXists) is your distributed lock primitive.</p>
 <h2 id="consistent-hashing-distributing-keys-across-nodes">Consistent Hashing: Distributing Keys Across Nodes</h2>
-<p>The naive approach to distribution is <code>hash(key) % num_nodes</code>. It works until you add or remove a node, which remaps ~1/N of all keys and causes a cascade of cache misses (the “thundering herd” problem).</p>
-<p><strong>Consistent hashing</strong> solves this with a hash ring:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>                    hash("user:123")</span></span>
-<span class="line"><span>                         ↓</span></span>
-<span class="line"><span>                        104°</span></span>
-<span class="line"><span>                         │</span></span>
-<span class="line"><span>           0° ←─────── ● ───────→ 360°</span></span>
-<span class="line"><span>                       /   ↑</span></span>
-<span class="line"><span>              Node A   /    │   Node B</span></span>
-<span class="line"><span>             0°–120°  /     │   240°–360°</span></span>
-<span class="line"><span>                      /     │</span></span>
-<span class="line"><span>                     /   Node C</span></span>
-<span class="line"><span>                    /    120°–240°</span></span>
+<p>With N cache nodes, which node stores which key? Naive hashing (<code>node = hash(key) % N</code>) breaks when you add or remove nodes—every key remaps, causing a cascade of cache misses.</p>
+<p>Consistent hashing assigns keys to nodes in a ring:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>                    [Node C: 0-100]</span></span>
+<span class="line"><span>                          |</span></span>
+<span class="line"><span>    [Node A: 200-360] --- RING --- [Node B: 100-200]</span></span>
+<span class="line"><span>          |                            |</span></span>
+<span class="line"><span>    Each key hashes to its           Node responsible</span></span>
+<span class="line"><span>    position on the ring            for the nearest</span></span>
+<span class="line"><span>    → Key at 150 goes to B           clockwise node</span></span>
 <span class="line"><span></span></span></code></pre>
-<p>Every node occupies a range on the ring. Every key hashes to a point on the ring and is served by the first node clockwise from that point.</p>
-<h3 id="adding-a-node-only-kn-keys-move">Adding a Node: Only K/N Keys Move</h3>
-<p>With K virtual nodes per physical node, adding Node D only shifts ~K/N of the key space:</p>
 <pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> hashlib</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> ConsistentHash</span><span style="color:#9ABDF5">:</span></span>
-<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> nodes</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> list</span><span style="color:#9ABDF5">[</span><span style="color:#0DB9D7">str</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> vnodes</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF"> =</span><span style="color:#FF9E64"> 150</span><span style="color:#9ABDF5">):</span></span>
-<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">ring </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> {}</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> nodes</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> list</span><span style="color:#9ABDF5">[</span><span style="color:#0DB9D7">str</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> virtual_nodes</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF"> =</span><span style="color:#FF9E64"> 100</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">ring </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> {}</span><span style="color:#51597D;font-style:italic">  # hash -> node</span></span>
 <span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">sorted_keys </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> []</span></span>
-<span class="line"></span>
 <span class="line"><span style="color:#BB9AF7">        for</span><span style="color:#A9B1D6"> node </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> nodes</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#BB9AF7">            for</span><span style="color:#A9B1D6"> i </span><span style="color:#BB9AF7">in</span><span style="color:#0DB9D7"> range</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">vnodes</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#A9B1D6">                key </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> hashlib</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">md5</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">node</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">i</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">hexdigest</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#BB9AF7">            for</span><span style="color:#A9B1D6"> i </span><span style="color:#BB9AF7">in</span><span style="color:#0DB9D7"> range</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">virtual_nodes</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">                key </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> hashlib</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">md5</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">node</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">i</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">encode</span><span style="color:#9ABDF5">())</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">hexdigest</span><span style="color:#9ABDF5">()</span></span>
 <span class="line"><span style="color:#F7768E">                self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">ring</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">key</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF"> =</span><span style="color:#A9B1D6"> node</span></span>
 <span class="line"><span style="color:#F7768E">                self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">sorted_keys</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">append</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"></span>
 <span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">sorted_keys</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">sort</span><span style="color:#9ABDF5">()</span></span>
 <span class="line"></span>
 <span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> get_node</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">:</span></span>
-<span class="line"><span style="color:#A9B1D6">        hash_val </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">hashlib</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">md5</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">hexdigest</span><span style="color:#9ABDF5">()</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 16</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">        # Binary search for the first node >= hash_val</span></span>
-<span class="line"><span style="color:#A9B1D6">        pos </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> bisect</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">bisect_right</span><span style="color:#9ABDF5">(</span><span style="color:#F7768E">self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sorted_keys</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> hash_val</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> pos </span><span style="color:#BB9AF7">>=</span><span style="color:#0DB9D7"> len</span><span style="color:#9ABDF5">(</span><span style="color:#F7768E">self</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">sorted_keys</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#A9B1D6">            pos </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> 0</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">ring</span><span style="color:#9ABDF5">[</span><span style="color:#F7768E">self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">sorted_keys</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">pos</span><span style="color:#9ABDF5">]]</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#BB9AF7"> not</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">ring</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">            raise</span><span style="color:#0DB9D7"> ValueError</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">No nodes in ring</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        hash_key </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> hashlib</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">md5</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">encode</span><span style="color:#9ABDF5">())</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">hexdigest</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Binary search for the first node >= hash_key</span></span>
+<span class="line"><span style="color:#BB9AF7">        for</span><span style="color:#A9B1D6"> ring_key </span><span style="color:#BB9AF7">in</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">sorted_keys</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">            if</span><span style="color:#A9B1D6"> ring_key </span><span style="color:#BB9AF7">>=</span><span style="color:#A9B1D6"> hash_key</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">                return</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">ring</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">ring_key</span><span style="color:#9ABDF5">]</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Wrap around to first node</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">ring</span><span style="color:#9ABDF5">[</span><span style="color:#F7768E">self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">sorted_keys</span><span style="color:#9ABDF5">[</span><span style="color:#FF9E64">0</span><span style="color:#9ABDF5">]]</span></span>
 <span class="line"></span></code></pre>
-<h3 id="virtual-nodes-for-better-distribution">Virtual Nodes for Better Distribution</h3>
-<p>Without virtual nodes, each physical node is one point on the ring. A high-traffic node becomes a bottleneck. Virtual nodes (typically 150–200 per physical node) give a more uniform distribution:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Physical node A → 150 virtual points spread around the ring</span></span>
-<span class="line"><span>Physical node B → 150 virtual points spread around the ring</span></span>
-<span class="line"><span>Physical node C → 150 virtual points spread around the ring</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span>Result: adding/removing any node causes ~1/3 of virtual nodes to shift</span></span>
-<span class="line"><span>→ only 1/3 * (1/N) of physical keys remap ≈ 1/N keys move</span></span>
-<span class="line"><span></span></span></code></pre>
-<h3 id="redis-cluster-hash-slots-not-consistent-hashing">Redis Cluster: Hash Slots, Not Consistent Hashing</h3>
-<p>Redis Cluster takes a different approach: 16,384 hash slots. Keys are assigned to slots via <code>CRC16(key) mod 16384</code>, and slots are distributed across nodes:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Node A: slots 0–5460</span></span>
-<span class="line"><span>Node B: slots 5461–10922</span></span>
-<span class="line"><span>Node C: slots 10923–16383</span></span>
-<span class="line"><span></span></span></code></pre>
-<p><strong>This is simpler than consistent hashing</strong> for Redis because slot assignment is deterministic—no lookup required. The tradeoff: resharding requires slot migration (Redis Cluster handles this online).</p>
-<h2 id="cache-stampede-when-caches-kill-themselves">Cache Stampede: When Caches Kill Themselves</h2>
-<p>The worst failure mode: cache expires, 10,000 requests hit the database simultaneously because they all saw the miss at the same time. This is a <strong>cache stampede</strong> (aka the thundering herd problem).</p>
-<h3 id="solution-1-probabilistic-early-expiration">Solution 1: Probabilistic Early Expiration</h3>
-<p>Instead of waiting for TTL to expire, probabilistically refresh before it expires:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># probcache.py logic</span></span>
-<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_with_probabilistic_expiry</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">key</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> cache</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> db</span><span style="color:#9ABDF5">):</span></span>
-<span class="line"><span style="color:#A9B1D6">    value</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> expiry </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get_with_expiry</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> value </span><span style="color:#BB9AF7">is</span><span style="color:#FF9E64"> None</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">        # Cache miss — load from DB</span></span>
-<span class="line"><span style="color:#A9B1D6">        value </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#A9B1D6">        cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 300</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> value</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> value</span></span>
+<p>Virtual nodes (e.g., 100 per physical node) spread the load more evenly. Adding a node only remaps keys near its position on the ring, not 1/N of all keys.</p>
+<h3 id="consistent-hashing-in-practice">Consistent Hashing in Practice</h3>
+<p><strong>Redis Cluster</strong> doesn’t use consistent hashing—instead, it uses hash slots (16,384 slots distributed across nodes). To add capacity, you migrate slots, not individual keys.</p>
+<p><strong>Amazon DynamoDB</strong> and <strong>Cassandra</strong> use consistent hashing with virtual nodes. Each node is responsible for a range of the hash ring.</p>
+<h2 id="distributing-a-cache-cluster">Distributing a Cache Cluster</h2>
+<p>A single Redis node handles ~100,000-200,000 requests/second. At 1,000,000 requests/second, you need a cluster.</p>
+<h3 id="redis-cluster-architecture">Redis Cluster Architecture</h3>
+<p>Redis Cluster shards data across multiple nodes using hash slots:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># 16,384 slots distributed across 6 nodes (3 masters + 3 replicas)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Node A (master): slots 0-5460</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Node B (master): slots 5461-10922</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Node C (master): slots 10923-16383</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # Check if we should refresh early</span></span>
-<span class="line"><span style="color:#A9B1D6">    ttl_remaining </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> expiry </span><span style="color:#89DDFF">-</span><span style="color:#A9B1D6"> time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">time</span><span style="color:#9ABDF5">()</span></span>
-<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> ttl_remaining </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 0</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> value</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # Probability of early refresh:</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # higher when TTL is low and item is popular</span></span>
-<span class="line"><span style="color:#A9B1D6">    threshold </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> recalc_threshold</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">value</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> ttl_remaining</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ...</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> random</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">random</span><span style="color:#9ABDF5">()</span><span style="color:#BB9AF7"> &#x3C;</span><span style="color:#A9B1D6"> threshold</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">        # Async refresh in background</span></span>
-<span class="line"><span style="color:#7AA2F7">        background_refresh</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> db</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> cache</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> value</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Which slot does a key live in?</span></span>
+<span class="line"><span style="color:#C0CAF5">CLUSTER</span><span style="color:#9ECE6A"> KEYSLOT</span><span style="color:#9ECE6A"> user:1234</span><span style="color:#51597D;font-style:italic">        # → slot number</span></span>
+<span class="line"><span style="color:#C0CAF5">CLUSTER</span><span style="color:#9ECE6A"> Slots</span><span style="color:#FF9E64"> 0</span><span style="color:#51597D;font-style:italic">                  # → node info for slot 0</span></span>
 <span class="line"></span></code></pre>
-<h3 id="solution-2-cache-locking-mutex">Solution 2: Cache Locking (Mutex)</h3>
-<p>Only one process refreshes; others wait:</p>
+<p>Each master has replica(s) for high availability. If Node A crashes, its replica is promoted to master automatically.</p>
+<h3 id="client-routing">Client Routing</h3>
 <pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> redis</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_with_lock</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> cache</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">Redis</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> db</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ttl</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF"> =</span><span style="color:#FF9E64"> 300</span><span style="color:#9ABDF5">):</span></span>
-<span class="line"><span style="color:#A9B1D6">    value </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> value</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">loads</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">value</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># redis-py cluster client handles slot routing automatically</span></span>
+<span class="line"><span style="color:#7DCFFF">from</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">cluster </span><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> RedisCluster</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # Try to acquire lock</span></span>
-<span class="line"><span style="color:#A9B1D6">    lock_key </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"lock:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span></span>
-<span class="line"><span style="color:#A9B1D6">    acquired </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">set</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">lock_key</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">1</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> nx</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">True</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ex</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">10</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">rc </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> RedisCluster</span><span style="color:#9ABDF5">(</span></span>
+<span class="line"><span style="color:#E0AF68">    host</span><span style="color:#89DDFF">=</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">10.0.0.1</span><span style="color:#89DDFF">'</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#E0AF68">    port</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">7000</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#E0AF68">    read_from_replicas</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">True</span><span style="color:#51597D;font-style:italic">  # Read from replicas for lower latency</span></span>
+<span class="line"><span style="color:#9ABDF5">)</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> acquired</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">        # We got the lock — refresh from DB</span></span>
-<span class="line"><span style="color:#A9B1D6">        value </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">SELECT * FROM users WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#A9B1D6">        cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> ttl</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">value</span><span style="color:#9ABDF5">))</span></span>
-<span class="line"><span style="color:#A9B1D6">        cache</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">delete</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">lock_key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> value</span></span>
-<span class="line"><span style="color:#BB9AF7">    else</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">        # Another process is refreshing — wait and retry</span></span>
-<span class="line"><span style="color:#A9B1D6">        time</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">sleep</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">0.1</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#7AA2F7"> get_with_lock</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> cache</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> db</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> ttl</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Client routes automatically based on key slot</span></span>
+<span class="line"><span style="color:#A9B1D6">user </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> rc</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">user:1234</span><span style="color:#89DDFF">'</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">   # Routes to correct node</span></span>
 <span class="line"></span></code></pre>
-<h3 id="solution-3-background-refreshing-with-lease">Solution 3: Background Refreshing with Lease</h3>
-<p>Google’s memcached uses “leases” to prevent stampedes:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>1. Cache miss → memcached gives client a lease token (64-bit int)</span></span>
-<span class="line"><span>2. Client fetches from DB, sends result back with lease token</span></span>
-<span class="line"><span>3. Memcached verifies token is still valid, stores value</span></span>
-<span class="line"><span>4. Other clients hitting same key during this window get served from cache</span></span>
-<span class="line"><span></span></span></code></pre>
-<h2 id="hot-keys-when-one-key-breaks-everything">Hot Keys: When One Key Breaks Everything</h2>
-<p>Even with consistent hashing, some keys are accessed millions of times per second. A celebrity’s profile, a viral tweet’s metadata, a hot product’s price. These “hot keys” can saturate a single cache node regardless of how many nodes you have.</p>
-<h3 id="solutions-for-hot-keys">Solutions for Hot Keys:</h3>
-<p><strong>1. Replicate hot keys across multiple nodes</strong></p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Key "trending:hashtag:1" replicated to nodes A, B, C, D</span></span>
-<span class="line"><span>Read requests randomly pick one of the replicas</span></span>
-<span class="line"><span></span></span></code></pre>
-<p><strong>2. Split hot keys into sub-keys</strong></p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Instead of one monolithic cache entry:</span></span>
-<span class="line"><span style="color:#A9B1D6">redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">set</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">leaderboard:global</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">top_1000</span><span style="color:#9ABDF5">))</span></span>
+<h3 id="multi-get-when-one-request-hits-n-nodes">Multi-Get: When One Request Hits N Nodes</h3>
+<p>If you need data from 50 cache keys, they might live on 10 different nodes:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Naive: 10 sequential round trips</span></span>
+<span class="line"><span style="color:#A9B1D6">results </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> [</span><span style="color:#A9B1D6">redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">i</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7"> for</span><span style="color:#A9B1D6"> i </span><span style="color:#BB9AF7">in</span><span style="color:#0DB9D7"> range</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">50</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">]</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic"># Partition by score range:</span></span>
-<span class="line"><span style="color:#A9B1D6">redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">set</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">leaderboard:1</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">top_100</span><span style="color:#9ABDF5">))</span><span style="color:#51597D;font-style:italic">    # 1M–100M score</span></span>
-<span class="line"><span style="color:#A9B1D6">redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">set</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">leaderboard:2</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> json</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">dumps</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">top_100_2</span><span style="color:#9ABDF5">))</span><span style="color:#51597D;font-style:italic">   # 100M–200M score</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Smart: parallel requests to each node</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 1. Group keys by slot/node</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 2. Send parallel MGET to each node</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 3. Merge results</span></span>
+<span class="line"><span style="color:#7DCFFF">from</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">asyncio </span><span style="color:#7DCFFF">import</span><span style="color:#A9B1D6"> cluster </span><span style="color:#7DCFFF">as</span><span style="color:#A9B1D6"> redis_cluster</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> mget_cluster</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">keys</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> list</span><span style="color:#9ABDF5">[</span><span style="color:#0DB9D7">str</span><span style="color:#9ABDF5">])</span><span style="color:#89DDFF"> -></span><span style="color:#A9B1D6"> list</span><span style="color:#9ABDF5">[</span><span style="color:#0DB9D7">str</span><span style="color:#BB9AF7"> |</span><span style="color:#FF9E64"> None</span><span style="color:#9ABDF5">]:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    """Multi-get optimized for Redis Cluster."""</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Group by slot</span></span>
+<span class="line"><span style="color:#A9B1D6">    slot_map </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> defaultdict</span><span style="color:#9ABDF5">(</span><span style="color:#0DB9D7">list</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> key </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> keys</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        slot </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis_cluster</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">keyslot</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">        slot_map</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">slot</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">append</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Parallel MGET per node</span></span>
+<span class="line"><span style="color:#A9B1D6">    results </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> {}</span></span>
+<span class="line"><span style="color:#BB9AF7">    async</span><span style="color:#BB9AF7"> with</span><span style="color:#A9B1D6"> redis_cluster</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">RedisCluster</span><span style="color:#9ABDF5">()</span><span style="color:#BB9AF7"> as</span><span style="color:#A9B1D6"> rc</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        tasks </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> []</span></span>
+<span class="line"><span style="color:#BB9AF7">        for</span><span style="color:#A9B1D6"> slot</span><span style="color:#89DDFF">,</span><span style="color:#A9B1D6"> slot_keys </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> slot_map</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">items</span><span style="color:#9ABDF5">()</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">            tasks</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">append</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">rc</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">mget</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">slot_keys</span><span style="color:#9ABDF5">))</span></span>
+<span class="line"><span style="color:#A9B1D6">        node_results </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> await</span><span style="color:#A9B1D6"> asyncio</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">gather</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">*</span><span style="color:#C0CAF5">tasks</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        for</span><span style="color:#A9B1D6"> node_result </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> node_results</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">            results</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">update</span><span style="color:#9ABDF5">(</span><span style="color:#0DB9D7">dict</span><span style="color:#9ABDF5">(</span><span style="color:#0DB9D7">zip</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">slot_keys</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> node_result</span><span style="color:#9ABDF5">)))</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#89DDFF"> [</span><span style="color:#A9B1D6">results</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">k</span><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7"> for</span><span style="color:#A9B1D6"> k </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> keys</span><span style="color:#89DDFF">]</span></span>
 <span class="line"></span></code></pre>
-<p><strong>3. Client-side throttling</strong></p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> get_hot_key_throttled</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> redis_cluster</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> db</span><span style="color:#9ABDF5">):</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">    # Rate limit per key from the client side</span></span>
-<span class="line"><span style="color:#A9B1D6">    rate_key </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"ratelimit:hotkey:</span><span style="color:#BB9AF7">{</span><span style="color:#0DB9D7">hash</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> %</span><span style="color:#FF9E64"> 1000</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span></span>
-<span class="line"><span style="color:#A9B1D6">    allowed </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis_cluster</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">incr</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">rate_key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> allowed </span><span style="color:#BB9AF7">==</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#A9B1D6">        redis_cluster</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">expire</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">rate_key</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> allowed </span><span style="color:#BB9AF7">></span><span style="color:#FF9E64"> 100</span><span style="color:#89DDFF">:</span><span style="color:#51597D;font-style:italic">  # Max 100 reads/sec per sub-shard</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">  # Fall back to DB</span></span>
-<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> redis_cluster</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<h2 id="cache-warming-prepopulating-after-deploy">Cache Warming: Prepopulating After Deploy</h2>
+<p>After a restart, your cache is cold. Users see elevated latency until hot keys are repopulated. Cache warming preloads popular data:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> warm_cache</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">redis_client</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> db</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> top_users</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> list</span><span style="color:#9ABDF5">[</span><span style="color:#0DB9D7">int</span><span style="color:#9ABDF5">]):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    """Warm cache for top N users after deployment."""</span></span>
+<span class="line"><span style="color:#A9B1D6">    pipeline </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis_client</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">pipeline</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> user_id </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> top_users</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        user </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">SELECT * FROM users WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> user</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">            pipeline</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> ttl</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">86400</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> value</span><span style="color:#89DDFF">=</span><span style="color:#C0CAF5">user</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">to_json</span><span style="color:#9ABDF5">())</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Execute all writes in one round trip</span></span>
+<span class="line"><span style="color:#A9B1D6">    pipeline</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">execute</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Run on startup after deployment</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Kubernetes post-start hook, systemd unit, or application init</span></span>
 <span class="line"></span></code></pre>
-<h2 id="memcached-vs-redis-which-cache">Memcached vs Redis: Which Cache?</h2>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<table><thead><tr><th>Feature</th><th>Memcached</th><th>Redis</th></tr></thead><tbody><tr><td>Data structures</td><td>Strings only</td><td>Strings, hashes, lists, sets, sorted sets, streams, bitmaps</td></tr><tr><td>Eviction policies</td><td>LRU per slab class</td><td>LRU, LFU, TTL, random, noeviction</td></tr><tr><td>Persistence</td><td>None</td><td>RDB snapshots + AOF append-only file</td></tr><tr><td>Replication</td><td>None (stateless)</td><td>Master-replica replication</td></tr><tr><td>Clustering</td><td>Consistent hashing (client-side)</td><td>Hash slots (server-side)</td></tr><tr><td>Protocol</td><td>ASCII, Binary</td><td>ASCII, Binary, RESP (wire protocol)</td></tr><tr><td>Max value size</td><td>1MB</td><td>512MB</td></tr><tr><td>Multi-threaded</td><td>Yes (uses all cores)</td><td>Yes (Redis 6+)</td></tr><tr><td>Use when</td><td>Simple string caching, pure memory pressure</td><td>Need data structures, persistence, replication</td></tr></tbody></table>
-<p>For most web applications: <strong>start with Redis</strong>. The richer data structures (sorted sets for leaderboards, streams for queues, hashes for objects) pay for themselves quickly. If you’re Facebook-scale and only need string caching, Memcached’s multi-threaded architecture has lower CPU overhead.</p>
-<h2 id="multi-level-caching-l1--l2-architecture">Multi-Level Caching: L1 + L2 Architecture</h2>
-<p>Real production systems stack multiple cache levels:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Browser Cache (L1)          → Milliseconds, kilobytes, per-user</span></span>
-<span class="line"><span>                    ↓ miss</span></span>
-<span class="line"><span>CDN Edge Cache (L2)          → Milliseconds, megabytes, shared globally</span></span>
-<span class="line"><span>                    ↓ miss</span></span>
-<span class="line"><span>Application In-Memory (L3)   → Microseconds, gigabytes, per-host (e.g., Go map + LRU)</span></span>
-<span class="line"><span>                    ↓ miss</span></span>
-<span class="line"><span>Distributed Redis (L4)      → Milliseconds, terabytes, shared cluster</span></span>
-<span class="line"><span>                    ↓ miss</span></span>
-<span class="line"><span>Database (L5)               → Milliseconds–seconds, terabytes, shared</span></span>
-<span class="line"><span></span></span></code></pre>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Multi-level lookup: L1 (in-memory) → L2 (Redis) → DB</span></span>
-<span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> MultiLevelCache</span><span style="color:#9ABDF5">:</span></span>
-<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> l1</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> dict</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> l2</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> Redis</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> db</span><span style="color:#9ABDF5">):</span></span>
-<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">l1 </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> l1  </span><span style="color:#51597D;font-style:italic"># e.g., Python dict with LRU from cachetools</span></span>
-<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">l2 </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> l2</span></span>
-<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">db </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span></span>
+<p>For Elasticsearch, warm queries can prepopulate search caches. For Kafka, consumer lag dashboards tell you when caches are healthy.</p>
+<h2 id="production-patterns">Production Patterns</h2>
+<h3 id="cache-key-design">Cache Key Design</h3>
+<p>Keys should be descriptive and bounded in size:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Good: descriptive, bounded</span></span>
+<span class="line"><span style="color:#C0CAF5">SET</span><span style="color:#9ECE6A"> user:12345:profile</span><span style="color:#89DDFF">        "</span><span style="color:#9ECE6A">{...}</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">SET</span><span style="color:#9ECE6A"> session:abc123:cart</span><span style="color:#89DDFF">        "</span><span style="color:#9ECE6A">{...}</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#C0CAF5">SET</span><span style="color:#9ECE6A"> rate:192.168.1.1:minute</span><span style="color:#89DDFF">   "</span><span style="color:#9ECE6A">42</span><span style="color:#89DDFF">"</span></span>
 <span class="line"></span>
-<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> get</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#A9B1D6"> Optional</span><span style="color:#9ABDF5">[</span><span style="color:#0DB9D7">dict</span><span style="color:#9ABDF5">]:</span></span>
-<span class="line"><span style="color:#51597D;font-style:italic">        # L1: microsecond lookup</span></span>
-<span class="line"><span style="color:#A9B1D6">        val </span><span style="color:#89DDFF">=</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">l1</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> val</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#A9B1D6"> val</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic">        # L2: Redis</span></span>
-<span class="line"><span style="color:#A9B1D6">        val </span><span style="color:#89DDFF">=</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">l2</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> val</span><span style="color:#89DDFF">:</span></span>
-<span class="line"><span style="color:#F7768E">            self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">l1</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">key</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF"> =</span><span style="color:#A9B1D6"> val  </span><span style="color:#51597D;font-style:italic"># Promote to L1</span></span>
-<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#A9B1D6"> val</span></span>
-<span class="line"></span>
-<span class="line"><span style="color:#51597D;font-style:italic">        # L3: Database</span></span>
-<span class="line"><span style="color:#A9B1D6">        val </span><span style="color:#89DDFF">=</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">l2</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">setex</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#89DDFF">,</span><span style="color:#FF9E64"> 300</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> val</span><span style="color:#9ABDF5">)</span></span>
-<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">l1</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">key</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF"> =</span><span style="color:#A9B1D6"> val</span></span>
-<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#A9B1D6"> val</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Bad: unbounded strings, no separator</span></span>
+<span class="line"><span style="color:#C0CAF5">SET</span><span style="color:#9ECE6A"> userexample123454545545</span><span style="color:#89DDFF">    "</span><span style="color:#9ECE6A">{...}</span><span style="color:#89DDFF">"</span></span>
 <span class="line"></span></code></pre>
-<h2 id="production-architecture">Production Architecture</h2>
-<p>A production distributed cache cluster looks like:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>App Servers</span></span>
-<span class="line"><span>    │</span></span>
-<span class="line"><span>    ├─ Redis Sentinel (3 nodes): automated failover, read replicas</span></span>
-<span class="line"><span>    │       │</span></span>
-<span class="line"><span>    │       └─ Master (writes) ←→ Replica 1 ←→ Replica 2</span></span>
-<span class="line"><span>    │                    │</span></span>
-<span class="line"><span>    │                    └─ Sentinel monitors: ping every 1s</span></span>
-<span class="line"><span>    │                                    detects failover in ~10s</span></span>
-<span class="line"><span>    │</span></span>
-<span class="line"><span>    └─ Redis Cluster (6 nodes): horizontal sharding, 16,384 slots</span></span>
-<span class="line"><span>            │</span></span>
-<span class="line"><span>            ├─ Node A (slots 0-5460)      Primary + 1 replica</span></span>
-<span class="line"><span>            ├─ Node B (slots 5461-10922) Primary + 1 replica</span></span>
-<span class="line"><span>            ├─ Node C (slots 10923-16383)Primary + 1 replica</span></span>
-<span class="line"><span>            ├─ Node A-replica</span></span>
-<span class="line"><span>            ├─ Node B-replica</span></span>
-<span class="line"><span>            └─ Node C-replica</span></span>
-<span class="line"><span></span></span></code></pre>
-<h3 id="the-cache-monitoring-dashboard">The Cache Monitoring Dashboard</h3>
-<p>If you can’t measure it, you can’t control it:</p>
-<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span># Cache hit rate</span></span>
-<span class="line"><span>cache_hits_total / (cache_hits_total + cache_misses_total)</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span># Latency percentiles</span></span>
-<span class="line"><span>cache_operation_duration_seconds{quantile="0.99"}</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span># Memory utilization</span></span>
-<span class="line"><span>redis_memory_used_bytes / redis_memory_max_bytes</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span># Eviction rate (if non-zero, you need more memory)</span></span>
-<span class="line"><span>redis_evicted_keys_total</span></span>
-<span class="line"><span></span></span>
-<span class="line"><span># Stale reads from replicas</span></span>
-<span class="line"><span>redis_replica_reads_lagged_bytes</span></span>
-<span class="line"><span></span></span></code></pre>
-<h2 id="conclusion">Conclusion</h2>
-<p>A distributed cache is deceptively simple: store the answer so you don’t have to ask again. But the engineering underneath is deep:</p>
-<ol>
-<li><strong>Pattern</strong>: Cache-aside for most cases, read-through when you want cleaner code</li>
-<li><strong>Eviction</strong>: LRU for general use, LFU when you know your access distribution</li>
-<li><strong>Distribution</strong>: Consistent hashing (or hash slots with Redis Cluster) for horizontal scale</li>
-<li><strong>Stampede prevention</strong>: Probabilistic early expiration or mutex locks</li>
-<li><strong>Hot keys</strong>: Replicate across nodes or partition aggressively</li>
-<li><strong>Multi-level</strong>: Stack L1 (in-memory) + L2 (Redis) for the best latency/throughput tradeoff</li>
-</ol>
-<p>The right cache architecture is the one that survives your next viral moment without taking your database with it.</p>
-<hr>
-<p><strong>Related Posts</strong></p>
+<h3 id="monitoring-cache-health">Monitoring Cache Health</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Hit/miss rate</span></span>
+<span class="line"><span style="color:#C0CAF5">redis-cli</span><span style="color:#9ECE6A"> INFO</span><span style="color:#9ECE6A"> stats</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#E0AF68"> -E</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">keyspace_hits|keyspace_misses</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># hit_rate = hits / (hits + misses)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Memory fragmentation</span></span>
+<span class="line"><span style="color:#C0CAF5">redis-cli</span><span style="color:#9ECE6A"> INFO</span><span style="color:#9ECE6A"> memory</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#9ECE6A"> mem_fragmentation_ratio</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># > 1.5 means wasted memory from fragmentation</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Latency distribution</span></span>
+<span class="line"><span style="color:#C0CAF5">redis-cli</span><span style="color:#E0AF68"> --latency-percentiles</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 50th, 99th, 99.9th percentile latencies</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Replication lag (for replica reads)</span></span>
+<span class="line"><span style="color:#C0CAF5">redis-cli</span><span style="color:#9ECE6A"> INFO</span><span style="color:#9ECE6A"> replication</span><span style="color:#89DDFF"> |</span><span style="color:#C0CAF5"> grep</span><span style="color:#9ECE6A"> lag</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Should be &#x3C; 1 second for near-consistent reads</span></span>
+<span class="line"></span></code></pre>
+<h3 id="graceful-degradation">Graceful Degradation</h3>
+<p>When the cache fails, your app should fall back to the database:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> get_user_graceful</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#A9B1D6"> User </span><span style="color:#BB9AF7">|</span><span style="color:#FF9E64"> None</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    try</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        cached </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"user:</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">user_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#A9B1D6"> cached</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">            return</span><span style="color:#A9B1D6"> User</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">from_json</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">cached</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    except</span><span style="color:#A9B1D6"> redis</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">RedisError</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Log and continue — Redis is down but DB is up</span></span>
+<span class="line"><span style="color:#A9B1D6">        logger</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">warning</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">Redis unavailable, falling back to DB</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">    user </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">SELECT * FROM users WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> user</span></span>
+<span class="line"></span></code></pre>
+<p>The key principle: cache failures should slow down your app, not crash it.</p>
+<h2 id="when-not-to-cache">When Not to Cache</h2>
+<p>Caching isn’t always the answer:</p>
 <ul>
-<li><a href="/posts/rate-limiter-system-design">Rate Limiter System Design</a> — Redis as the state store for distributed rate limiting</li>
-<li><a href="/posts/redis-beyond-caching">Redis Beyond Caching</a> — Redis data structures that power production caches</li>
-<li><a href="/posts/url-shortener-system-design">URL Shortener System Design</a> — Consistent hashing in action for distributed storage</li>
-<li><a href="/posts/raft-consensus-algorithm-deep-dive">Raft Consensus Algorithm</a> — How distributed caches achieve consistency</li>
+<li><strong>Highly transient data</strong>: Caching a rate counter that resets every minute adds complexity for little gain</li>
+<li><strong>Write-heavy workloads</strong>: If 80% of operations are writes, cache overhead exceeds benefit</li>
+<li><strong>Strict consistency requirements</strong>: Banking ledger reads must be fresh; caching savings aren’t worth stale data risk</li>
+<li><strong>Small datasets</strong>: If your DB fits in memory anyway, caching adds a layer with no benefit</li>
 </ul>
-<hr>
-<p><strong>External Resources</strong></p>
+<p>Measure first. Cache when data shows hot spots.</p>
+<h2 id="summary">Summary</h2>
+<p>A distributed cache is a memory layer between your application and your database. The key decisions:</p>
+<ol>
+<li><strong>Strategy</strong>: Cache-aside (read-heavy), write-through (mixed), or write-behind (write-heavy)</li>
+<li><strong>Eviction</strong>: LRU for general use, LFU for stable hot sets, TTL for transient data</li>
+<li><strong>Distribution</strong>: Consistent hashing for even load across nodes, Redis Cluster for production-scale</li>
+<li><strong>Stampede prevention</strong>: Probabilistic early expiration or distributed locks</li>
+<li><strong>Observability</strong>: Hit rate, latency percentiles, memory fragmentation</li>
+</ol>
+<p>Done right, a distributed cache handles 80% of your traffic and keeps your database healthy under load.</p>
+<h2 id="related-posts">Related Posts</h2>
 <ul>
-<li><a href="https://dataintensive.net/">Designing Data-Intensive Applications: Caching</a> — Martin Kleppmann’s definitive chapter on caching hierarchies</li>
-<li><a href="https://redis.io/topics/memcached">Memcached vs Redis: A Deep Dive</a> — When to use each, from the Redis team</li>
-<li><a href="https://www.akamai.com/us/en/multimedia/documents/technical-publication/consistent-hashing-and-random-trees-distributed-caching-protocols.pdf">Consistent Hashing and Random Trees</a> — The original paper</li>
-<li><a href="https://people.cs.uchicago.edu/~jcma/papers/facebook-caching.pdf">Caching Challenges: Cache Stampede</a> — How Facebook handles stampedes at scale</li>
-<li><a href="https://github.com/google/guava/wiki/CachesExplained">Google’s Guava Cache</a> — Excellent reference implementation of refresh-ahead and eviction</li>
-</ul></distributedcacheflow>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/rate-limiter-system-design" data-astro-cid-gjtny2mx>Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse</a> <p data-astro-cid-gjtny2mx>Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/chat-messaging-system-design" data-astro-cid-gjtny2mx>Chat System Design: How to Build a WhatsApp-Scale Messaging System</a> <p data-astro-cid-gjtny2mx>Design a real-time chat system like WhatsApp from first principles. Cover WebSockets, message storage with Cassandra, fan-out patterns, online/offline presence, and the architecture decisions that scale to billions of messages per day.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/url-shortener-system-design" data-astro-cid-gjtny2mx>URL Shortener System Design: How to Handle Millions of Redirects Per Second</a> <p data-astro-cid-gjtny2mx>Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Distributed Cache System Design: Patterns, Eviction, and Consistent Hashing","description":"Design distributed caches from cache-aside to consistent hashing. Cover Memcached vs Redis, cache invalidation strategies, cache stampede prevention, and the interactive architecture behind systems like Memcached, Redis Cluster, and Infinispan.","datePublished":"2026-05-06T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/distributed-cache-system-design"},"keywords":"system-design, distributed-systems, redis, memcached, caching, scalability, interviews","articleSection":"system-design","about":[{"@type":"Thing","name":"system-design"},{"@type":"Thing","name":"distributed-systems"},{"@type":"Thing","name":"redis"},{"@type":"Thing","name":"memcached"},{"@type":"Thing","name":"caching"},{"@type":"Thing","name":"scalability"},{"@type":"Thing","name":"interviews"}]}</script> 
+<li><a href="/posts/rate-limiter-system-design">Rate Limiter System Design</a> — Redis-based distributed rate limiting with similar architectural patterns</li>
+<li><a href="/posts/redis-beyond-caching">Redis Beyond Caching</a> — Redis used as a primary data store with persistence</li>
+<li><a href="/posts/url-shortener-system-design">URL Shortener System Design</a> — Distributed storage with Redis as the hot-path layer</li>
+<li><a href="/posts/raft-consensus-algorithm-deep-dive">Raft Consensus Algorithm</a> — How distributed systems agree on state</li>
+</ul>
+<h2 id="further-reading">Further Reading</h2>
+<ul>
+<li><a href="https://redis.io/docs/management/scaling/">Redis Cluster Specification</a></li>
+<li><a href="https://www.allthingsdistributed.com/2007/10/amazons_dynamo.html">Dynamo: Amazon’s Key-Value Store</a> — Consistent hashing origin story</li>
+<li><a href="https://redis.io/topics/lru-cache">Ben Mane’s Cache Design Principles</a></li>
+</ul>
+<h3 id="ttl--time-to-live">TTL — Time-To-Live</h3>
+<p>Every key has an expiration. The simplest eviction: just wait:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#51597D;font-style:italic"># Redis TTL commands</span></span>
+<span class="line"><span style="color:#C0CAF5">SET</span><span style="color:#9ECE6A"> session:1234</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">user_data</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A"> EX</span><span style="color:#FF9E64"> 3600</span><span style="color:#51597D;font-style:italic">       # 1 hour TTL</span></span>
+<span class="line"><span style="color:#C0CAF5">TTL</span><span style="color:#9ECE6A"> session:1234</span><span style="color:#51597D;font-style:italic">                            # Remaining time</span></span>
+<span class="line"><span style="color:#C0CAF5">EXPIRE</span><span style="color:#9ECE6A"> session:1234</span><span style="color:#FF9E64"> 7200</span><span style="color:#51597D;font-style:italic">                   # Extend TTL</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Relative TTL updates (Redis 6.2+)</span></span>
+<span class="line"><span style="color:#C0CAF5">EXPIRE</span><span style="color:#9ECE6A"> session:1234</span><span style="color:#FF9E64"> 3600</span><span style="color:#9ECE6A"> XX</span><span style="color:#51597D;font-style:italic">                 # Only if exists</span></span>
+<span class="line"></span></code></pre></distributedcachevisualizer>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/rate-limiter-system-design" data-astro-cid-gjtny2mx>Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse</a> <p data-astro-cid-gjtny2mx>Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/chat-messaging-system-design" data-astro-cid-gjtny2mx>Chat System Design: How to Build a WhatsApp-Scale Messaging System</a> <p data-astro-cid-gjtny2mx>Design a real-time chat system like WhatsApp from first principles. Cover WebSockets, message storage with Cassandra, fan-out patterns, online/offline presence, and the architecture decisions that scale to billions of messages per day.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/url-shortener-system-design" data-astro-cid-gjtny2mx>URL Shortener System Design: How to Handle Millions of Redirects Per Second</a> <p data-astro-cid-gjtny2mx>Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Distributed Cache System Design: Building a Memory Layer for High-Traffic Applications","description":"Design distributed caches from LRU eviction to consistent hashing rings. Cover Redis, Memcached, cache-aside, write-through, thundering herd, and the architecture that keeps services fast at scale.","datePublished":"2026-05-07T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/distributed-cache-system-design"},"keywords":"system-design, distributed-systems, redis, memcached, caching, scalability, consistency, cache-invalidation, consistent-hashing, interviews","articleSection":"system-design","about":[{"@type":"Thing","name":"system-design"},{"@type":"Thing","name":"distributed-systems"},{"@type":"Thing","name":"redis"},{"@type":"Thing","name":"memcached"},{"@type":"Thing","name":"caching"},{"@type":"Thing","name":"scalability"},{"@type":"Thing","name":"consistency"},{"@type":"Thing","name":"cache-invalidation"},{"@type":"Thing","name":"consistent-hashing"},{"@type":"Thing","name":"interviews"}]}</script> 

@@ -1,8 +1,13 @@
 ---
 title: "TCP/IP Internals: How a Packet Travels Across the Network"
-description: "A deep dive into the TCP/IP protocol stack, from application data to physical frames, and everything that happens in between."
+description: "A deep dive into the TCP/IP protocol stack—from application-layer data to physical Ethernet frames, with detailed packet header diagrams and Linux-specific routing behavior explained."
 date: 2024-03-08
-tags: ["networking", "tcp", "ip", "protocols", "linux", "packet"]
+tags: ["networking", "tcp", "ip", "protocols", "linux", "packet", "osi-model", "routing"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2024-03-08"
+  dateModified: "2024-03-08"
 ---
 
 Every time you load a webpage, send an email, or stream a video, your data is broken into packets, wrapped in headers, sent across the network, and reassembled on the other side. Understanding how this works is fundamental to diagnosing network issues, optimizing performance, and writing distributed systems.
@@ -365,8 +370,16 @@ Understanding this stack is essential for:
 
 The next time you run `traceroute` or capture packets with `tcpdump`, you'll know exactly what's happening at each step.
 
+Capturing TCP packets? [Vultr](https://www.vultr.com/?ref=8914132) provides a remote server to run tcpdump on live connections. <!-- AFFILIATE: vultr -->
+
 ## Related Posts
 
 - [DNS Deep Dive](/posts/dns-deep-dive-how-domain-resolution-works) — DNS sits on top of the TCP/IP stack; understanding the network layer explains why DNS lookups can fail in specific ways
 - [Linux Process Management](/posts/linux-process-management-ps-top-htop) — Network connections are created by processes; `ps` and `/proc` show you which processes hold which sockets
 - [ClickHouse Architecture](/posts/clickhouse-architecture-deep-dive) — ClickHouse's distributed query execution depends on the TCP/IP stack for inter-node communication
+Want to capture packets and see TCP in action? [Spin up a Linux VPS on Vultr](https://www.vultr.com/?ref=8914132) and run tcpdump while generating traffic — $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for capturing and analyzing TCP packets with tcpdump. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for network debugging. $100 free credit. <!-- AFFILIATE: digitalocean -->

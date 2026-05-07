@@ -361,7 +361,8 @@ If someone steals Alice's phone, they can only read future messages—not past o
 
 ### The C10M Problem
 
-A single server can handle ~1M WebSocket connections with proper tuning:
+A single server can handle ~1M WebSocket connections with proper tuning. Need hardware to test this? [Spin up a high-CPU cloud server on Vultr](https://www.vultr.com/?ref=8914132) and stress-test your WebSocket implementation. <!-- AFFILIATE: vultr -->
+
 - Increase file descriptors (`ulimit -n`)
 - Use `SO_REUSEPORT` for load balancing
 - Tune kernel `tcp_tw_reuse`
@@ -429,6 +430,8 @@ WhatsApp uses **shard by sender** with careful hot-spot mitigation (rate limitin
 4. **Media messages**: Images/videos go to object storage (S3), not Cassandra; metadata in Cassandra
 5. **Multi-device sync**: If I delete a message on phone, it should delete on laptop too—this requires a sync protocol
 
+A solid choice if you want to avoid managing infrastructure yourself. [DigitalOcean's App Platform](https://www.digitalocean.com/affiliates) handles deployment, scaling, and certificates — free tier available. <!-- AFFILIATE: digitalocean -->
+
 ## Related Posts
 
 - [Rate Limiter System Design](/posts/rate-limiter-system-design) — Protecting APIs from abuse
@@ -441,3 +444,8 @@ WhatsApp uses **shard by sender** with careful hot-spot mitigation (rate limitin
 - [The Secret Life of WhatsApp (HighScalability)](http://highscalability.com/blog/2022/1/11/the-secret-life-of-whatsapp.html) — Real WhatsApp architecture numbers
 - [Signal Protocol Whitepaper](https://signal.org/docs/specifications/signal/) — E2E encryption in depth
 - [How Discord Stores Trillions of Messages](https://discord.com/blog/how-discord-stores-trillions-of-messages) — Cassandra at scale case study
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for WebSocket gateways and Cassandra clusters. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for chat system prototypes. $100 free credit. <!-- AFFILIATE: digitalocean -->

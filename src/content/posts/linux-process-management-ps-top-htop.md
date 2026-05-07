@@ -2,7 +2,12 @@
 title: "Linux Process Management: Understanding ps, top, and htop"
 description: "Linux process model, /proc filesystem, ps, top, htop, process states, signals, zombie and orphan processes, CPU and memory metrics, and how the kernel tracks running programs."
 date: 2024-03-01
-tags: ["linux", "processes", "performance", "system-administration", "ps", "top", "htop"]
+tags: ["linux", "processes", "performance", "system-administration", "ps", "top", "htop", "signals", "scheduler"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2024-03-01"
+  dateModified: "2024-03-01"
 ---
 
 Every running program on a Linux system is a process. Understanding how to inspect, monitor, and manage these processes is fundamental to being an effective system administrator or developer. The `/proc` filesystem, `ps`, `top`, and `htop` are your primary tools for this work.
@@ -388,3 +393,16 @@ The key concepts:
 - `/proc/<pid>/` contains all the per-process data
 
 Master these tools and you'll be able to debug almost any performance issue on a Linux system.
+
+Monitoring processes in production? [Vultr](https://www.vultr.com/?ref=8914132) provides the compute resources to run your monitoring stack. <!-- AFFILIATE: vultr -->
+
+## Further Reading
+
+- [Linux /proc Filesystem Deep Dive](/posts/linux-proc-filesystem-deep-dive) — /proc/[pid]/ is where ps and top get their data; understanding the source makes the tools more powerful
+- [Linux Memory Debugging](/posts/linux-memory-debugging-profiling) — Memory metrics (RSS, VSZ) for processes come from the same /proc interface as CPU metrics
+- [Linux I/O Debugging](/posts/linux-io-debugging-iostat-iotop-pidstat) — pidstat shows process-level I/O; combining process management with I/O debugging covers most performance issues
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for practicing process management commands. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for Linux process experiments. $100 free credit. <!-- AFFILIATE: digitalocean -->

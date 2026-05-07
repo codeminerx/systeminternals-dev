@@ -3,7 +3,12 @@ title: "Raw Socket Programming: Building a Simple TCP Client from Scratch"
 slug: socket-programming-tcp-client-from-scratch
 description: "A deep dive into POSIX socket programming — from file descriptors to the TCP 3-way handshake, with working C code, strace traces, and edge-triggered I/O."
 date: 2026-05-04
-tags: [c, sockets, networking, tcp, posix, systems-programming]
+tags: ["c", "sockets", "networking", "tcp", "posix", "systems-programming", "file-descriptors"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-04"
+  dateModified: "2026-05-04"
 ---
 
 # Raw Socket Programming: Building a Simple TCP Client from Scratch
@@ -516,8 +521,14 @@ The raw syscall view is the ground truth. Everything else (libuv, libevent, Go's
 
 Sockets are thirty-five years old and still at the bottom of every network program you write. The better you understand this layer, the better you understand everything above it.
 
+Programming custom TCP servers? [Vultr](https://www.vultr.com/?ref=8914132) gives you a remote server to test on. <!-- AFFILIATE: vultr -->
+
 ## Related Posts
 
 - [TCP/IP Internals](/posts/tcp-ip-internals-packet-journey) — Raw sockets implement the TCP/IP stack described in this post
 - [eBPF Linux Observability](/posts/ebpf-linux-observability-framework) — eBPF programs can hook socket creation for network observability
 - [Rate Limiter System Design](/posts/rate-limiter-system-design) — Connection tracking and socket state are fundamental to distributed rate limiting
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for testing socket programming examples on a remote Linux server. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for network programming experiments. $100 free credit. <!-- AFFILIATE: digitalocean -->

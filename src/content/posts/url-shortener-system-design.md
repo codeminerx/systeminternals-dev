@@ -2,7 +2,12 @@
 title: "URL Shortener System Design: How to Handle Millions of Redirects Per Second"
 description: "Design a URL shortening service like bit.ly or TinyURL from scratch. Cover hash techniques, distributed storage, redirect latency, and the architecture that handles millions of requests per day."
 date: 2026-05-03
-tags: ["system-design", "distributed-systems", "architecture", "scalability", "interviews", "high-availability"]
+tags: ["system-design", "distributed-systems", "architecture", "scalability", "interviews", "high-availability", "hash", "base62"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-03"
+  dateModified: "2026-05-03"
 draft: false
 ---
 
@@ -351,3 +356,19 @@ That's ~$0.0000043 per redirect. At 10M RPS, you'd need roughly 20× this capaci
 The URL shortener is a simple idea that becomes complex at scale. The design above handles billions of redirects per month while keeping latency under 50ms and uptime above 99.99%.
 
 Next: [Database Transactions and Isolation Levels Explained](/posts/database-transactions-isolation-levels) →
+
+## Further Reading
+
+Building a URL shortener that scales globally? [Cloudflare's CDN and DNS](https://www.cloudflare.com/partners/) ensure low latency redirects worldwide. <!-- AFFILIATE: cloudflare -->
+
+- [Redis Beyond Caching](/posts/redis-beyond-caching) — Redis is often used as the primary data store for URL shorteners at scale, not just as a cache
+- [Distributed Cache System Design](/posts/distributed-cache-system-design) — The same sharding strategies (consistent hashing) used in URL shorteners appear in distributed cache design
+- [Rate Limiter System Design](/posts/rate-limiter-system-design) — Both URL shorteners and rate limiters face the challenge of distributed state and latency requirements
+
+Building a URL shortener prototype? [DigitalOcean's App Platform](https://www.digitalocean.com/affiliates) handles deployment and HTTPS certificates automatically. <!-- AFFILIATE: digitalocean -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for URL shortener backend deployment. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — App Platform for automatic HTTPS and easy deployments. $100 free credit. <!-- AFFILIATE: digitalocean -->
+- **[Cloudflare](https://www.cloudflare.com/partners/)** — CDN and DNS for global URL shortener distribution. <!-- AFFILIATE: cloudflare -->

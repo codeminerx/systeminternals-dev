@@ -2,7 +2,12 @@
 title: "Redis Beyond Caching: Using Redis as a Primary Database"
 description: "Redis data structures (hashes, lists, sets, sorted sets, streams), persistence options (RDB/AOF), pub/sub, rate limiting, and when to use Redis as a primary database instead of just a cache."
 date: 2024-01-20
-tags: ["redis", "databases", "nosql", "caching"]
+tags: ["redis", "databases", "nosql", "caching", "data-structures", "persistence", "pubsub"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2024-01-20"
+  dateModified: "2024-01-20"
 ---
 
 Redis started as a cache, but it's evolved into something much more powerful. Let's explore using Redis beyond simple key-value caching.
@@ -241,8 +246,17 @@ Redis isn't just a cache. With the right use case, it's a powerful primary datab
 
 The key is understanding what Redis does well—fast, structured data access—and using it where that matters most.
 
+Using Redis as a primary store? [DigitalOcean](https://www.digitalocean.com/affiliates)'s managed Redis handles persistence and replication. <!-- AFFILIATE: digitalocean -->
+
 ## Related Posts
 
 - [URL Shortener System Design](/posts/url-shortener-system-design) — Redis as a primary store for hot data and short URL counters
 - [Database Transactions and Isolation Levels](/posts/database-transactions-isolation-levels) — Redis intentionally lacks ACID transactions; Redis persistence is eventual, not transactional
 - [Linux Process Management](/posts/linux-process-management-ps-top-htop) — Redis persistence (RDB/AOF) means the Redis process is an I/O actor the kernel tracks like any process
+
+Running Redis in production? [DigitalOcean's managed Redis](https://www.digitalocean.com/affiliates) handles persistence and replication so you don't have to. <!-- AFFILIATE: digitalocean -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for Redis as a primary data store deployment. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Managed Redis with persistence and automatic failover. $100 free credit. <!-- AFFILIATE: digitalocean -->

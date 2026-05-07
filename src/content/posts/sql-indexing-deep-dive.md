@@ -2,7 +2,12 @@
 title: "SQL Indexing: A Deep Dive into Database Performance"
 description: "B-tree and composite indexes, covering indexes, partial indexes, EXPLAIN plan analysis, and how to diagnose and fix slow SQL queries with real examples."
 date: 2024-02-15
-tags: ["sql", "databases", "performance", "indexing"]
+tags: ["sql", "databases", "performance", "indexing", "b-tree", "composite-index", "explain"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2024-02-15"
+  dateModified: "2024-02-15"
 ---
 
 If your queries are slow, chances are you're missing an index. But slapping indexes everywhere isn't the answer either. Let's dig into how they actually work.
@@ -108,8 +113,17 @@ Smaller index = faster lookups = less storage.
 
 Start with the slow queries in your logs. Add indexes surgically. Measure the impact.
 
+Benchmarking query plans? [DigitalOcean](https://www.digitalocean.com/affiliates)'s PostgreSQL instances give you 4 vCPUs for large dataset tests. <!-- AFFILIATE: digitalocean -->
+
 ## Related Posts
 
 - [PostgreSQL vs MySQL 2024](/posts/postgresql-vs-mysql-2024) — Different planners handle indexes differently; knowing which database you're using changes how you design indexes
 - [Database Transactions and Isolation Levels](/posts/database-transactions-isolation-levels) — Indexes affect lock contention and contention under concurrent writes
 - [Database Normalization](/posts/database-normalization-practical-guide) — Denormalization is sometimes chosen over indexing for read-heavy workloads
+
+Testing query plans on large datasets? [Spin up a cloud database on DigitalOcean](https://www.digitalocean.com/affiliates) — PostgreSQL with 4 vCPUs handles millions of rows without breaking a sweat. <!-- AFFILIATE: digitalocean -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for testing query plans and index performance. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Managed PostgreSQL with 4 vCPUs for large dataset indexing tests. $100 free credit. <!-- AFFILIATE: digitalocean -->

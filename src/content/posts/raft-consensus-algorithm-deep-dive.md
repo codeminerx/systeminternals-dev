@@ -2,7 +2,12 @@
 title: "Raft Consensus Algorithm: How Distributed Systems Agree on Reality"
 description: "A deep dive into Raft's leader election, log replication, and safety guarantees—and why etcd, CockroachDB, and TiKV all rely on it for distributed consensus."
 date: 2026-05-03
-tags: ["distributed-systems", "consensus", "raft", "system-design", "availability", "fault-tolerance", "etcd"]
+tags: ["distributed-systems", "consensus", "raft", "system-design", "availability", "fault-tolerance", "etcd", "replicated-log"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-03"
+  dateModified: "2026-05-03"
 draft: false
 ---
 
@@ -322,3 +327,18 @@ The key insight: consensus isn't about avoiding failure—it's about defining be
 - [etcd Raft implementation](https://github.com/etcd-io/etcd/tree/main/raft) — Production-grade reference
 - [RaftScope](https://github.com/elasticsky/raft-scope) — Visual Raft state machine explorer
 - [CONSENSUS: Bridging Theory and Practice](https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroO14.pdf) — Extended treatment by Ongaro
+
+Implementing Raft consensus? [DigitalOcean](https://www.digitalocean.com/affiliates)'s VPC networking makes cluster testing reliable. <!-- AFFILIATE: digitalocean -->
+
+## Further Reading
+
+- [Paxos Consensus Algorithm Deep Dive](/posts/paxos-consensus-algorithm-deep-dive) — Paxos and Raft solve the same problem with different approaches; comparing them deepens understanding of both
+- [Kubernetes Architecture Deep Dive](/posts/kubernetes-architecture-deep-dive) — Kubernetes uses etcd, which uses Raft; the control plane is the production deployment of the theory in this post
+- [URL Shortener System Design](/posts/url-shortener-system-design) — Distributed systems that need consistency (even without consensus) share design patterns with Raft-based systems
+
+Building a Raft-based system? [DigitalOcean's compute instances](https://www.digitalocean.com/affiliates) are ideal for spinning up test clusters — $100 free credit for new accounts. <!-- AFFILIATE: digitalocean -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for building Raft-based distributed systems. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Compute instances for multi-node Raft cluster testing. $100 free credit. <!-- AFFILIATE: digitalocean -->

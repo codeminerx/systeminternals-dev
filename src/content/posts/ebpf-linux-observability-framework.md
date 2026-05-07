@@ -2,7 +2,12 @@
 title: "eBPF: Linux Observability That Will Change How You Debug"
 description: "A deep dive into extended Berkeley Packet Filter — how eBPF works, why its safety guarantees matter, and how to use it for production-safe kernel tracing without kernel modules."
 date: 2026-05-04
-tags: ["linux", "ebpf", "observability", "performance", "kernel", "debugging", "bpf", "tracing"]
+tags: ["linux", "ebpf", "observability", "performance", "kernel", "debugging", "bpf", "tracing", "xdp"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-04"
+  dateModified: "2026-05-04"
 ---
 
 If you've ever used `strace` to watch a process make system calls, or `perf` to sample CPU hotspots, you've already benefited from Linux's observability infrastructure. But there's a technology underneath both of those tools — and much more — that changes the entire calculus of kernel-level debugging: **eBPF** (extended Berkeley Packet Filter).
@@ -411,6 +416,8 @@ char _license[] SEC("license") = "GPL";
 
 Compile with `clang -target=bpf -O2 -c prog.c`, load with `ip link set dev eth0 xdp obj prog.o sec xdp`, and read counts with a Python script.
 
+Learning eBPF? [Vultr](https://www.vultr.com/?ref=8914132) lets you deploy a kernel 5.8+ server in under a minute. <!-- AFFILIATE: vultr -->
+
 ## Further Reading
 
 - [BPF Performance Tools](https://www.brendangregg.com/bpf-performance-tools-book.html) — Brendan Gregg's definitive book on eBPF tracing
@@ -424,3 +431,10 @@ Compile with `clang -target=bpf -O2 -c prog.c`, load with `ip link set dev eth0 
 - [strace Debugging](/posts/strace-debugging-linux-system-calls) — strace uses `ptrace`, the same underlying mechanism eBPF's predecessor traced
 - [Linux /proc Filesystem](/posts/linux-proc-filesystem-deep-dive) — /proc is the data source for many eBPF programs that instrument running systems
 - [GDB Debugging](/posts/gdb-debugging-core-dumps-live-processes) — For user-space debugging contrast; GDB inspects coredumps while eBPF inspects the live kernel
+
+Want to experiment with eBPF on a live system? [Spin up a Linux VPS on Vultr](https://www.vultr.com/?ref=8914132) — deploy a recent kernel (5.8+) in under a minute. <!-- AFFILIATE: vultr -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS with recent kernels (5.8+) for eBPF experimentation. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for eBPF development and testing. $100 free credit. <!-- AFFILIATE: digitalocean -->

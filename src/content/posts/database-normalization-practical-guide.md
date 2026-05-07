@@ -175,8 +175,17 @@ For OLAP (analytical) systems: denormalize aggressively.
 
 For most applications: normalize by default, denormalize surgically where profiling shows it matters.
 
+If you're spinning up a development database server, [DigitalOcean's managed PostgreSQL](https://www.digitalocean.com/affiliates) handles backups and high availability out of the box. <!-- AFFILIATE: digitalocean -->
+
+Normalizing a large schema? [DigitalOcean](https://www.digitalocean.com/affiliates)'s managed database service handles the operational complexity. <!-- AFFILIATE: digitalocean -->
+
 ## Related Posts
 
 - [SQL Indexing Deep Dive](/posts/sql-indexing-deep-dive) — Indexes are the main performance lever in normalized schemas; understand them before denormalizing
 - [PostgreSQL vs MySQL 2024](/posts/postgresql-vs-mysql-2024) — The two databases handle normalization and performance differently
 - [Database Transactions and Isolation Levels](/posts/database-transactions-isolation-levels) — Consistency constraints are why normalization matters in transactional systems
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for database hosting and development environments. $100 free credit. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Managed PostgreSQL and MySQL with automated backups. $100 free credit. <!-- AFFILIATE: digitalocean -->

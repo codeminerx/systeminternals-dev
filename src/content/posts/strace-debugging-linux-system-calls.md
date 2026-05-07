@@ -1,8 +1,13 @@
 ---
 title: "strace: Debugging Linux System Calls Like a Pro"
-description: "Learn how strace works under the hood, how to read its output, and how to debug real-world Linux problems with it."
+description: "Learn how strace works under the hood—ptrace internals, how to read syscall traces, and how to debug real-world Linux problems like hanging processes, missing files, and connection failures."
 date: 2026-05-03
-tags: ["linux", "debugging", "strace", "system-calls", "troubleshooting", "observability"]
+tags: ["linux", "debugging", "strace", "system-calls", "troubleshooting", "observability", "ptrace"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-03"
+  dateModified: "2026-05-03"
 ---
 
 When something goes wrong on a Linux system — a program hangs, a file doesn't open, a connection fails — you need to know what's actually happening underneath. That's where `strace` becomes indispensable. It intercepts and records every system call a program makes, giving you X-ray vision into the kernel's interaction with userspace.
@@ -254,6 +259,8 @@ Master the filter flags (`-e trace=`, `-c`), get comfortable with `-f` for multi
 
 The next time a program hangs, fails to open a file, or can't connect to a service, reach for `strace`. The kernel is telling you exactly what's wrong — you just have to listen.
 
+Debugging fork/exec with strace? [Vultr](https://www.vultr.com/?ref=8914132) gives you a fresh server to trace without consequences. <!-- AFFILIATE: vultr -->
+
 ## Related Posts
 
 - [Linux Process Management](/posts/linux-process-management-ps-top-htop) — The `/proc` filesystem is the data source for `ps` and much more
@@ -268,3 +275,7 @@ The next time a program hangs, fails to open a file, or can't connect to a servi
 - [Linux man pages section 2](https://man7.org/linux/man-pages/man2/) — System call documentation
 - [Julia Evans' strace zine](https://jvns.ca/strace-zine.pdf) — Visual explanation of strace internals
 - [The ptrace(2) man page](https://man7.org/linux/man-pages/man2/ptrace.2.html) — For understanding strace's foundation
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for strace-based system call debugging. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for Linux debugging environments. $100 free credit. <!-- AFFILIATE: digitalocean -->

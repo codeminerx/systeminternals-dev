@@ -218,3 +218,16 @@ Not for: OLTP workloads, frequent updates, small datasets (<1M rows), or when yo
 ClickHouse's architecture is a deliberate set of trade-offs: fast writes and fast reads, at the cost of soft deletes and no ACID transactions. Understanding these trade-offs is what separates a ClickHouse novice from a ClickHouse expert.
 
 Next: [TCP/IP Internals: How a Packet Travels Across the Network](/posts/tcp-ip-internals-packet-journey) →
+
+Building a ClickHouse cluster? [Vultr](https://www.vultr.com/?ref=8914132) offers high-performance instances ideal for analytical workloads. <!-- AFFILIATE: vultr -->
+
+## Further Reading
+
+- [Distributed Cache System Design](/posts/distributed-cache-system-design) — ClickHouse's distributed query execution relies on the same inter-node communication patterns as distributed caches
+- [Rate Limiter System Design](/posts/rate-limiter-system-design) — Distributed systems patterns (consistent hashing, coordination) that apply to both ClickHouse cluster coordination and rate limiting
+- [Raft Consensus Algorithm Deep Dive](/posts/raft-consensus-algorithm-deep-dive) — ClickHouse uses replication factor and consensus mechanisms similar to Raft-based distributed databases
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for hosting ClickHouse in production. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for ClickHouse experiments. $100 free credit. <!-- AFFILIATE: digitalocean -->

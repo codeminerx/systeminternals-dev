@@ -2,7 +2,12 @@
 title: "TCP Congestion Control: How TCP Slow Start, AIMD, and BBR Actually Work"
 description: "A deep dive into TCP congestion control algorithms — Slow Start, AIMD, Reno, CUBIC, and BBR — with packet diagrams, ASCII charts, and Linux sysctl commands for practical tuning."
 date: 2026-05-04
-tags: ["networking", "tcp", "congestion-control", "performance", "linux", "kernel"]
+tags: ["networking", "tcp", "congestion-control", "performance", "linux", "kernel", "cubic", "bbr", "aimd"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-04"
+  dateModified: "2026-05-04"
 ---
 
 TCP congestion control is the reason the internet doesn't collapse under its own weight. Without it, every connection would greedily max out its bandwidth, causing packet losses that trigger even more retransmissions — a vicious cycle called **congestion collapse**. The 1986 internet collapse, where throughput dropped from 32 Kbps to 40 bps, was the wake-up call that led to the algorithms we rely on today.
@@ -508,6 +513,8 @@ watch -n 0.5 'ss -ti dst <target-ip>'
 # This visualizes retransmissions, duplicate ACKs, and cwnd growth
 ```
 
+Testing TCP congestion algorithms? [Vultr](https://www.vultr.com/?ref=8914132) offers 10Gbps networking for realistic experiments. <!-- AFFILIATE: vultr -->
+
 ## Further Reading
 
 - **RFC 5681** — TCP Congestion Control (the authoritative spec)
@@ -527,3 +534,9 @@ watch -n 0.5 'ss -ti dst <target-ip>'
 - [TCP/IP Internals](/posts/tcp-ip-internals-packet-journey) — Congestion control operates within the TCP layer of the IP stack
 - [eBPF Linux Observability](/posts/ebpf-linux-observability-framework) — eBPF programs can instrument TCP stack events for observability without kernel modules
 - [Linux Memory Debugging](/posts/linux-memory-debugging-profiling) — Bufferbloat and memory pressure interact in production network queues
+Want to experiment with TCP congestion control in the cloud? [Vultr's high-performance instances](https://www.vultr.com/?ref=8914132) offer 10Gbps networking ideal for network tuning experiments. <!-- AFFILIATE: vultr -->
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — High-performance cloud VPS with 10Gbps networking for TCP tuning experiments. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for network protocol experiments. $100 free credit. <!-- AFFILIATE: digitalocean -->

@@ -1,534 +1,478 @@
 ---
-title: "Distributed Cache System Design: Patterns, Eviction, and Consistent Hashing"
-description: "Design distributed caches from cache-aside to consistent hashing. Cover Memcached vs Redis, cache invalidation strategies, cache stampede prevention, and the architecture behind systems like Redis Cluster and Infinispan at planetary scale."
-date: 2026-05-06
-tags: ["system-design", "distributed-systems", "redis", "memcached", "caching", "scalability", "interviews", "consistent-hashing"]
+title: "Distributed Cache System Design: Building a Memory Layer for High-Traffic Applications"
+description: "Design distributed caches from LRU eviction to consistent hashing rings. Cover Redis, Memcached, cache-aside, write-through, thundering herd, and the architecture that keeps services fast at scale."
+date: 2026-05-07
+tags: ["system-design", "distributed-systems", "redis", "memcached", "caching", "scalability", "consistency", "cache-invalidation", "consistent-hashing", "interviews"]
 structuredData:
   type: "Article"
   author: "systeminternals.dev"
-  datePublished: "2026-05-06"
-  dateModified: "2026-05-06"
+  datePublished: "2026-05-07"
+  dateModified: "2026-05-07"
 draft: false
 ---
 
-Every fast system in the world is fast because of a cache. Netflix serves 15% of global internet traffic—but the vast majority of those requests never touch a database. Neither does your browser, your CDN, your API gateway, or the person who just loaded this page. Caching is the backbone of every scalable system, and designing one wrong means your database melts under load at 2 AM.
+Every fast system in the world has a secret: it cheats. It remembers answers instead of recalculating them. It keeps hot data in memory instead of hitting disk every time. That's the cache—a simple idea with brutal complexity when you distribute it across a hundred machines.
 
-This post walks through designing a distributed cache from the ground up: the patterns that govern read/write, the eviction policies that keep memory bounded, the sharding strategies that distribute load, and the failure modes that kill production systems.
+This post dissects distributed cache design from the algorithms that decide what to keep, to the architectures that keep it fast and consistent across a cluster.
 
-## Why Caching Matters
+## Why You Need a Distributed Cache
 
-A database query takes 5–20ms. A cache lookup takes 0.1–1ms. At 100,000 requests/second, that difference is the difference between 500–2,000 seconds of database time versus 10–100 seconds.
+Before designing anything, understand the concrete problems a distributed cache solves:
 
-```
-Without cache:
-  100,000 req/s × 10ms = 1,000,000ms/s = 1,000 backend threads saturating
+**Latency**: A Redis lookup takes ~0.5ms. A PostgreSQL query with indexes takes ~5-50ms. A disk read takes ~10ms. Three orders of magnitude difference.
 
-With cache (95% hit rate):
-  5,000 req/s × 10ms = 50ms of actual DB time
-  95,000 req/s × 0.5ms = 47.5ms of cache time
-  Total: ~100ms effective backend time
-```
+**Throughput**: Your database can handle 10,000 queries/second. Your application needs 500,000. Cache the hot 20% of data and you serve 80% of requests from memory.
 
-Databases are shared resources. Every millisecond you save per request compounds at scale.
+**Database cost**: AWS RDS costs ~$0.40/vCPU-hour. A Redis cluster costs ~$0.40/node-hour but handles 10-50x more queries per dollar.
 
-## The Five Cache Patterns
+**Availability**: A cache miss on a Redis cluster is gracefully slow. A cache miss on a crashed database is a 503.
 
-<DistributedCacheFlow client:load />
+The rule of thumb: 80% of your requests hit 20% of your data. Cache that 20%.
 
-### 1. Cache-Aside (Lazy Loading)
+<DistributedCacheVisualizer client:load />
 
-The most common pattern. The application manages the cache explicitly:
+## The Three Caching Strategies
+
+Every caching strategy is a variation on when you write to the cache relative to the database.
+
+### Cache-Aside (Lazy Loading)
+
+The most common pattern. Your application checks the cache first; on miss, it reads from the database and populates the cache:
 
 ```python
-def get_user(user_id: str) -> dict:
-    # Step 1: Check cache first
-    cached = redis.get(f"user:{user_id}")
+def get_user(user_id: int) -> User | None:
+    # Step 1: Check cache
+    cache_key = f"user:{user_id}"
+    cached = redis.get(cache_key)
     if cached:
-        return json.loads(cached)
+        return User.from_json(cached)  # Cache HIT
 
-    # Step 2: Cache miss — load from database
+    # Step 2: Cache miss — read from database
     user = db.query("SELECT * FROM users WHERE id = %s", user_id)
+    if user is None:
+        return None
 
     # Step 3: Populate cache with TTL
-    redis.setex(f"user:{user_id}", 300, json.dumps(user))  # 5 min TTL
+    redis.setex(cache_key, ttl=3600, value=user.to_json())
     return user
 ```
 
-**Pros:**
-- Application controls everything: when to cache, what to cache, when to invalidate
-- Cache only contains data that's actually read (no wasted memory)
-- Database is always the source of truth
+**Pros**: Simple, only caches what's actually read, tolerant of cache failures (fallback to DB)
+**Cons**: First request is always cold (cache stampede on startup), stale data possible
 
-**Cons:**
-- First request after deployment or restart is always a cache miss (cold start)
-- Cache and database can drift: application updates DB but forgets to invalidate cache
-- Three round trips per cache miss (check cache → query DB → write cache)
+### Write-Through
 
-### 2. Read-Through
-
-The cache is a "smart" layer that loads data on miss automatically:
+You write to both the cache and database simultaneously:
 
 ```python
-# Application just asks the cache — it handles loading
-user = cache.get(f"user:{user_id}")  # Block直到 cache fetches from DB
-
-# The cache's loader function does the work:
-def user_loader(key: str) -> bytes:
-    user_id = key.split(":")[1]
-    user = db.query("SELECT * FROM users WHERE id = %s", user_id)
-    return json.dumps(user)
+def create_user(user: User) -> User:
+    # Write to both simultaneously
+    db.query("INSERT INTO users ...", user)
+    cache_key = f"user:{user.id}"
+    redis.setex(cache_key, ttl=3600, value=user.to_json())
+    return user
 ```
 
-With Redis Modules or a library like `cache-aside-redis`:
+**Pros**: Cache is always warm for reads, no cache stampede, strong consistency
+**Cons**: Writes are slower (two stores), cache fills with data nobody reads
+
+### Write-Behind (Write-Back)
+
+You write to the cache and return immediately; the cache asynchronously flushes to the database:
 
 ```python
-from dogpile.cache import RedisBackend
-
-region = Region(backend=RedisBackend, executor=ThreadPoolExecutor(1))
-@region.cache_on_arguments(expiration=300)
-def get_user(user_id: str) -> dict:
-    return db.query("SELECT * FROM users WHERE id = %s", user_id)
-```
-
-**Pros:** Cleaner application code, cache handles loading automatically
-**Cons:** More complex cache implementation, application less explicit about what's happening
-
-### 3. Write-Through
-
-Every write goes to cache AND database simultaneously:
-
-```python
-def update_user(user_id: str, data: dict):
-    # Write to cache and DB in the same transaction
-    db.query("UPDATE users SET ... WHERE id = %s", user_id)
-    redis.set(f"user:{user_id}", json.dumps(data))
-    # Both succeed or the operation fails
-```
-
-**Pros:** Cache is always consistent with the database. Read-after-write always hits cache.
-**Cons:** Adds latency to every write (cache write + DB write). Wasted memory for data nobody reads.
-
-### 4. Write-Behind (Write-Back)
-
-Writes go to the cache first, and the cache asynchronously flushes to the database:
-
-```python
-def update_user(user_id: str, data: dict):
+def update_user(user_id: int, updates: dict) -> None:
+    cache_key = f"user:{user_id}"
     # Write to cache immediately
-    redis.set(f"user:{user_id}", json.dumps(data))
+    cached = redis.get(cache_key)
+    user = User.from_json(cached) if cached else db.get(user_id)
+    user.merge(updates)
+    redis.setex(cache_key, ttl=3600, value=user.to_json())
 
-    # Mark as dirty — a background worker flushes to DB
-    redis.sadd("dirty:users", user_id)
-
-# Background job (e.g., every 10 seconds):
-def flush_dirty_users():
-    for user_id in redis.smembers("dirty:users"):
-        user_data = redis.get(f"user:{user_id}")
-        db.query("UPDATE users SET ... WHERE id = %s", user_id, user_data)
-        redis.srem("dirty:users", user_id)
+    # Mark for async DB write (in a background worker)
+    event_queue.push({"table": "users", "id": user_id, "op": "upsert"})
 ```
 
-**Pros:** Writes are fast (cache only, not DB). Excellent for write-heavy workloads.
-**Cons:** Data loss risk if cache crashes before flushing. Complicated to implement correctly.
+**Pros**: Writes are extremely fast, excellent for write-heavy workloads
+**Cons**: Data loss risk if cache crashes before DB write, complexity in eventual consistency
 
-### 5. Refresh-Ahead (Proactive)
+## Cache Eviction: What to Kick Out
 
-The cache proactively refreshes entries before they expire:
+When memory is full, you need to decide what stays and what goes.
+
+### LRU — Least Recently Used
+
+The workhorse. Evict the data accessed furthest in the past:
 
 ```python
-# A background refresher monitors cache and refreshes before TTL expires
-def refresh_hot_entries():
-    for key in hot_keys:  # Tracked by access frequency
-        ttl = redis.ttl(key)
-        if ttl < 60:  # Refresh when 60 seconds left
-            data = db.query("SELECT * FROM users WHERE id = %s", key)
-            redis.setex(key, 300, json.dumps(data))
+from collections import OrderedDict
+
+class LRUCache:
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.cache = OrderedDict()
+
+    def get(self, key: str) -> str | None:
+        if key not in self.cache:
+            return None
+        # Move to end (most recently used)
+        self.cache.move_to_end(key)
+        return self.cache[key]
+
+    def put(self, key: str, value: str) -> None:
+        if key in self.cache:
+            self.cache.move_to_end(key)
+        self.cache[key] = value
+        if len(self.cache) > self.capacity:
+            # Evict LRU (first item)
+            self.cache.popitem(last=False)
 ```
 
-**Pros:** Users never see cache misses on hot data.
-**Cons:** Wasted resources refreshing entries nobody reads. Complex to tune correctly.
+Redis uses an approximated LRU (sampling `maxmemory-samples` keys) for performance. True LRU requires a linked list that wastes memory on metadata.
 
-## Cache Invalidation: The Hard Part
+### LFU — Least Frequently Used
 
-"Caches are lies you tell yourself to feel better about your database." — The problem is when the lie gets too old.
-
-### TTL (Time-To-Live)
-
-The simplest strategy: every cache entry has an expiration time.
+Evict the least-accessed item. Better for workloads where frequency matters more than recency:
 
 ```python
-# Short TTL for rapidly changing data
-redis.setex(f"user:session:{session_id}", 1800, data)  # 30 min
+from collections import Counter
 
-# Longer TTL for stable reference data
-redis.setex(f"product:categories", 86400, data)        # 24 hours
+class LFUCache:
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.cache = {}       # key -> (value, freq)
+        self.freq_counter = Counter()
+
+    def get(self, key: str) -> str | None:
+        if key not in self.cache:
+            return None
+        freq = self.cache[key][1]
+        self.freq_counter[freq] -= 1
+        self.freq_counter[freq + 1] += 1
+        self.cache[key] = (self.cache[key][0], freq + 1)
+        return self.cache[key][0]
 ```
 
-| Data Type | TTL | Rationale |
-|-----------|-----|-----------|
-| User sessions | 15–60 min | Must reflect logout quickly |
-| Product catalog | 1–24 hours | Changes infrequently |
-| Social media feeds | 5–15 min | Balance freshness vs speed |
-| Leaderboards | 5–30 sec | Real-time competition |
+Redis 4.0+ supports LFU via `maxmemory-policy allkeys-lfu`. MongoDB uses LRU for in-memory reads. The right eviction policy depends on your access pattern:
 
-### Eviction Policies
+| Policy | Best For | Avoid When |
+|--------|----------|------------|
+| LRU | General purpose, web apps | Access frequency matters |
+| LFU | Stable hot datasets, leaderboards | Burst traffic, cache cold starts |
+| TTL-only | Session stores, rate data | Need persistence of hot items |
+| Random | Uniformly distributed data, cache-through | Hot spots exist |
+| W-TinyLFU | Workload isolation, mixed read/write | Simple implementation needed |
 
-When memory is full, the cache must evict something. The most common policies:
+## The Thundering Herd Problem
 
-| Policy | How it works | Best for |
-|--------|-------------|---------|
-| **LRU** (Least Recently Used) | Evict the least recently accessed item | General purpose, most workloads |
-| **LFU** (Least Frequently Used) | Evict least-accessed item overall | Stable hot dataset |
-| **FIFO** (First In, First Out) | Evict oldest entry | Simple, predictable latency |
-| **Random** | Evict a random entry | Works well at scale (simpler, no bookkeeping) |
-| **TTL** | Evict expired entries first | Time-sensitive data |
+When a popular cache key expires, 10,000 requests can hit the database simultaneously—all of them discovering the cache is empty at the same time. This is the thundering herd.
 
-Redis uses LRU by default but supports all of these:
+### Probabilistic Early Expiration
 
-```
-# redis.conf — set eviction policy
-maxmemory-policy allkeys-lru
+Instead of serving a stale value or hitting the database, you probabilistically extend the TTL:
 
-# Available policies:
-# noeviction, allkeys-lru, allkeys-random,
-# volatile-lru, volatile-ttl, volatile-random, allkeys-lfu, volatile-lfu
-```
+```python
+import hashlib
+import random
 
-### Eviction in Memcached
+def get_with_probabilistic_early_expiry(cache, db, key, ttl=3600):
+    """Serve stale with low probability while refreshing in background."""
+    cached = cache.get(key)
+    if cached:
+        value, expiry = cached
+        # If within 10% of TTL, 10% chance of early refresh
+        if expiry - time.time() < ttl * 0.10 and random.random() < 0.10:
+            # Asynchronously refresh
+            asyncio.create_task(refresh_cache(cache, db, key, ttl))
+        return value
 
-Memcached uses LRU with a slab allocator:
-
-```
-# Memcached eviction: pages → slabs → chunks
-# Each slab class has chunks of a fixed size
-# LRU per slab class (not global)
-
-Slab 1:  64-byte chunks     ← Items ≤ 64 bytes
-Slab 2:  128-byte chunks     ← Items ≤ 128 bytes
-Slab 3:  256-byte chunks
-...
-Slab 42: 1MB chunks         ← Large objects
+    # Cold miss — refresh synchronously
+    value = db.get(key)
+    cache.setex(key, ttl, value)
+    return value
 ```
 
-When a slab class runs out of free chunks, it evicts from the **tail** of its per-slab LRU. This means large items can expire before small ones even if the small items are older—a footgun in production.
+### Lock-Based Cache Stampede Prevention
+
+Use a distributed lock so only one request refreshes while others wait:
+
+```python
+import redis
+import time
+
+def get_with_lock(cache: redis.Redis, db, key: str, ttl: int = 3600):
+    cached = cache.get(key)
+    if cached:
+        return cached
+
+    # Try to acquire lock for cache population
+    lock_key = f"lock:{key}"
+    lock_acquired = cache.set(lock_key, "1", nx=True, ex=10)
+
+    if lock_acquired:
+        # We got the lock — refresh the cache
+        value = db.get(key)
+        cache.setex(key, ttl, value)
+        cache.delete(lock_key)  # Release lock
+        return value
+    else:
+        # Another request is refreshing — wait and retry
+        for _ in range(10):
+            time.sleep(0.1)
+            cached = cache.get(key)
+            if cached:
+                return cached
+        # Timeout — hit the database
+        return db.get(key)
+```
+
+Redis SETNX (SET if Not eXists) is your distributed lock primitive.
 
 ## Consistent Hashing: Distributing Keys Across Nodes
 
-The naive approach to distribution is `hash(key) % num_nodes`. It works until you add or remove a node, which remaps ~1/N of all keys and causes a cascade of cache misses (the "thundering herd" problem).
+With N cache nodes, which node stores which key? Naive hashing (`node = hash(key) % N`) breaks when you add or remove nodes—every key remaps, causing a cascade of cache misses.
 
-**Consistent hashing** solves this with a hash ring:
+Consistent hashing assigns keys to nodes in a ring:
 
 ```
-                    hash("user:123")
-                         ↓
-                        104°
-                         │
-           0° ←─────── ● ───────→ 360°
-                       /   ↑
-              Node A   /    │   Node B
-             0°–120°  /     │   240°–360°
-                      /     │
-                     /   Node C
-                    /    120°–240°
+                    [Node C: 0-100]
+                          |
+    [Node A: 200-360] --- RING --- [Node B: 100-200]
+          |                            |
+    Each key hashes to its           Node responsible
+    position on the ring            for the nearest
+    → Key at 150 goes to B           clockwise node
 ```
-
-Every node occupies a range on the ring. Every key hashes to a point on the ring and is served by the first node clockwise from that point.
-
-### Adding a Node: Only K/N Keys Move
-
-With K virtual nodes per physical node, adding Node D only shifts ~K/N of the key space:
 
 ```python
 import hashlib
 
 class ConsistentHash:
-    def __init__(self, nodes: list[str], vnodes: int = 150):
-        self.ring = {}
+    def __init__(self, nodes: list[str], virtual_nodes: int = 100):
+        self.ring = {}  # hash -> node
         self.sorted_keys = []
-
         for node in nodes:
-            for i in range(vnodes):
-                key = hashlib.md5(f"{node}:{i}").hexdigest()
+            for i in range(virtual_nodes):
+                key = hashlib.md5(f"{node}:{i}".encode()).hexdigest()
                 self.ring[key] = node
                 self.sorted_keys.append(key)
-
         self.sorted_keys.sort()
 
     def get_node(self, key: str) -> str:
-        hash_val = int(hashlib.md5(key).hexdigest(), 16)
-        # Binary search for the first node >= hash_val
-        pos = bisect.bisect_right(self.sorted_keys, hash_val)
-        if pos >= len(self.sorted_keys):
-            pos = 0
-        return self.ring[self.sorted_keys[pos]]
+        if not self.ring:
+            raise ValueError("No nodes in ring")
+        hash_key = hashlib.md5(key.encode()).hexdigest()
+        # Binary search for the first node >= hash_key
+        for ring_key in self.sorted_keys:
+            if ring_key >= hash_key:
+                return self.ring[ring_key]
+        # Wrap around to first node
+        return self.ring[self.sorted_keys[0]]
 ```
 
-### Virtual Nodes for Better Distribution
+Virtual nodes (e.g., 100 per physical node) spread the load more evenly. Adding a node only remaps keys near its position on the ring, not 1/N of all keys.
 
-Without virtual nodes, each physical node is one point on the ring. A high-traffic node becomes a bottleneck. Virtual nodes (typically 150–200 per physical node) give a more uniform distribution:
+### Consistent Hashing in Practice
 
-```
-Physical node A → 150 virtual points spread around the ring
-Physical node B → 150 virtual points spread around the ring
-Physical node C → 150 virtual points spread around the ring
+**Redis Cluster** doesn't use consistent hashing—instead, it uses hash slots (16,384 slots distributed across nodes). To add capacity, you migrate slots, not individual keys.
 
-Result: adding/removing any node causes ~1/3 of virtual nodes to shift
-→ only 1/3 * (1/N) of physical keys remap ≈ 1/N keys move
-```
+**Amazon DynamoDB** and **Cassandra** use consistent hashing with virtual nodes. Each node is responsible for a range of the hash ring.
 
-### Redis Cluster: Hash Slots, Not Consistent Hashing
+## Distributing a Cache Cluster
 
-Redis Cluster takes a different approach: 16,384 hash slots. Keys are assigned to slots via `CRC16(key) mod 16384`, and slots are distributed across nodes:
+A single Redis node handles ~100,000-200,000 requests/second. At 1,000,000 requests/second, you need a cluster.
 
-```
-Node A: slots 0–5460
-Node B: slots 5461–10922
-Node C: slots 10923–16383
-```
+### Redis Cluster Architecture
 
-**This is simpler than consistent hashing** for Redis because slot assignment is deterministic—no lookup required. The tradeoff: resharding requires slot migration (Redis Cluster handles this online).
+Redis Cluster shards data across multiple nodes using hash slots:
 
-## Cache Stampede: When Caches Kill Themselves
+```bash
+# 16,384 slots distributed across 6 nodes (3 masters + 3 replicas)
+# Node A (master): slots 0-5460
+# Node B (master): slots 5461-10922
+# Node C (master): slots 10923-16383
 
-The worst failure mode: cache expires, 10,000 requests hit the database simultaneously because they all saw the miss at the same time. This is a **cache stampede** (aka the thundering herd problem).
-
-### Solution 1: Probabilistic Early Expiration
-
-Instead of waiting for TTL to expire, probabilistically refresh before it expires:
-
-```python
-# probcache.py logic
-def get_with_probabilistic_expiry(key, cache, db):
-    value, expiry = cache.get_with_expiry(key)
-    if value is None:
-        # Cache miss — load from DB
-        value = db.get(key)
-        cache.setex(key, 300, value)
-        return value
-
-    # Check if we should refresh early
-    ttl_remaining = expiry - time.time()
-    if ttl_remaining < 0:
-        return value
-
-    # Probability of early refresh:
-    # higher when TTL is low and item is popular
-    threshold = recalc_threshold(value, ttl_remaining, ...)
-    if random.random() < threshold:
-        # Async refresh in background
-        background_refresh(key, db, cache)
-    return value
+# Which slot does a key live in?
+CLUSTER KEYSLOT user:1234        # → slot number
+CLUSTER Slots 0                  # → node info for slot 0
 ```
 
-### Solution 2: Cache Locking (Mutex)
+Each master has replica(s) for high availability. If Node A crashes, its replica is promoted to master automatically.
 
-Only one process refreshes; others wait:
+### Client Routing
 
 ```python
 import redis
 
-def get_with_lock(key: str, cache: redis.Redis, db, ttl: int = 300):
-    value = cache.get(key)
-    if value:
-        return json.loads(value)
+# redis-py cluster client handles slot routing automatically
+from redis.cluster import RedisCluster
 
-    # Try to acquire lock
-    lock_key = f"lock:{key}"
-    acquired = cache.set(lock_key, "1", nx=True, ex=10)
+rc = RedisCluster(
+    host='10.0.0.1',
+    port=7000,
+    read_from_replicas=True  # Read from replicas for lower latency
+)
 
-    if acquired:
-        # We got the lock — refresh from DB
-        value = db.query("SELECT * FROM users WHERE id = %s", key)
-        cache.setex(key, ttl, json.dumps(value))
-        cache.delete(lock_key)
-        return value
-    else:
-        # Another process is refreshing — wait and retry
-        time.sleep(0.1)
-        return get_with_lock(key, cache, db, ttl)
+# Client routes automatically based on key slot
+user = rc.get('user:1234')   # Routes to correct node
 ```
 
-### Solution 3: Background Refreshing with Lease
+### Multi-Get: When One Request Hits N Nodes
 
-Google's memcached uses "leases" to prevent stampedes:
-
-```
-1. Cache miss → memcached gives client a lease token (64-bit int)
-2. Client fetches from DB, sends result back with lease token
-3. Memcached verifies token is still valid, stores value
-4. Other clients hitting same key during this window get served from cache
-```
-
-## Hot Keys: When One Key Breaks Everything
-
-Even with consistent hashing, some keys are accessed millions of times per second. A celebrity's profile, a viral tweet's metadata, a hot product's price. These "hot keys" can saturate a single cache node regardless of how many nodes you have.
-
-### Solutions for Hot Keys:
-
-**1. Replicate hot keys across multiple nodes**
-
-```
-Key "trending:hashtag:1" replicated to nodes A, B, C, D
-Read requests randomly pick one of the replicas
-```
-
-**2. Split hot keys into sub-keys**
+If you need data from 50 cache keys, they might live on 10 different nodes:
 
 ```python
-# Instead of one monolithic cache entry:
-redis.set("leaderboard:global", json.dumps(top_1000))
+# Naive: 10 sequential round trips
+results = [redis.get(f"user:{i}") for i in range(50)]
 
-# Partition by score range:
-redis.set("leaderboard:1", json.dumps(top_100))    # 1M–100M score
-redis.set("leaderboard:2", json.dumps(top_100_2))   # 100M–200M score
+# Smart: parallel requests to each node
+# 1. Group keys by slot/node
+# 2. Send parallel MGET to each node
+# 3. Merge results
+from redis.asyncio import cluster as redis_cluster
+
+async def mget_cluster(keys: list[str]) -> list[str | None]:
+    """Multi-get optimized for Redis Cluster."""
+    # Group by slot
+    slot_map = defaultdict(list)
+    for key in keys:
+        slot = redis_cluster.keyslot(key)
+        slot_map[slot].append(key)
+
+    # Parallel MGET per node
+    results = {}
+    async with redis_cluster.RedisCluster() as rc:
+        tasks = []
+        for slot, slot_keys in slot_map.items():
+            tasks.append(rc.mget(slot_keys))
+        node_results = await asyncio.gather(*tasks)
+        for node_result in node_results:
+            results.update(dict(zip(slot_keys, node_result)))
+    return [results.get(k) for k in keys]
 ```
 
-**3. Client-side throttling**
+## Cache Warming: Prepopulating After Deploy
+
+After a restart, your cache is cold. Users see elevated latency until hot keys are repopulated. Cache warming preloads popular data:
 
 ```python
-async def get_hot_key_throttled(key: str, redis_cluster, db):
-    # Rate limit per key from the client side
-    rate_key = f"ratelimit:hotkey:{hash(key) % 1000}"
-    allowed = redis_cluster.incr(rate_key)
-    if allowed == 1:
-        redis_cluster.expire(rate_key, 1)
-    if allowed > 100:  # Max 100 reads/sec per sub-shard
-        return db.get(key)  # Fall back to DB
-    return redis_cluster.get(key)
+def warm_cache(redis_client, db, top_users: list[int]):
+    """Warm cache for top N users after deployment."""
+    pipeline = redis_client.pipeline()
+    for user_id in top_users:
+        user = db.query("SELECT * FROM users WHERE id = %s", user_id)
+        if user:
+            pipeline.setex(f"user:{user_id}", ttl=86400, value=user.to_json())
+    # Execute all writes in one round trip
+    pipeline.execute()
+
+# Run on startup after deployment
+# Kubernetes post-start hook, systemd unit, or application init
 ```
 
-## Memcached vs Redis: Which Cache?
+For Elasticsearch, warm queries can prepopulate search caches. For Kafka, consumer lag dashboards tell you when caches are healthy.
 
-| Feature | Memcached | Redis |
-|---------|-----------|-------|
-| Data structures | Strings only | Strings, hashes, lists, sets, sorted sets, streams, bitmaps |
-| Eviction policies | LRU per slab class | LRU, LFU, TTL, random, noeviction |
-| Persistence | None | RDB snapshots + AOF append-only file |
-| Replication | None (stateless) | Master-replica replication |
-| Clustering | Consistent hashing (client-side) | Hash slots (server-side) |
-| Protocol | ASCII, Binary | ASCII, Binary, RESP (wire protocol) |
-| Max value size | 1MB | 512MB |
-| Multi-threaded | Yes (uses all cores) | Yes (Redis 6+) |
-| Use when | Simple string caching, pure memory pressure | Need data structures, persistence, replication |
+## Production Patterns
 
-For most web applications: **start with Redis**. The richer data structures (sorted sets for leaderboards, streams for queues, hashes for objects) pay for themselves quickly. If you're Facebook-scale and only need string caching, Memcached's multi-threaded architecture has lower CPU overhead.
+### Cache Key Design
 
-## Multi-Level Caching: L1 + L2 Architecture
+Keys should be descriptive and bounded in size:
 
-Real production systems stack multiple cache levels:
+```bash
+# Good: descriptive, bounded
+SET user:12345:profile        "{...}"
+SET session:abc123:cart        "{...}"
+SET rate:192.168.1.1:minute   "42"
 
+# Bad: unbounded strings, no separator
+SET userexample123454545545    "{...}"
 ```
-Browser Cache (L1)          → Milliseconds, kilobytes, per-user
-                    ↓ miss
-CDN Edge Cache (L2)          → Milliseconds, megabytes, shared globally
-                    ↓ miss
-Application In-Memory (L3)   → Microseconds, gigabytes, per-host (e.g., Go map + LRU)
-                    ↓ miss
-Distributed Redis (L4)      → Milliseconds, terabytes, shared cluster
-                    ↓ miss
-Database (L5)               → Milliseconds–seconds, terabytes, shared
+
+### Monitoring Cache Health
+
+```bash
+# Hit/miss rate
+redis-cli INFO stats | grep -E "keyspace_hits|keyspace_misses"
+# hit_rate = hits / (hits + misses)
+
+# Memory fragmentation
+redis-cli INFO memory | grep mem_fragmentation_ratio
+# > 1.5 means wasted memory from fragmentation
+
+# Latency distribution
+redis-cli --latency-percentiles
+# 50th, 99th, 99.9th percentile latencies
+
+# Replication lag (for replica reads)
+redis-cli INFO replication | grep lag
+# Should be < 1 second for near-consistent reads
 ```
+
+### Graceful Degradation
+
+When the cache fails, your app should fall back to the database:
 
 ```python
-# Multi-level lookup: L1 (in-memory) → L2 (Redis) → DB
-class MultiLevelCache:
-    def __init__(self, l1: dict, l2: Redis, db):
-        self.l1 = l1  # e.g., Python dict with LRU from cachetools
-        self.l2 = l2
-        self.db = db
+def get_user_graceful(user_id: int) -> User | None:
+    try:
+        cached = redis.get(f"user:{user_id}")
+        if cached:
+            return User.from_json(cached)
+    except redis.RedisError:
+        # Log and continue — Redis is down but DB is up
+        logger.warning("Redis unavailable, falling back to DB")
 
-    def get(self, key: str) -> Optional[dict]:
-        # L1: microsecond lookup
-        val = self.l1.get(key)
-        if val:
-            return val
-
-        # L2: Redis
-        val = self.l2.get(key)
-        if val:
-            self.l1[key] = val  # Promote to L1
-            return val
-
-        # L3: Database
-        val = self.db.query(key)
-        self.l2.setex(key, 300, val)
-        self.l1[key] = val
-        return val
+    user = db.query("SELECT * FROM users WHERE id = %s", user_id)
+    return user
 ```
 
-## Production Architecture
+The key principle: cache failures should slow down your app, not crash it.
 
-A production distributed cache cluster looks like:
+## When Not to Cache
 
-```
-App Servers
-    │
-    ├─ Redis Sentinel (3 nodes): automated failover, read replicas
-    │       │
-    │       └─ Master (writes) ←→ Replica 1 ←→ Replica 2
-    │                    │
-    │                    └─ Sentinel monitors: ping every 1s
-    │                                    detects failover in ~10s
-    │
-    └─ Redis Cluster (6 nodes): horizontal sharding, 16,384 slots
-            │
-            ├─ Node A (slots 0-5460)      Primary + 1 replica
-            ├─ Node B (slots 5461-10922) Primary + 1 replica
-            ├─ Node C (slots 10923-16383)Primary + 1 replica
-            ├─ Node A-replica
-            ├─ Node B-replica
-            └─ Node C-replica
-```
+Caching isn't always the answer:
 
-### The Cache Monitoring Dashboard
+- **Highly transient data**: Caching a rate counter that resets every minute adds complexity for little gain
+- **Write-heavy workloads**: If 80% of operations are writes, cache overhead exceeds benefit
+- **Strict consistency requirements**: Banking ledger reads must be fresh; caching savings aren't worth stale data risk
+- **Small datasets**: If your DB fits in memory anyway, caching adds a layer with no benefit
 
-If you can't measure it, you can't control it:
+Measure first. Cache when data shows hot spots.
 
-```prometheus
-# Cache hit rate
-cache_hits_total / (cache_hits_total + cache_misses_total)
+## Summary
 
-# Latency percentiles
-cache_operation_duration_seconds{quantile="0.99"}
+A distributed cache is a memory layer between your application and your database. The key decisions:
 
-# Memory utilization
-redis_memory_used_bytes / redis_memory_max_bytes
+1. **Strategy**: Cache-aside (read-heavy), write-through (mixed), or write-behind (write-heavy)
+2. **Eviction**: LRU for general use, LFU for stable hot sets, TTL for transient data
+3. **Distribution**: Consistent hashing for even load across nodes, Redis Cluster for production-scale
+4. **Stampede prevention**: Probabilistic early expiration or distributed locks
+5. **Observability**: Hit rate, latency percentiles, memory fragmentation
 
-# Eviction rate (if non-zero, you need more memory)
-redis_evicted_keys_total
+Done right, a distributed cache handles 80% of your traffic and keeps your database healthy under load.
 
-# Stale reads from replicas
-redis_replica_reads_lagged_bytes
-```
+## Related Posts
 
-## Conclusion
+- [Rate Limiter System Design](/posts/rate-limiter-system-design) — Redis-based distributed rate limiting with similar architectural patterns
+- [Redis Beyond Caching](/posts/redis-beyond-caching) — Redis used as a primary data store with persistence
+- [URL Shortener System Design](/posts/url-shortener-system-design) — Distributed storage with Redis as the hot-path layer
+- [Raft Consensus Algorithm](/posts/raft-consensus-algorithm-deep-dive) — How distributed systems agree on state
 
-A distributed cache is deceptively simple: store the answer so you don't have to ask again. But the engineering underneath is deep:
+## Further Reading
 
-1. **Pattern**: Cache-aside for most cases, read-through when you want cleaner code
-2. **Eviction**: LRU for general use, LFU when you know your access distribution
-3. **Distribution**: Consistent hashing (or hash slots with Redis Cluster) for horizontal scale
-4. **Stampede prevention**: Probabilistic early expiration or mutex locks
-5. **Hot keys**: Replicate across nodes or partition aggressively
-6. **Multi-level**: Stack L1 (in-memory) + L2 (Redis) for the best latency/throughput tradeoff
+- [Redis Cluster Specification](https://redis.io/docs/management/scaling/)
+- [Dynamo: Amazon's Key-Value Store](https://www.allthingsdistributed.com/2007/10/amazons_dynamo.html) — Consistent hashing origin story
+- [Ben Mane's Cache Design Principles](https://redis.io/topics/lru-cache)
 
-The right cache architecture is the one that survives your next viral moment without taking your database with it.
+### TTL — Time-To-Live
 
----
+Every key has an expiration. The simplest eviction: just wait:
 
-**Related Posts**
+```bash
+# Redis TTL commands
+SET session:1234 "user_data" EX 3600       # 1 hour TTL
+TTL session:1234                            # Remaining time
+EXPIRE session:1234 7200                   # Extend TTL
 
-- [Rate Limiter System Design](/posts/rate-limiter-system-design) — Redis as the state store for distributed rate limiting
-- [Redis Beyond Caching](/posts/redis-beyond-caching) — Redis data structures that power production caches
-- [URL Shortener System Design](/posts/url-shortener-system-design) — Consistent hashing in action for distributed storage
-- [Raft Consensus Algorithm](/posts/raft-consensus-algorithm-deep-dive) — How distributed caches achieve consistency
-
----
-
-**External Resources**
-
-- [Designing Data-Intensive Applications: Caching](https://dataintensive.net/) — Martin Kleppmann's definitive chapter on caching hierarchies
-- [Memcached vs Redis: A Deep Dive](https://redis.io/topics/memcached) — When to use each, from the Redis team
-- [Consistent Hashing and Random Trees](https://www.akamai.com/us/en/multimedia/documents/technical-publication/consistent-hashing-and-random-trees-distributed-caching-protocols.pdf) — The original paper
-- [Caching Challenges: Cache Stampede](https://people.cs.uchicago.edu/~jcma/papers/facebook-caching.pdf) — How Facebook handles stampedes at scale
-- [Google's Guava Cache](https://github.com/google/guava/wiki/CachesExplained) — Excellent reference implementation of refresh-ahead and eviction
+# Relative TTL updates (Redis 6.2+)
+EXPIRE session:1234 3600 XX                 # Only if exists

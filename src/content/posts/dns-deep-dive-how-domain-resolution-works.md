@@ -2,7 +2,12 @@
 title: "DNS Deep Dive: How Domain Name Resolution Actually Works"
 description: "A thorough look at DNS — recursive vs iterative queries, record types, DNSSEC, DoH/DoT, TTL behavior, and why your cache matters more than you think."
 date: 2026-05-03
-tags: ["networking", "dns", "internet", "protocols", "security", "infrastructure"]
+tags: ["networking", "dns", "internet", "protocols", "security", "infrastructure", "resolvers", "ttl"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-03"
+  dateModified: "2026-05-03"
 ---
 
 Every URL you type, every API call you make, every email you send — it all starts with a DNS lookup. Most engineers know DNS translates names to IP addresses. Far fewer understand how that translation actually happens, why it sometimes breaks in subtle ways, or howDNSSEC, DoH, and DoT change the security model.
@@ -335,6 +340,8 @@ Understanding the full resolution chain matters when:
 
 The next time you type a URL and it "just works," now you know how many servers, caches, and cryptographic checks made that possible.
 
+Running a DNS service? [Vultr](https://www.vultr.com/?ref=8914132) provides the infrastructure to host authoritative nameservers. <!-- AFFILIATE: vultr -->
+
 ## Related Posts
 
 - [TCP/IP Internals](/posts/tcp-ip-internals-packet-journey) — DNS sits on top of the TCP/IP stack; understanding the full packet journey explains the network layer beneath DNS
@@ -350,3 +357,7 @@ The next time you type a URL and it "just works," now you know how many servers,
 - [DNSSEC RFC 4033](https://datatracker.ietf.org/doc/html/rfc4033) — DNSSEC introduction and requirements
 - [ISC Bind 9 Administrator Reference Manual](https://downloads.isc.org/isc/bind9/cur/32/doc/html/index.html) — For running your own DNS
 - [DNS flag day 2020](https://dnsflagday.net/) — On EDNS client subnet and DNSSEC deployment
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for running your own DNS resolver. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[Cloudflare](https://www.cloudflare.com/partners/)** — DNS management with 1.1.1.1 resolver and DDoS protection. <!-- AFFILIATE: cloudflare -->

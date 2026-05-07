@@ -1,0 +1,562 @@
+---
+// Interactive Distributed Cache Visualization
+---
+
+<div class="canvas-wrapper">
+  <div class="controls">
+    <div class="control-group">
+      <label for="cache-algo-select">Pattern:</label>
+      <select id="cache-algo-select">
+        <option value="cache-aside">Cache-Aside (Read)</option>
+        <option value="cache-aside-miss">Cache-Aside (Miss)</option>
+        <option value="write-through">Write-Through</option>
+        <option value="eviction">LRU Eviction</option>
+        <option value="consistent-hash">Consistent Hashing Ring</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="cache-capacity">Cache Capacity:</label>
+      <input type="range" id="cache-capacity" min="2" max="8" value="5" />
+      <span id="capacity-display">5</span>
+    </div>
+    <button id="step-btn">Step</button>
+    <button id="auto-btn">Auto-Play</button>
+    <button id="reset-btn">Reset</button>
+  </div>
+
+  <div class="canvas-row">
+    <canvas id="cache-canvas" width="900" height="380"></canvas>
+  </div>
+
+  <div class="step-info" id="step-info">
+    <span class="step-num" id="step-num">Step 0/5</span>
+    <span class="step-desc" id="step-desc">Click "Step" or "Auto-Play" to start the visualization</span>
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="dot cache-dot"></span>Cache</span>
+    <span class="legend-item"><span class="dot db-dot"></span>Database</span>
+    <span class="legend-item"><span class="dot client-dot"></span>Client</span>
+    <span class="legend-item"><span class="dot hit-dot"></span>Hit</span>
+    <span class="legend-item"><span class="dot miss-dot"></span>Miss</span>
+    <span class="legend-item"><span class="dot write-dot"></span>Write</span>
+  </div>
+
+  <style>
+    .canvas-wrapper {
+      background: #0f1117;
+      border: 1px solid #1e2432;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 2rem 0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .controls {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .control-group label {
+      color: #94a3b8;
+      font-size: 0.8rem;
+    }
+    select, input[type="range"] {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      color: #e2e8f0;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+    button {
+      background: #1e40af;
+      color: #e2e8f0;
+      border: 1px solid #3b82f6;
+      padding: 6px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .canvas-row { margin: 12px 0; }
+    canvas {
+      display: block;
+      border-radius: 8px;
+      background: #0a0c12;
+      border: 1px solid #1e2432;
+    }
+    .step-info {
+      display: flex;
+      gap: 12px;
+      padding: 10px 14px;
+      background: #12151e;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+    }
+    .step-num { color: #60a5fa; font-weight: 600; min-width: 70px; }
+    .step-desc { color: #cbd5e1; }
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .cache-dot { background: #60a5fa; }
+    .db-dot { background: #a78bfa; }
+    .client-dot { background: #34d399; }
+    .hit-dot { background: #22c55e; }
+    .miss-dot { background: #f59e0b; }
+    .write-dot { background: #f87171; }
+  </style>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('cache-canvas');
+  const ctx = canvas.getContext('2d');
+  const algoSelect = document.getElementById('cache-algo-select');
+  const capacityInput = document.getElementById('cache-capacity');
+  const capacityDisplay = document.getElementById('capacity-display');
+  const stepBtn = document.getElementById('step-btn');
+  const autoBtn = document.getElementById('auto-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const stepNum = document.getElementById('step-num');
+  const stepDesc = document.getElementById('step-desc');
+
+  let mode = 'cache-aside';
+  let capacity = 5;
+  let step = 0;
+  let autoTimer = null;
+  let arrows = [];
+  let cacheItems = [];
+  let dbItems = [];
+  let animProgress = 0;
+  let animating = false;
+
+  // Nodes
+  const clientNode = { x: 100, y: 190, r: 32, label: 'Client', color: '#34d399', icon: 'C' };
+  const cacheNode = { x: 370, y: 190, r: 56, label: 'Redis Cache', color: '#60a5fa', icon: 'RC' };
+  const dbNode = { x: 640, y: 190, r: 48, label: 'PostgreSQL', color: '#a78bfa', icon: 'DB' };
+
+  const cacheItemsInit = () => {
+    cacheItems = [];
+    for (let i = 0; i < capacity; i++) {
+      cacheItems.push({
+        key: `user:${10 + i}`,
+        value: `{name: "User ${10+i}"}`,
+        lastUsed: capacity - i,
+        x: 300, y: 100
+      });
+    }
+    dbItems = [
+      { key: 'user:10', value: '{name: "User 10"}' },
+      { key: 'user:11', value: '{name: "User 11"}' },
+      { key: 'user:12', value: '{name: "User 12"}' },
+      { key: 'user:13', value: '{name: "User 13"}' },
+      { key: 'user:14', value: '{name: "User 14"}' },
+      { key: 'user:99', value: '{name: "User 99"}' },
+    ];
+  };
+
+  const drawNode = (node, highlight, extra) => {
+    ctx.save();
+    // Glow effect
+    if (highlight) {
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = node.color;
+    }
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+    ctx.fillStyle = highlight ? node.color + '33' : '#12151e';
+    ctx.fill();
+    ctx.strokeStyle = node.color;
+    ctx.lineWidth = highlight ? 3 : 2;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = `bold ${node.r > 40 ? 13 : 11}px JetBrains Mono, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.icon, node.x, node.y - 6);
+    ctx.font = `${node.r > 40 ? 10 : 9}px Inter, sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(node.label, node.x, node.y + 14);
+    ctx.restore();
+  };
+
+  const drawArrow = (from, to, color, progress, dashed) => {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const nx = dx/len, ny = dy/len;
+
+    const startX = from.x + nx * (from.r + 5);
+    const startY = from.y + ny * (from.r + 5);
+    const endX = to.x - nx * (to.r + 5);
+    const endY = to.y - ny * (to.r + 5);
+
+    const drawLen = (endX - startX) * progress;
+    const endPx = startX + drawLen * nx;
+    const endPy = startY + drawLen * ny;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    if (dashed) ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endPx, endPy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Arrowhead
+    const angle = Math.atan2(endPy - (endPy - 15*ny), endPx - (endPx - 15*nx));
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(endPx, endPy);
+    ctx.lineTo(endPx - 10*Math.cos(angle - 0.4), endPy - 10*Math.sin(angle - 0.4));
+    ctx.lineTo(endPx - 10*Math.cos(angle + 0.4), endPy - 10*Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  };
+
+  const drawCacheItems = (mode, step, progress) => {
+    ctx.save();
+    const spacing = Math.min(80, 600 / (capacity + 2));
+    const startX = 280 - (capacity * spacing) / 2 + spacing / 2;
+
+    for (let i = 0; i < capacity; i++) {
+      const x = startX + i * spacing;
+      const y = 300;
+      const item = cacheItems[i];
+      if (!item) continue;
+
+      const isEvicted = mode === 'eviction' && step >= 3 && i === 0;
+      const isNew = mode === 'eviction' && step >= 4 && i === 0;
+      const isTarget = (mode === 'cache-aside' && step === 1) ||
+                       (mode === 'write-through' && (step === 1 || step === 3));
+
+      ctx.save();
+      if (isEvicted) ctx.globalAlpha = 0.3;
+      ctx.fillStyle = isTarget ? '#22c55e22' : '#1a1d27';
+      ctx.strokeStyle = isTarget ? '#22c55e' : '#2a2d3a';
+      ctx.lineWidth = isTarget ? 2 : 1;
+      ctx.beginPath();
+      ctx.roundRect(x - 34, y - 14, 68, 28, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = isEvicted ? '#64748b' : '#e2e8f0';
+      ctx.font = '10px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(item.key, x, y - 2);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '8px Inter';
+      ctx.fillText('val...', x, y + 10);
+      ctx.restore();
+    }
+
+    // Cache label
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '11px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Cache Storage', 370, 332);
+
+    ctx.restore();
+  };
+
+  const drawHashRing = (step, progress) => {
+    ctx.save();
+    const cx = 450, cy = 190, r = 130;
+    const nodes = [
+      { label: 'Node A', hash: 0, color: '#60a5fa' },
+      { label: 'Node B', hash: 1365, color: '#34d399' },
+      { label: 'Node C', hash: 8192, color: '#f59e0b' },
+      { label: 'Node D', hash: 12288, color: '#f87171' },
+    ];
+
+    // Ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = '#2a2d3a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Slot labels
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px JetBrains Mono';
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2 - Math.PI / 2;
+      const tx = cx + (r + 14) * Math.cos(angle);
+      const ty = cy + (r + 14) * Math.sin(angle);
+      ctx.textAlign = 'center';
+      ctx.fillText(i * 1024, tx, ty);
+    }
+
+    // Hash positions
+    nodes.forEach(n => {
+      const angle = (n.hash / 16384) * Math.PI * 2 - Math.PI / 2;
+      const px = cx + r * Math.cos(angle);
+      const py = cy + r * Math.sin(angle);
+      ctx.beginPath();
+      ctx.arc(px, py, 12, 0, Math.PI * 2);
+      ctx.fillStyle = n.color;
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = '8px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(n.label.split(' ')[1], px, py);
+    });
+
+    // Key placement
+    const keys = [
+      { key: 'user:10', hash: 1500, color: '#a78bfa' },
+      { key: 'user:11', hash: 4500, color: '#fb923c' },
+      { key: 'user:12', hash: 9000, color: '#4ade80' },
+    ];
+    keys.forEach((k, idx) => {
+      const angle = (k.hash / 16384) * Math.PI * 2 - Math.PI / 2;
+      const kx = cx + (r + 35) * Math.cos(angle);
+      const ky = cy + (r + 35) * Math.sin(angle);
+      ctx.fillStyle = k.color;
+      ctx.beginPath();
+      ctx.arc(kx, ky, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0a0c12';
+      ctx.font = 'bold 7px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`K${idx+1}`, kx, ky);
+    });
+
+    // Connecting lines from keys to nodes
+    if (progress > 0) {
+      keys.forEach((k, idx) => {
+        const angle = (k.hash / 16384) * Math.PI * 2 - Math.PI / 2;
+        const kx = cx + (r + 35) * Math.cos(angle);
+        const ky = cy + (r + 35) * Math.sin(angle);
+        // Find responsible node (clockwise)
+        let targetNode = nodes[0];
+        for (const n of nodes) {
+          if (n.hash <= k.hash) targetNode = n;
+        }
+        const ta = (targetNode.hash / 16384) * Math.PI * 2 - Math.PI / 2;
+        const tpx = cx + r * Math.cos(ta);
+        const tpy = cy + r * Math.sin(ta);
+
+        ctx.globalAlpha = Math.min(1, progress * 2);
+        ctx.strokeStyle = k.color;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(kx, ky);
+        ctx.lineTo(tpx, tpy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    ctx.restore();
+  };
+
+  const descriptions = {
+    'cache-aside': [
+      'Client sends GET request for user:10',
+      'Cache checks for user:10 — HIT! Found in cache',
+      'Cache returns data directly — no DB query needed',
+      'Latency: ~0.5ms. Database saved from a query.',
+    ],
+    'cache-aside-miss': [
+      'Client sends GET request for user:99',
+      'Cache checks for user:99 — MISS! Not found',
+      'Cache queries PostgreSQL for user:99',
+      'Database returns row. Cache stores it with TTL=3600s',
+      'Cache returns data to Client. Subsequent requests hit cache.',
+    ],
+    'write-through': [
+      'Client sends PUT request to update user:10',
+      'Application writes to Cache AND Database simultaneously',
+      'Cache stores new value. Database commits transaction.',
+      'Both stores are consistent. Read path is always cached.',
+    ],
+    'eviction': [
+      'Cache is full (5 items). LRU tracks access order.',
+      'User accesses user:10 — moves to MRU position',
+      'New request for user:99 arrives (not in cache)',
+      'Cache evicts LRU item: user:10 (least recently used)',
+      'Cache fetches user:99 from DB, stores it',
+      'Cache now holds: user:10..13, user:99',
+    ],
+    'consistent-hash': [
+      'Keys are mapped to hash values on a 0-16384 ring',
+      'Each cache node is assigned a position on the ring',
+      'A key belongs to the first node clockwise on the ring',
+      'Adding Node D only remaps keys near its position',
+      'N-1 keys stay in place — no cache avalanche on scale-out',
+    ],
+  };
+
+  const draw = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0a0c12';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (mode === 'consistent-hash') {
+      drawHashRing(step, animProgress);
+      return;
+    }
+
+    // Draw nodes
+    const cacheHighlight = mode === 'cache-aside' || mode === 'cache-aside-miss' || mode === 'write-through';
+    drawNode(clientNode, false, null);
+    drawNode(cacheNode, step > 0 && cacheHighlight, null);
+    drawNode(dbNode, (mode === 'cache-aside-miss' && step >= 2) || (mode === 'write-through' && (step === 2 || step === 3)), null);
+
+    // Draw arrows based on mode and step
+    arrows = [];
+    if (mode === 'cache-aside') {
+      if (step >= 1) arrows.push({ from: clientNode, to: cacheNode, color: '#34d399', progress: step === 1 ? animProgress : 1 });
+      if (step >= 2) arrows.push({ from: cacheNode, to: clientNode, color: '#60a5fa', progress: step === 2 ? animProgress : 1 });
+    } else if (mode === 'cache-aside-miss') {
+      if (step >= 1) arrows.push({ from: clientNode, to: cacheNode, color: '#34d399', progress: step === 1 ? animProgress : 1, dashed: true });
+      if (step >= 2) arrows.push({ from: cacheNode, to: dbNode, color: '#60a5fa', progress: step === 2 ? animProgress : 1, dashed: true });
+      if (step >= 3) arrows.push({ from: dbNode, to: cacheNode, color: '#a78bfa', progress: step === 3 ? animProgress : 1 });
+      if (step >= 4) arrows.push({ from: cacheNode, to: clientNode, color: '#22c55e', progress: step === 4 ? animProgress : 1 });
+    } else if (mode === 'write-through') {
+      if (step >= 1) arrows.push({ from: clientNode, to: cacheNode, color: '#34d399', progress: step === 1 ? animProgress : 1 });
+      if (step >= 1) arrows.push({ from: clientNode, to: dbNode, color: '#f87171', progress: step === 1 ? animProgress : 1 });
+      if (step >= 2) arrows.push({ from: cacheNode, to: clientNode, color: '#22c55e', progress: step === 2 ? animProgress : 1 });
+      if (step >= 2) arrows.push({ from: dbNode, to: clientNode, color: '#a78bfa', progress: step === 2 ? animProgress : 1 });
+    }
+
+    arrows.forEach(a => drawArrow(a.from, a.to, a.color, a.progress, a.dashed));
+
+    // Draw labels on arrows
+    arrows.forEach((a, i) => {
+      if (a.progress < 0.5) return;
+      const mx = (a.from.x + a.to.x) / 2 + (a.from.y < a.to.y ? -20 : 20);
+      const my = (a.from.y + a.to.y) / 2;
+    });
+
+    // Cache items for eviction mode
+    if (mode === 'eviction') {
+      drawCacheItems(mode, step, animProgress);
+    }
+  };
+
+  const getMaxSteps = () => descriptions[mode]?.length || 0;
+
+  const setStep = (s) => {
+    step = s;
+    animProgress = 0;
+    const descs = descriptions[mode] || [];
+    stepNum.textContent = `Step ${step}/${descs.length}`;
+    stepDesc.textContent = descs[step] || '';
+    animate();
+  };
+
+  const animate = () => {
+    if (animProgress < 1) {
+      animProgress += 0.04;
+      if (animProgress > 1) animProgress = 1;
+      draw();
+      if (animProgress < 1) requestAnimationFrame(animate);
+    } else {
+      animating = false;
+    }
+  };
+
+  algoSelect.addEventListener('change', () => {
+    mode = algoSelect.value;
+    capacity = parseInt(capacityInput.value);
+    cacheItemsInit();
+    step = 0;
+    animProgress = 1;
+    const descs = descriptions[mode] || [];
+    stepNum.textContent = `Step 0/${descs.length}`;
+    stepDesc.textContent = 'Click "Step" or "Auto-Play" to start';
+    draw();
+  });
+
+  capacityInput.addEventListener('input', () => {
+    capacity = parseInt(capacityInput.value);
+    capacityDisplay.textContent = capacity;
+    cacheItemsInit();
+    draw();
+  });
+
+  stepBtn.addEventListener('click', () => {
+    if (animating) return;
+    const max = getMaxSteps();
+    if (step < max) {
+      animating = true;
+      step++;
+      animProgress = 0;
+      animate();
+    }
+  });
+
+  autoBtn.addEventListener('click', () => {
+    if (autoTimer) {
+      clearInterval(autoTimer);
+      autoTimer = null;
+      autoBtn.textContent = 'Auto-Play';
+      return;
+    }
+    autoBtn.textContent = 'Stop';
+    const max = getMaxSteps();
+    if (step >= max) step = 0;
+    autoTimer = setInterval(() => {
+      const max2 = getMaxSteps();
+      if (step < max2) {
+        step++;
+        animProgress = 0;
+        animate();
+      } else {
+        clearInterval(autoTimer);
+        autoTimer = null;
+        autoBtn.textContent = 'Auto-Play';
+      }
+    }, 1800);
+  });
+
+  resetBtn.addEventListener('click', () => {
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; autoBtn.textContent = 'Auto-Play'; }
+    step = 0;
+    animProgress = 1;
+    capacity = parseInt(capacityInput.value);
+    cacheItemsInit();
+    const descs = descriptions[mode] || [];
+    stepNum.textContent = `Step 0/${descs.length}`;
+    stepDesc.textContent = 'Click "Step" or "Auto-Play" to start';
+    draw();
+  });
+
+  // Init
+  cacheItemsInit();
+  const descs = descriptions[mode] || [];
+  stepNum.textContent = `Step 0/${descs.length}`;
+  draw();
+})();
+</script>

@@ -2,7 +2,12 @@
 title: "Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse"
 description: "Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns."
 date: 2026-05-04
-tags: ["system-design", "distributed-systems", "redis", "api", "scalability", "interviews", "rate-limiting", "algorithms"]
+tags: ["system-design", "distributed-systems", "redis", "api", "scalability", "interviews", "rate-limiting", "algorithms", "token-bucket", "sliding-window"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-04"
+  dateModified: "2026-05-04"
 draft: false
 ---
 
@@ -437,6 +442,18 @@ The key insight: rate limiting is a trade-off between precision, performance, an
 - [Cloudflare Rate Limiting Architecture](https://blog.cloudflare.com/rate-limiting-policies/) — How they do it at scale
 - [GCRA: Generalized Cell Rate Algorithm](https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm) — The math behind token bucket
 - [RedisCell Module](https://github.com/brandur/redis-cell) — Native Redis rate limiting with GCRA
----
+
+Building a rate limiter? [Vultr](https://www.vultr.com/?ref=8914132)'s Redis hosting gives you a production-ready backend. <!-- AFFILIATE: vultr -->
+
+## Further Reading
+
+- [Redis Beyond Caching](/posts/redis-beyond-caching) — Redis is the primary backing store for distributed rate limiting; understanding its data structures and persistence matters for rate limiter reliability
+- [Distributed Cache System Design](/posts/distributed-cache-system-design) — The same Redis cluster patterns (sharding, replication) used in rate limiting appear in distributed caches
+- [Chat System Design](/posts/chat-messaging-system-design) — WebSocket connection management and rate limiting both need per-connection state tracking at scale
 
 <RateLimiterCanvas client:load />
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for Redis-based rate limiting deployments. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[Cloudflare](https://www.cloudflare.com/partners/)** — Rate limiting at the edge without managing your own infrastructure. <!-- AFFILIATE: cloudflare -->

@@ -2,7 +2,13 @@
 title: "Linux I/O Debugging: From iostat to iotop to pidstat"
 description: "A practical guide to diagnosing I/O bottlenecks in Linux using iostat, iotop, pidstat, and blktrace — with real output, interpretation, and tuning."
 date: 2026-05-06
-tags: ["linux", "performance", "io", "debugging", "storage", "sysadmin"]
+tags: ["linux", "performance", "io", "debugging", "storage", "sysadmin", "iostat", "blktrace"]
+structuredData:
+  type: "Article"
+  author: "systeminternals.dev"
+  datePublished: "2026-05-06"
+  dateModified: "2026-05-06"
+draft: false
 ---
 
 Your server is slow. CPU is mostly idle. Memory is fine. But disk I/O is spiking to 100% utilization and every request is queuing up behind the disk. Sound familiar?
@@ -353,4 +359,19 @@ I/O debugging is a three-layer problem:
 
 Most of the time, `iostat` + `iotop` gets you 90% of the answer in 2 minutes. The remaining 10% requires `blktrace`, but it's invaluable when the block layer itself is the constraint — scheduler latency, request queue overflow, or driver bugs.
 
+Need a test machine? [Spin up a Linux VPS on Vultr](https://www.vultr.com/?ref=8914132) and run `iostat -xz 1` while generating I/O load to see it in action. <!-- AFFILIATE: vultr -->
+
 Now you have the tools. Go find your bottleneck.
+
+Testing I/O schedulers? [Vultr](https://www.vultr.com/?ref=8914132)'s instance types let you choose between HDD, SSD, and NVMe storage. <!-- AFFILIATE: vultr -->
+
+## Further Reading
+
+- [Linux /proc Filesystem Deep Dive](/posts/linux-proc-filesystem-deep-dive) — The block layer writes to /proc/diskstats; understanding /proc is the foundation of I/O observability
+- [Linux Memory Debugging](/posts/linux-memory-debugging-profiling) — Memory-mapped files and swap activity both manifest as I/O; memory pressure and I/O pressure are often related
+- [TCP/IP Internals](/posts/tcp-ip-internals-packet-journey) — Network I/O uses the same block layer abstractions on some systems; the I/O stack is more unified than you think
+
+## Tools & Services
+
+- **[Vultr](https://www.vultr.com/?ref=8914132)** — Cloud VPS for practicing I/O debugging with iostat and blktrace. $100 free credit for new accounts. <!-- AFFILIATE: vultr -->
+- **[DigitalOcean](https://www.digitalocean.com/affiliates)** — Simple cloud hosting for Linux I/O experiments. $100 free credit. <!-- AFFILIATE: digitalocean -->
