@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEX Aggregators — Find the Best Trade Across Every Exchange</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "What is a DEX aggregator?", "acceptedAnswer": {"@type": "Answer", "text": "A DEX aggregator scans multiple decentralized exchanges to find the best trading price for a given token pair. It automatically splits orders across venues, uses routing algorithms, and can tap into liquidity pools that a simple direct swap would miss, often saving 1-5% on large trades."}},
+      {"@type": "Question", "name": "How do aggregators like 1inch and 0x differ?", "acceptedAnswer": {"@type": "Answer", "text": "1inch uses a patent-protected Pathfinder algorithm that explores multiple routing paths including splitting across DEXes. 0x provides an open API that any developer can build upon, focusing on being infrastructure for the broader ecosystem. Both aggregate liquidity but with different architectural approaches."}},
+      {"@type": "Question", "name": "What is token spread slippage in DeFi trading?", "acceptedAnswer": {"@type": "Answer", "text": "Slippage is the difference between the expected price of a trade and the actual executed price. Large orders moving through pools cause price impact. DEX aggregators minimize slippage by routing trades across multiple pools and choosing the path with least price movement."}},
+      {"@type": "Question", "name": "Why do DEX aggregators sometimes fail to execute trades?", "acceptedAnswer": {"@type": "Answer", "text": "Trades can fail due to: (1) high price impact causing the trade to exceed slippage tolerance, (2) insufficient gas fees during network congestion, (3) the liquidity pool changing between quote and execution (frontrunning), or (4) MEV bots sandwiching the trade and making it unprofitable."}},
+      {"@type": "Question", "name": "Are DEX aggregators cheaper than direct swaps?", "acceptedAnswer": {"@type": "Answer", "text": "For small trades (<$100), a direct swap on a single DEX is usually fine. For larger trades (>$1,000), aggregators almost always provide better net prices after fees. Aggregators charge a small protocol fee (typically 0.1-0.5%) but the improved routing usually more than compensates for this on larger trades."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">DeFi<span>Vis</span></a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="aave.html">Aave</a>
+      <a href="curve.html">Curve</a>
+      <a href="makerdao.html">MakerDAO</a>
+      <a href="compound.html">Compound</a>
+      <a href="lido.html">Lido</a>
+      <a href="eigenlayer.html">EigenLayer</a>
+      <a href="mev.html">MEV</a>
+      <a href="bridges.html">Bridges</a>
+      <a href="aggregators.html" class="active">Aggregators</a>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="container">
+
+      <!-- Hero -->
+      <div class="protocol-hero">
+        <div class="protocol-icon">🔀</div>
+        <h1>DEX Aggregators</h1>
+        <p class="tagline">Finding the best trade across every exchange — automatically</p>
+        <div class="protocol-meta">
+          <div class="meta-item">
+            <div class="label">Daily Volume</div>
+            <div class="value">~$2.1B</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Best Aggregators</div>
+            <div class="value">1inch · 0x · ParaSwap</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Avg. Savings</div>
+            <div class="value">~12% vs single DEX</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Key Feature</div>
+            <div class="value">Split Routing</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 1: What are DEX Aggregators? -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <span class="num">1</span>
+          What are DEX Aggregators?
+        </div>
+        <div style="font-size:16px; line-height:1.85; color:var(--text); max-width:900px;">
+
+          <p style="margin-bottom:18px;">
+            <strong style="color:var(--primary);">DEX aggregators</strong> are intelligent routing engines that search across dozens of decentralized exchanges simultaneously to find you the <strong>best possible price</strong> on any token swap. Think of them like Google Flights for crypto — instead of manually checking every airline, you get the optimal route instantly.
+          </p>
+
+          <p style="margin-bottom:18px;">
+            Here's the problem they're solving: the DeFi ecosystem has <strong>fragmented liquidity</strong> across hundreds of AMMs — Uniswap, SushiSwap, Curve, Balancer, Dodo, Bancor, and thousands of individual pools. No single exchange has all the liquidity. When you want to swap <strong>10 ETH → USDC</strong>, Uniswap might offer $32,400, Curve might offer $32,250, and SushiSwap only has enough depth for a small portion at $32,380. You can't manually check them all — and even if you could, a large order would move the market on any single venue.
+          </p>
+
+          <p style="margin-bottom:18px;">
+            Aggregators solve this by querying <strong>multiple DEXs in parallel</strong>, calculating the mathematically optimal split of your order across venues. That 10 ETH order might get routed as: <strong>6 ETH via Uniswap</strong> (best for large chunks), <strong>3 ETH via Curve</strong> (deep stablecoin pools), and <strong>1 ETH via Balancer</strong> (efficient for this size). The result: you get <strong>$32,520</strong> instead of $32,250 — that's $270 more in your pocket.
+          </p>
+
+          <p style="margin-bottom:18px;">
+            Beyond simple price improvement, aggregators handle a range of complex optimizations:
+          </p>
+
+          <ul style="margin-bottom:18px; padding-left:20px; color:var(--muted); line-height:2;">
+            <li><strong style="color:var(--text);">Gas optimization</strong> — They determine whether it's worth making 3 separate trades (better price) vs 1 trade (lower gas cost). For small trades, a single-hop might be more economical.</li>
+            <li><strong style="color:var(--text);">MEV protection</strong> — Top aggregators integrate with Flashbots and other MEV protection layers to shield your trades from front-running and sandwich attacks.</li>
+            <li><strong style="color:var(--text);">Slippage tolerance</strong> — They set intelligent slippage parameters to prevent getting cleaned out on volatile pairs.</li>
+            <li><strong style="color:var(--text);">Token approval optimization</strong> — They batch token approvals to minimize unnecessary on-chain transactions.</li>
+          </ul>
+
+          <p style="margin-bottom:18px;">
+            The major players each take a different approach: <strong style="color:var(--primary);">1inch</strong> has the most venues and a sophisticated Pathfinder algorithm; <strong style="color:var(--secondary);">0x</strong> focuses on institutional-grade API access and RFQ systems; <strong style="color:var(--accent);">ParaSwap</strong> prioritizes speed with its own indexing layer and offers unique features like Batch Swap and Limit Orders.
+          </p>
+
+          <p>
+            Together, DEX aggregators process over <strong>$2 billion daily</strong> and have saved users collectively <strong>billions of dollars</strong> versus naive single-DEX trades. For anyone serious about DeFi, understanding how aggregators work is essential — it's the difference between paying full price and getting the deal.
+          </p>
+        </div>
+      </div>
+
+      <!-- Section 2: How Routing Works -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <span class="num">2</span>
+          How Routing Works — Animated Flow
+        </div>
+
+        <p style="font-size:14px; color:var(--muted); margin-bottom:24px;">
+          Watch how a router splits your order across multiple DEXs to maximize output. The router queries all venues in parallel and computes the optimal split.
+        </p>
+
+        <div id="routeFlowDiagram" class="flow-diagram" style="margin-bottom:24px;">
+          <!-- Step 1: User Input -->
+          <div class="route-step" id="routeStep1">
+            <div class="flow-node primary" style="border-color:var(--primary);">
+              <div class="flow-label">Your Order</div>
+              <div class="flow-value" id="swapAmount">10 ETH</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node" style="border-color:var(--accent);">
+              <div class="flow-label">Output Token</div>
+              <div class="flow-value">USDC</div>
+            </div>
+          </div>
+
+          <!-- Step 2: Router Queries -->
+          <div style="margin-top:16px; text-align:center; color:var(--muted); font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px;">Router queries all venues simultaneously</div>
+          <div id="routeStep2" style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+            <div class="venue-chip" id="uniswapChip">Uniswap V3</div>
+            <div class="venue-chip" id="sushiChip">SushiSwap</div>
+            <div class="venue-chip" id="curveChip">Curve</div>
+            <div class="venue-chip" id="balancerChip">Balancer</div>
+            <div class="venue-chip" id="dodoChip">Dodo</div>
+          </div>
+
+          <!-- Step 3: Route Split -->
+          <div id="routeStep3" style="margin-top:20px; display:none;">
+            <div style="text-align:center; color:var(--primary); font-size:13px; font-weight:600; margin-bottom:16px;">Optimal Split Found — <span id="splitCount">3 venues</span></div>
+            <div class="route-split-visual" id="routeSplitVisual">
+              <div class="split-bar-track">
+                <div class="split-segment" id="seg1" style="width:60%; background:var(--primary);">60%</div>
+                <div class="split-segment" id="seg2" style="width:30%; background:var(--secondary);">30%</div>
+                <div class="split-segment" id="seg3" style="width:10%; background:var(--accent);">10%</div>
+              </div>
+              <div class="split-legend" id="splitLegend">
+                <div class="legend-item"><span class="dot" style="background:var(--primary);"></span>Uniswap V3 — <strong id="leg1">$19,572</strong></div>
+                <div class="legend-item"><span class="dot" style="background:var(--secondary);"></span>Curve — <strong id="leg2">$9,756</strong></div>
+                <div class="legend-item"><span class="dot" style="background:var(--accent);"></span>Balancer — <strong id="leg3">$3,252</strong></div>
+              </div>
+              <div style="margin-top:16px; display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+                <div class="result-highlight">
+                  <span class="result-label">Aggregated Output</span>
+                  <span class="result-val" id="aggOutput">$32,580</span>
+                </div>
+                <div class="result-highlight" style="border-color:var(--danger);">
+                  <span class="result-label">Best Single DEX</span>
+                  <span class="result-val" id="singleOutput" style="color:var(--danger);">$32,250</span>
+                </div>
+                <div class="result-highlight" style="border-color:var(--success);">
+                  <span class="result-label">Your Savings</span>
+                  <span class="result-val success" id="savingsAmt">+$330</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label>Swap Amount (ETH)</label>
+          <input type="number" id="swapAmountInput" value="10" min="0.1" max="1000" step="0.1" oninput="animateRoute()">
+        </div>
+
+        <div class="slider-group">
+          <label>
+            <span>Number of Venues to Check</span>
+            <span id="venueCount">5 venues</span>
+          </label>
+          <input type="range" id="venueSlider" min="2" max="8" value="5" oninput="animateRoute()">
+        </div>
+
+        <button onclick="animateRoute()" style="margin-top:12px; background:var(--primary); color:var(--bg); font-weight:700; font-size:14px; padding:12px 24px; border:none; border-radius:8px; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(0,255,200,0.3)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">Run Route Simulation →</button>
+      </div>
+
+      <!-- Section 3: Interactive Swap Simulator -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <span class="num">3</span>
+          Interactive Swap Simulator
+        </div>
+
+        <p style="font-size:14px; color:var(--muted); margin-bottom:24px;">
+          Tweak the parameters and watch how aggregators optimize your trade. Compare aggregated routing vs single-DEX execution.
+        </p>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; margin-bottom:24px;">
+          <div>
+            <div class="input-group">
+              <label>Input Token</label>
+              <select id="simInputToken" onchange="updateSimulator()">
+                <option value="ETH">ETH</option>
+                <option value="WBTC">WBTC</option>
+                <option value="USDC">USDC</option>
+                <option value="DAI">DAI</option>
+                <option value="LINK">LINK</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>Output Token</label>
+              <select id="simOutputToken" onchange="updateSimulator()">
+                <option value="USDC">USDC</option>
+                <option value="DAI">DAI</option>
+                <option value="ETH">ETH</option>
+                <option value="WBTC">WBTC</option>
+                <option value="USDT">USDT</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>Amount to Swap</label>
+              <input type="number" id="simSwapAmt" value="5" min="0.01" step="0.01" oninput="updateSimulator()">
+            </div>
+          </div>
+          <div>
+            <div class="slider-group">
+              <label>
+                <span>Slippage Tolerance</span>
+                <span id="simSlippage">0.5%</span>
+              </label>
+              <input type="range" id="simSlipSlider" min="0.1" max="5" step="0.1" value="0.5" oninput="updateSimulator()">
+            </div>
+            <div class="slider-group">
+              <label>
+                <span>Gas Price (gwei)</span>
+                <span id="simGasPrice">35 gwei</span>
+              </label>
+              <input type="range" id="simGasSlider" min="5" max="200" step="5" value="35" oninput="updateSimulator()">
+            </div>
+            <div class="slider-group">
+              <label>
+                <span>Trade Complexity (hops)</span>
+                <span id="simHops">2 hops</span>
+              </label>
+              <input type="range" id="simHopSlider" min="1" max="4" value="2" oninput="updateSimulator()">
+            </div>
+          </div>
+        </div>
+
+        <div class="result-box">
+          <div style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:16px;">📊 Trade Comparison</div>
+          <div class="result-row">
+            <span class="label">Best Single DEX Output</span>
+            <span class="value" id="simSingleDex">$16,125</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Aggregator Output</span>
+            <span class="value success" id="simAggOutput">$16,288</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Price Improvement</span>
+            <span class="value success" id="simPriceImp">+$163 (+1.0%)</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Aggregator Gas Cost</span>
+            <span class="value" id="simAggGas">~$4.20</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Single DEX Gas Cost</span>
+            <span class="value" id="simSingleGas">~$2.10</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Net Benefit (after gas)</span>
+            <span class="value success" id="simNetBenefit">+$159</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Is Aggregator Worth It?</span>
+            <span class="value" id="simWorthIt">✅ YES</span>
+          </div>
+        </div>
+
+        <div id="simWorthNote" style="margin-top:16px; padding:14px; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); border-radius:8px; font-size:13px; color:var(--muted); line-height:1.6;">
+          💡 <strong>Worth it!</strong> The price improvement ($163) far exceeds the extra gas cost ($2.10). For this trade size, aggregator routing is clearly optimal.
+        </div>
+      </div>
+
+      <!-- Section 4: Route Split Visualization -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <span class="num">4</span>
+          Route Split Visualization
+        </div>
+
+        <p style="font-size:14px; color:var(--muted); margin-bottom:24px;">
+          See how a large order gets split across multiple liquidity sources. Larger trades require more splitting to avoid slippage.
+        </p>
+
+        <div class="slider-group">
+          <label>
+            <span>Order Size (ETH equivalent)</span>
+            <span id="routeSizeDisplay">50 ETH</span>
+          </label>
+          <input type="range" id="routeSizeSlider" min="1" max="500" value="50" oninput="updateRouteSplit()">
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:20px;">
+          <!-- Pie chart alternative using bars -->
+          <div style="background:var(--surface-2); border-radius:12px; padding:24px;">
+            <div style="font-size:13px; color:var(--muted); margin-bottom:16px; text-transform:uppercase; letter-spacing:0.5px;">Liquidity Split by Venue</div>
+            <div id="routePieBars">
+              <div class="route-bar-row">
+                <span class="route-bar-label">Uniswap V3</span>
+                <div class="route-bar-track"><div class="route-bar-fill" id="pieBar1" style="width:45%; background:var(--primary);"></div></div>
+                <span class="route-bar-pct" id="piePct1">45%</span>
+              </div>
+              <div class="route-bar-row">
+                <span class="route-bar-label">Curve</span>
+                <div class="route-bar-track"><div class="route-bar-fill" id="pieBar2" style="width:28%; background:var(--secondary);"></div></div>
+                <span class="route-bar-pct" id="piePct2">28%</span>
+              </div>
+              <div class="route-bar-row">
+                <span class="route-bar-label">Balancer</span>
+                <div class="route-bar-track"><div class="route-bar-fill" id="pieBar3" style="width:17%; background:var(--accent);"></div></div>
+                <span class="route-bar-pct" id="piePct3">17%</span>
+              </div>
+              <div class="route-bar-row">
+                <span class="route-bar-label">SushiSwap</span>
+                <div class="route-bar-track"><div class="route-bar-fill" id="pieBar4" style="width:10%; background:#ef4444;"></div></div>
+                <span class="route-bar-pct" id="piePct4">10%</span>
+              </div>
+              <div class="route-bar-row" id="pieRow5" style="display:flex;">
+                <span class="route-bar-label">Dodo</span>
+                <div class="route-bar-track"><div class="route-bar-fill" id="pieBar5" style="width:0%; background:#06b6d4;"></div></div>
+                <span class="route-bar-pct" id="piePct5">0%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Output comparison -->
+          <div style="background:var(--surface-2); border-radius:12px; padding:24px;">
+            <div style="font-size:13px; color:var(--muted); margin-bottom:16px; text-transform:uppercase; letter-spacing:0.5px;">Output Comparison</div>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <div style="background:var(--surface); border-radius:8px; padding:14px; border-left:3px solid var(--primary);">
+                <div style="font-size:12px; color:var(--muted); margin-bottom:4px;">Aggregated Route (all venues)</div>
+                <div style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--primary);" id="routeAggOut">$161,250</div>
+              </div>
+              <div style="background:var(--surface); border-radius:8px; padding:14px; border-left:3px solid var(--danger);">
+                <div style="font-size:12px; color:var(--muted); margin-bottom:4px;">Best Single DEX (Uniswap)</div>
+                <div style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--text);" id="routeSingleOut">$158,900</div>
+              </div>
+              <div style="background:rgba(34,197,94,0.08); border-radius:8px; padding:14px; border-left:3px solid var(--success);">
+                <div style="font-size:12px; color:var(--muted); margin-bottom:4px;">Savings from Aggregation</div>
+                <div style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--success);" id="routeSavings">+$2,350</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Route path animation -->
+        <div style="margin-top:24px; background:var(--surface-2); border-radius:12px; padding:24px; text-align:center;">
+          <div style="font-size:13px; color:var(--muted); margin-bottom:20px;">Route Path Animation</div>
+          <div style="display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap;" id="pathAnimation">
+            <div class="path-node" style="border-color:var(--primary);">
+              <div style="font-size:20px; margin-bottom:4px;">💰</div>
+              <div style="font-size:12px; color:var(--muted);">Your Order</div>
+              <div style="font-family:var(--mono); font-size:14px; font-weight:600;" id="pathAmt">50 ETH</div>
+            </div>
+            <div class="path-arrow">→</div>
+            <div class="path-node" style="border-color:var(--accent);">
+              <div style="font-size:20px; margin-bottom:4px;">🔍</div>
+              <div style="font-size:12px; color:var(--muted);">Aggregator</div>
+              <div style="font-size:12px; color:var(--accent);">Router Engine</div>
+            </div>
+            <div class="path-arrow">→</div>
+            <div class="path-node" style="border-color:var(--primary);">
+              <div style="font-size:12px; color:var(--muted);">Uniswap V3</div>
+              <div style="font-family:var(--mono); font-size:13px;">22.5 ETH</div>
+            </div>
+            <div class="path-node" style="border-color:var(--secondary);">
+              <div style="font-size:12px; color:var(--muted);">Curve</div>
+              <div style="font-family:var(--mono); font-size:13px;">14.0 ETH</div>
+            </div>
+            <div class="path-node" style="border-color:var(--accent);">
+              <div style="font-size:12px; color:var(--muted);">Balancer</div>
+              <div style="font-family:var(--mono); font-size:13px;">8.5 ETH</div>
+            </div>
+            <div class="path-node" style="border-color:#ef4444;">
+              <div style="font-size:12px; color:var(--muted);">SushiSwap</div>
+              <div style="font-family:var(--mono); font-size:13px;">5.0 ETH</div>
+            </div>
+            <div class="path-arrow">→</div>
+            <div class="path-node" style="border-color:var(--success);">
+              <div style="font-size:20px; margin-bottom:4px;">📥</div>
+              <div style="font-size:12px; color:var(--muted);">You Receive</div>
+              <div style="font-family:var(--mono); font-size:14px; color:var(--success); font-weight:700;" id="pathFinal">$161,250</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 5: 1inch vs 0x vs ParaSwap -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <span class="num">5</span>
+          1inch vs 0x vs ParaSwap — Key Differences
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:24px;">
+          <!-- 1inch -->
+          <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:24px; text-align:center;">
+            <div style="font-size:32px; margin-bottom:12px;">🍔</div>
+            <div style="font-size:18px; font-weight:700; color:var(--primary); margin-bottom:8px;">1inch</div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">The Volume King</div>
+            <div style="text-align:left; display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:12px; color:var(--text);"><strong>Routing:</strong> <span style="color:var(--primary);">Pathfinder algorithm</span> — checks 100+ venues, finds lowest price path with gas optimization</div>
+              <div style="font-size:12px; color:var(--text);"><strong>DEXs covered:</strong> 150+ sources, deepest aggregator coverage</div>
+              <div style="font-size:12px; color:var(--text);"><strong>Gas optimization:</strong> Dynamic gas price tracking, splits trades when gas savings outweigh price impact</div>
+              <div style="font-size:12px; color:var(--text);"><strong>MEV protection:</strong> Integrates with Flashbots SUAVE, anti-Sandwich mode</div>
+              <div style="font-size:12px; color:var(--text);"><strong>Unique feature:</strong> <strong style="color:var(--accent);">Limit Orders</strong> — trade at specific prices, not just market orders</div>
+            </div>
+          </div>
+
+          <!-- 0x -->
+          <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:24px; text-align:center;">
+            <div style="font-size:32px; margin-bottom:12px;">⚡</div>
+            <div style="font-size:18px; font-weight:700; color:var(--secondary); margin-bottom:8px;">0x Protocol</div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">The Institutional Grade</div>
+            <div style="text-align:left; display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:12px; color:var(--text);"><strong>Routing:</strong> <span style="color:var(--secondary);">CoW Protocol integration</span> — uses batch auctions and solver networks, excellent for large orders</div>
+              <div style="font-size:12px; color:var(--text);"><strong>DEXs covered:</strong> 100+ venues via aggregated sources</div>
+              <div style="font-size:12px; color:var(--text);"><strong>Gas optimization:</strong> Gasless transactions via meta-transactions, API-first design for developers</div>
+              <div style="font-size:12px; color:var(--text);"><strong>MEV protection:</strong> CoW Protocol's batch auctions naturally protect against MEV — trades matched peer-to-peer</div>
+              <div style="font-size:12px; color:var(--text);"><strong>Unique feature:</strong> <strong style="color:var(--accent);">RFQ (Request for Quote)</strong> — institutions can get fixed-price quotes from market makers</div>
+            </div>
+          </div>
+
+          <!-- ParaSwap -->
+          <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:24px; text-align:center;">
+            <div style="font-size:32px; margin-bottom:12px;">🦄</div>
+            <div style="font-size:18px; font-weight:700; color:var(--accent); margin-bottom:8px;">ParaSwap</div>
+            <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">The Speed Demon</div>
+            <div style="text-align:left; display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:12px; color:var(--text);"><strong>Routing:</strong> <span style="color:var(--accent);">MigaDEX</span> — proprietary pools with improved pricing, own indexing layer for fast price discovery</div>
+              <div style="font-size:12px; color:var(--text);"><strong>DEXs covered:</strong> 40+ sources including own pools</div>
+              <div style="font-size:12px; color:var(--text);"><strong>Gas optimization:</strong> "Save Gas" mode that groups small trades efficiently, minimizing per-trade gas costs</div>
+              <div style="font-size:12px; color:var(--text);"><strong>MEV protection:</strong> Direct pool routing avoids AMM mempool exposure</div>
+              <div style="font-size:12px; color:var(--text);"><strong>Unique feature:</strong> <strong style="color:var(--accent);">Batch Swaps</strong> — execute multiple swaps in one transaction, gas-efficient for DeFi farming</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2); border-radius:12px; padding:20px; margin-bottom:20px;">
+          <div style="font-size:14px; font-weight:700; color:var(--text); margin-bottom:16px;">📋 Feature Comparison Matrix</div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border);">
+                  <th style="text-align:left; padding:8px 12px; color:var(--muted);">Feature</th>
+                  <th style="text-align:center; padding:8px 12px; color:var(--primary);">1inch</th>
+                  <th style="text-align:center; padding:8px 12px; color:var(--secondary);">0x</th>
+                  <th style="text-align:center; padding:8px 12px; color:var(--accent);">ParaSwap</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:1px solid var(--border);">
+                  <td style="padding:8px 12px;">Max Venues</td>
+                  <td style="text-align:center; font-family:var(--mono); color:var(--primary);">150+</td>
+                  <td style="text-align:center; font-family:var(--mono);">100+</td>
+                  <td style="text-align:center; font-family:var(--mono);">40+</td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border);">
+                  <td style="padding:8px 12px;">Limit Orders</td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅</span></td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅</span></td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅</span></td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border);">
+                  <td style="padding:8px 12px;">MEV Protection</td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅ Flashbots</span></td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅ CoW</span></td>
+                  <td style="text-align:center;"><span style="color:var(--accent);">⚡ Partial</span></td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border);">
+                  <td style="padding:8px 12px;">Gas Optimization</td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅ Advanced</span></td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅ Meta-TX</span></td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅ Save Gas</span></td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border);">
+                  <td style="padding:8px 12px;">Batch Swaps</td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅</span></td>
+                  <td style="text-align:center;"><span style="color:var(--muted);">❌</span></td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅</span></td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 12px;">RFQ / OTC</td>
+                  <td style="text-align:center;"><span style="color:var(--muted);">❌</span></td>
+                  <td style="text-align:center;"><span style="color:var(--success);">✅</span></td>
+                  <td style="text-align:center;"><span style="color:var(--muted);">❌</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div style="background:rgba(0,255,200,0.06); border:1px solid rgba(0,255,200,0.15); border-radius:10px; padding:18px;">
+            <div style="font-size:13px; font-weight:700; color:var(--primary); margin-bottom:8px;">👤 Chelsea's Use Case</div>
+            <p style="font-size:12px; color:var(--muted); line-height:1.6;">
+              Chelsea swaps <strong>$50K-500K</strong> daily as a DeFi power user. She uses <strong>1inch</strong> for its deep liquidity coverage and limit orders, especially for large LDO→ETH or CRV→ETH swaps where slippage matters. She enables anti-sandwich mode for extra protection.
+            </p>
+          </div>
+          <div style="background:rgba(168,85,247,0.06); border:1px solid rgba(168,85,247,0.15); border-radius:10px; padding:18px;">
+            <div style="style="font-size:13px; font-weight:700; color:var(--secondary); margin-bottom:8px;">👤 Marcus's Use Case</div>
+            <p style="font-size:12px; color:var(--muted); line-height:1.6;">
+              Marcus runs an algorithmic trading bot via 0x's API. He needs <strong>reliable RFQ quotes</strong> for his institutional clients who want fixed-price execution. 0x's API-first approach and gasless meta-transactions make it ideal for his use case.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 6: MEV Protection -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <span class="num">6</span>
+          MEV Protection — How Aggregators Shield You
+        </div>
+
+        <p style="font-size:14px; color:var(--muted); margin-bottom:24px;">
+          <strong>MEV (Maximal Extractable Value)</strong> is the practice of extracting value from users by manipulating the order of transactions in a block. DEX aggregators implement several protections.
+        </p>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px;">
+          <div style="background:var(--surface-2); border-radius:10px; padding:20px; border-top:3px solid var(--danger);">
+            <div style="font-size:15px; font-weight:700; color:var(--danger); margin-bottom:12px;">⚠️ Sandwich Attack (Without Protection)</div>
+            <div style="font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:12px;">
+              Attacker sees your large trade in the mempool. They:
+            </div>
+            <ol style="font-size:12px; color:var(--text); padding-left:20px; line-height:2;">
+              <li>Front-run: Buy the same token <strong>before</strong> your trade (drives price up)</li>
+              <li>Your trade executes at the <strong>worse price</strong></li>
+              <li>Attacker back-runs: Sell immediately after at <strong>profit</strong></li>
+            </ol>
+            <div style="margin-top:12px; font-family:var(--mono); font-size:12px; color:var(--danger); background:rgba(239,68,68,0.1); padding:10px; border-radius:6px;">
+              Result: You lose ~0.5-2% extra per sandwiched trade
+            </div>
+          </div>
+
+          <div style="background:var(--surface-2); border-radius:10px; padding:20px; border-top:3px solid var(--success);">
+            <div style="font-size:15px; font-weight:700; color:var(--success); margin-bottom:12px;">✅ With Aggregator Protection</div>
+            <div style="font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:12px;">
+              Aggregators use multiple strategies to block sandwich attacks:
+            </div>
+            <ul style="font-size:12px; color:var(--text); padding-left:20px; line-height:2;">
+              <li><strong>Private order flow</strong> — sends trades through Flashbots SUAVE private mempool, invisible to scanners</li>
+              <li><strong>Bundle submission</strong> — atomically includes your trade in a Flashbots block, no front-running possible</li>
+              <li><strong>RFQ with CoW</strong> — peer-to-peer trades never hit the public mempool</li>
+              <li><strong>Twap splitting</strong> — breaks large orders into smaller chunks to reduce detectability</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="slider-group">
+          <label>
+            <span>Trade Size (ETH)</span>
+            <span id="mevTradeSize">10 ETH</span>
+          </label>
+          <input type="range" id="mevSlider" min="1" max="200" value="10" oninput="updateMevCalc()">
+        </div>
+
+        <div class="result-box">
+          <div style="font-size:14px; font-weight:700; color:var(--text); margin-bottom:16px;">MEV Exposure Analysis</div>
+          <div class="result-row">
+            <span class="label">Estimated Sandwich Loss (no protection)</span>
+            <span class="value danger" id="mevLossAmt">~$162</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Loss as % of trade</span>
+            <span class="value danger" id="mevLossPct">-1.0%</span>
+          </div>
+          <div class="result-row">
+            <span class="label">1inch Protection Saves</span>
+            <span class="value success" id="mevSavings">~$162 per trade</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Monthly Impact (3 trades/day)</span>
+            <span class="value success" id="mevMonthly">~$14,580 saved</span>
+          </div>
+        </div>
+
+        <div style="margin-top:16px; display:flex; gap:16px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:200px; background:rgba(0,255,200,0.06); border:1px solid rgba(0,255,200,0.15); border-radius:8px; padding:14px; font-size:12px; color:var(--muted);">
+            <strong style="color:var(--primary);">1inch Fusion:</strong> Orders matched via private auctions, no mempool exposure. Ideal for large trades.
+          </div>
+          <div style="flex:1; min-width:200px; background:rgba(168,85,247,0.06); border:1px solid rgba(168,85,247,0.15); border-radius:8px; padding:14px; font-size:12px; color:var(--muted);">
+            <strong style="color:var(--secondary);">0x CoW Protocol:</strong> Batch auctions match trades peer-to-peer. MEV is shared among participants.
+          </div>
+          <div style="flex:1; min-width:200px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.15); border-radius:8px; padding:14px; font-size:12px; color:var(--muted);">
+            <strong style="color:var(--accent);">ParaSwap PSG:</strong> Direct pool routing bypasses the mempool entirely for small-to-medium trades.
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 7: Gas Optimization Calculator -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <span class="num">7</span>
+          Gas Optimization Calculator
+        </div>
+
+        <p style="font-size:14px; color:var(--muted); margin-bottom:24px;">
+          Aggregators can split trades across multiple venues, but each additional hop costs gas. This calculator tells you when aggregation beats single-DEX execution.
+        </p>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+          <div>
+            <div class="input-group">
+              <label>Trade Size ($)</label>
+              <input type="number" id="gasTradeSize" value="10000" min="100" step="100" oninput="updateGasCalc()">
+            </div>
+            <div class="slider-group">
+              <label>
+                <span>Gas Price (gwei)</span>
+                <span id="gasGweiDisplay">30 gwei</span>
+              </label>
+              <input type="range" id="gasGweiSlider" min="5" max="300" value="30" oninput="updateGasCalc()">
+            </div>
+            <div class="slider-group">
+              <label>
+                <span>Number of Hops (venues)</span>
+                <span id="gasHopsDisplay">3 hops</span>
+              </label>
+              <input type="range" id="gasHopsSlider" min="1" max="6" value="3" oninput="updateGasCalc()">
+            </div>
+            <div class="slider-group">
+              <label>
+                <span>Price Improvement (bps)</span>
+                <span id="gasBpsDisplay">25 bps</span>
+              </label>
+              <input type="range" id="gasBpsSlider" min="1" max="200" value="25" oninput="updateGasCalc()">
+            </div>
+          </div>
+
+          <div class="result-box" style="margin-top:0;">
+            <div style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:16px;">📐 Gas Economics</div>
+            <div class="result-row">
+              <span class="label">Aggregator Gas Cost</span>
+              <span class="value" id="gasAggCost">~$5.40</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Single DEX Gas Cost</span>
+              <span class="value" id="gasSingleCost">~$1.80</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Extra Gas Cost</span>
+              <span class="value" id="gasExtra" style="color:var(--accent);">+$3.60</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Price Improvement Value</span>
+              <span class="value success" id="gasImprovement">$25.00</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Net Benefit</span>
+              <span class="value success" id="gasNetBenefit">+$21.40</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Worth Aggregating?</span>
+              <span class="value success" id="gasWorthIt">✅ YES</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:20px; background:var(--surface-2); border-radius:10px; padding:20px;">
+          <div style="font-size:14px; font-weight:700; color:var(--text); margin-bottom:16px;">Threshold Analysis — When to Aggregate</div>
+          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; font-size:12px;">
+            <div style="background:var(--surface); border-radius:8px; padding:14px; text-align:center;">
+              <div style="color:var(--success); font-size:20px; font-weight:700; font-family:var(--mono); margin-bottom:4px;">$100+</div>
+              <div style="color:var(--muted);">Always aggregate</div>
+            </div>
+            <div style="background:var(--surface); border-radius:8px; padding:14px; text-align:center;">
+              <div style="color:var(--primary); font-size:20px; font-weight:700; font-family:var(--mono); margin-bottom:4px;">$500+</div>
+              <div style="color:var(--muted);">1-2 hops optimal</div>
+            </div>
+            <div style="background:var(--surface); border-radius:8px; padding:14px; text-align:center;">
+              <div style="color:var(--accent); font-size:20px; font-weight:700; font-family:var(--mono); margin-bottom:4px;">$5K+</div>
+              <div style="color:var(--muted);">Max 3 hops worth it</div>
+            </div>
+            <div style="background:var(--surface); border-radius:8px; padding:14px; text-align:center;">
+              <div style="color:var(--secondary); font-size:20px; font-weight:700; font-family:var(--mono); margin-bottom:4px;">$50K+</div>
+              <div style="color:var(--muted);">4-6 hops justified</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 8: Volume & Savings Tracker -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <span class="num">8</span>
+          Volume & Savings Tracker
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:24px;">
+          <div style="background:var(--surface-2); border-radius:12px; padding:24px; text-align:center; border-top:3px solid var(--primary);">
+            <div style="font-size:36px; font-weight:800; font-family:var(--mono); color:var(--primary); margin-bottom:8px;">$847B+</div>
+            <div style="font-size:13px; color:var(--muted);">Total Aggregator Volume</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:4px;">(all-time, across 1inch/0x/ParaSwap)</div>
+          </div>
+          <div style="background:var(--surface-2); border-radius:12px; padding:24px; text-align:center; border-top:3px solid var(--secondary);">
+            <div style="font-size:36px; font-weight:800; font-family:var(--mono); color:var(--secondary); margin-bottom:8px;">$101B+</div>
+            <div style="font-size:13px; color:var(--muted);">Saved vs Single DEX</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:4px;">(cumulative user savings)</div>
+          </div>
+          <div style="background:var(--surface-2); border-radius:12px; padding:24px; text-align:center; border-top:3px solid var(--accent);">
+            <div style="font-size:36px; font-weight:800; font-family:var(--mono); color:var(--accent); margin-bottom:8px;">~1.2%</div>
+            <div style="font-size:13px; color:var(--muted);">Avg. Improvement</div>
+            <div style="font-size:11px; color:var(--muted); margin-top:4px;">(median savings across trades)</div>
+          </div>
+        </div>
+
+        <div class="slider-group">
+          <label>
+            <span>Your Estimated Daily Trading Volume</span>
+            <span id="dailyVolDisplay">$10,000</span>
+          </label>
+          <input type="range" id="dailyVolSlider" min="100" max="1000000" value="10000" step="100" oninput="updateSavingsCalc()">
+        </div>
+
+        <div class="result-box">
+          <div style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:16px;">📈 Your Estimated Annual Savings</div>
+          <div class="result-row">
+            <span class="label">Daily trades (avg)</span>
+            <span class="value" id="saveTrades">3 trades/day</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Avg improvement per trade</span>
+            <span class="value" id="saveImprovement">~1.2%</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Daily savings</span>
+            <span class="value success" id="saveDaily">~$360</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Monthly savings</span>
+            <span class="value success" id="saveMonthly">~$10,800</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Annual savings</span>
+            <span class="value success" style="font-size:20px;" id="saveAnnual">~$131,400</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 9: Glossary -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <span class="num">9</span>
+          Glossary of Key Terms
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--primary);">
+            <div style="font-size:15px; font-weight:700; color:var(--primary); margin-bottom:8px;">Routing</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">The process of determining which DEXs and in what amounts to execute a swap through. Aggregators use pathfinding algorithms to find the optimal route across all available liquidity.</p>
+          </div>
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--secondary);">
+            <div style="font-size:15px; font-weight:700; color:var(--secondary); margin-bottom:8px;">Slippage Tolerance</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">The maximum % by which your trade can deviate from the expected price. If the price moves beyond this, the transaction reverts. Set too low and large orders fail; too high and you're vulnerable to sandwich attacks.</p>
+          </div>
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--accent);">
+            <div style="font-size:15px; font-weight:700; color:var(--accent); margin-bottom:8px;">Split Routing</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">When an aggregator splits a single order across multiple DEXs simultaneously. A 100 ETH trade might route 60 ETH to Uniswap, 30 ETH to Curve, and 10 ETH to Balancer to minimize price impact.</p>
+          </div>
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--success);">
+            <div style="font-size:15px; font-weight:700; color:var(--success); margin-bottom:8px;">Gas Optimization</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">The process of deciding whether the price improvement from multi-hop aggregation exceeds the extra gas cost of multiple transactions. Small trades may only be worth 1-2 hops; large trades justify more complexity.</p>
+          </div>
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--danger);">
+            <div style="font-size:15px; font-weight:700; color:var(--danger); margin-bottom:8px;">MEV Protection</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">Strategies to prevent maximal extractable value extraction from your trades. This includes private mempool submission (Flashbots SUAVE), CoW Protocol batch auctions, and direct pool routing that bypasses the public mempool entirely.</p>
+          </div>
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--muted);">
+            <div style="font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px;">Front-Running Protection</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">Specific MEV protection that prevents attackers from seeing and front-running your trade. Achieved through encrypted private order flow, commit-reveal schemes, or CoW-style peer-to-peer matching.</p>
+          </div>
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--primary);">
+            <div style="font-size:15px; font-weight:700; color:var(--primary); margin-bottom:8px;">RFQ (Request for Quote)</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">Institutional feature where traders request fixed-price quotes from market makers for large OTC trades. Provides price certainty without market impact — the quote is guaranteed if accepted within the TTL.</p>
+          </div>
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--secondary);">
+            <div style="font-size:15px; font-weight:700; color:var(--secondary); margin-bottom:8px;">Twap (Time-Weighted Avg Price)</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">A strategy that splits a large order into smaller chunks over time to minimize market impact and reduce MEV exposure. Many aggregators offer Twap execution as an option for large orders.</p>
+          </div>
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--accent);">
+            <div style="font-size:15px; font-weight:700; color:var(--accent); margin-bottom:8px;">Price Impact</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">The degree to which your trade moves the price on a given DEX. Larger trades relative to pool depth = more price impact. Split routing across multiple venues reduces total price impact.</p>
+          </div>
+          <div style="background:var(--surface-2); border-radius:8px; padding:16px; border-left:3px solid var(--success);">
+            <div style="font-size:15px; font-weight:700; color:var(--success); margin-bottom:8px;">BPS (Basis Points)</div>
+            <p style="font-size:13px; color:var(--muted); line-height:1.6;">1 basis point = 0.01%. 100 bps = 1%. Aggregators typically measure price improvements in bps — an improvement of 25 bps means you get $25 more per $10,000 traded.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Affiliate CTA -->
+      <div class="sandbox" style="background:linear-gradient(135deg, rgba(0,255,200,0.05), rgba(168,85,247,0.05)); border-color:var(--primary);">
+        <div style="text-align:center;">
+          <div style="font-size:24px; margin-bottom:12px;">🔀 Try DEX Aggregators Yourself</div>
+          <p style="font-size:14px; color:var(--muted); margin-bottom:24px; max-width:600px; margin-left:auto; margin-right:auto;">
+            Start saving on every swap. Aggregators find you better prices automatically — no extra effort required.
+          </p>
+          <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+            <a href="https://app.1inch.io" target="_blank" style="background:var(--primary); color:var(--bg); font-weight:700; font-size:14px; padding:12px 24px; border-radius:8px; text-decoration:none; transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+              1inch App →
+            </a>
+            <a href="https://app.paraswap.io" target="_blank" style="background:var(--accent); color:var(--bg); font-weight:700; font-size:14px; padding:12px 24px; border-radius:8px; text-decoration:none; transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+              ParaSwap →
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /container -->
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-links">
+        <a href="index.html">Protocol Overview</a>
+        <a href="https://docs.1inch.io" target="_blank">1inch Docs</a>
+        <a href="https://docs.0x.org" target="_blank">0x Docs</a>
+        <a href="https://docs.paraswap.io" target="_blank">ParaSwap Docs</a>
+      </div>
+      <p>Built for educational purposes. Not financial advice.</p>
+    </div>
+
+  </div><!-- /page -->
+
+  <style>
+    .venue-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--muted);
+      transition: all 0.3s;
+    }
+    .venue-chip.active {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: rgba(0,255,200,0.08);
+    }
+    .route-split-visual {
+      margin-top: 16px;
+    }
+    .split-bar-track {
+      display: flex;
+      height: 32px;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .split-segment {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-family: var(--mono);
+      font-weight: 700;
+      color: var(--bg);
+      transition: width 0.5s ease;
+    }
+    .split-legend {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .legend-item .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+    .result-highlight {
+      background: var(--surface);
+      border: 1px solid var(--primary);
+      border-radius: 8px;
+      padding: 12px 20px;
+      text-align: center;
+    }
+    .result-label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .result-val {
+      font-family: var(--mono);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .route-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .route-bar-label {
+      width: 80px;
+      font-size: 12px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .route-bar-track {
+      flex: 1;
+      height: 20px;
+      background: var(--surface);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .route-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+    .route-bar-pct {
+      width: 40px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: right;
+    }
+    .path-node {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      min-width: 80px;
+      transition: all 0.3s;
+    }
+    .path-arrow {
+      color: var(--primary);
+      font-size: 20px;
+    }
+    table tbody tr:hover { background: rgba(255,255,255,0.02); }
+  </style>
+
+  <script>
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    const fmt = (n, d = 2) => n.toFixed(d);
+    const GWEI_TO_USD = 0.000018; // ETH price ~$3,250
+    const ETH_PRICE = 3250;
+
+    // ── 2. Route Animation ────────────────────────────────────────────────────
+    function animateRoute() {
+      const amount = parseFloat(document.getElementById('swapAmountInput').value) || 1;
+      const venues = parseInt(document.getElementById('venueSlider').value);
+
+      document.getElementById('swapAmount').textContent = amount + ' ETH';
+      document.getElementById('venueCount').textContent = venues + ' venues';
+
+      // Activate chips with staggered animation
+      const chips = ['uniswapChip', 'sushiChip', 'curveChip', 'balancerChip', 'dodoChip'];
+      chips.forEach((id, i) => {
+        const el = document.getElementById(id);
+        el.classList.remove('active');
+        if (i < venues) {
+          setTimeout(() => el.classList.add('active'), i * 200);
+        }
+      });
+
+      // Show results after "query" delay
+      setTimeout(() => {
+        const step3 = document.getElementById('routeStep3');
+        step3.style.display = 'block';
+
+        // Simulate realistic split percentages
+        const splits = [
+          0.55 + Math.random() * 0.1,
+          0.25 + Math.random() * 0.1,
+          0.10 + Math.random() * 0.05,
+          Math.random() * 0.05,
+          Math.random() * 0.02
+        ];
+
+        const venues_used = Math.min(venues, 3 + Math.floor(Math.random() * 2));
+        const total_output = amount * ETH_PRICE * (1 + 0.003 + Math.random() * 0.015);
+        const single_output = amount * ETH_PRICE * (1 + 0.001 + Math.random() * 0.008);
+
+        // Update bars
+        const segs = ['seg1', 'seg2', 'seg3'];
+        const legs = ['leg1', 'leg2', 'leg3'];
+        const defaults = [60, 30, 10];
+
+        for (let i = 0; i < 3; i++) {
+          const pct = Math.round((splits[i] || defaults[i] / 100) * 100);
+          document.getElementById(segs[i]).style.width = pct + '%';
+          document.getElementById(segs[i]).textContent = pct + '%';
+          const val = total_output * (pct / 100);
+          document.getElementById(legs[i]).textContent = '$' + fmt(val, 0);
+        }
+
+        document.getElementById('splitCount').textContent = venues_used + ' venues';
+        document.getElementById('aggOutput').textContent = '$' + fmt(total_output, 0);
+        document.getElementById('singleOutput').textContent = '$' + fmt(single_output, 0);
+        const savings = total_output - single_output;
+        document.getElementById('savingsAmt').textContent = '+$' + fmt(savings, 0);
+
+        // Animate bars
+        document.querySelectorAll('.split-segment').forEach(seg => {
+          seg.style.opacity = '0';
+          setTimeout(() => seg.style.opacity = '1', 100);
+        });
+      }, 600);
+    }
+
+    // ── 3. Swap Simulator ─────────────────────────────────────────────────────
+    function updateSimulator() {
+      const inputToken = document.getElementById('simInputToken').value;
+      const outputToken = document.getElementById('simOutputToken').value;
+      const amount = parseFloat(document.getElementById('simSwapAmt').value) || 1;
+      const slippage = parseFloat(document.getElementById('simSlipSlider').value);
+      const gasPrice = parseInt(document.getElementById('simGasSlider').value);
+      const hops = parseInt(document.getElementById('simHopSlider').value);
+
+      document.getElementById('simSlippage').textContent = slippage.toFixed(1) + '%';
+      document.getElementById('simGasPrice').textContent = gasPrice + ' gwei';
+      document.getElementById('simHops').textContent = hops + ' hops';
+
+      const ethPrice = ETH_PRICE;
+      const baseValue = amount * ethPrice;
+
+      // Single DEX: fewer venues, some slippage
+      const singleDexOutput = baseValue * (1 - 0.001 - Math.random() * 0.005);
+
+      // Aggregator: multiple venues, better fill
+      const aggOutput = baseValue * (1 + 0.0005 + Math.random() * 0.015);
+      const priceImpPct = ((aggOutput - singleDexOutput) / singleDexOutput) * 100;
+
+      const aggGas = hops * gasPrice * GWEI_TO_USD * (1 + hops * 0.15);
+      const singleGas = 1 * gasPrice * GWEI_TO_USD;
+      const netBenefit = (aggOutput - singleDexOutput) - (aggGas - singleGas);
+
+      document.getElementById('simSingleDex').textContent = '$' + fmt(singleDexOutput, 0);
+      document.getElementById('simAggOutput').textContent = '$' + fmt(aggOutput, 0);
+      document.getElementById('simPriceImp').textContent = '+$' + fmt(aggOutput - singleDexOutput, 0) + ' (+' + fmt(priceImpPct, 1) + '%)';
+      document.getElementById('simAggGas').textContent = '~$' + fmt(aggGas, 2);
+      document.getElementById('simSingleGas').textContent = '~$' + fmt(singleGas, 2);
+      document.getElementById('simNetBenefit').textContent = '+$' + fmt(Math.max(0, netBenefit), 2);
+
+      const worthIt = netBenefit > 0;
+      const worthEl = document.getElementById('simWorthIt');
+      worthEl.textContent = worthIt ? '✅ YES' : '❌ NO';
+      worthEl.className = 'value ' + (worthIt ? 'success' : 'danger');
+
+      const noteEl = document.getElementById('simWorthNote');
+      if (worthIt) {
+        noteEl.innerHTML = '💡 <strong>Worth it!</strong> The price improvement ($' + fmt(aggOutput - singleDexOutput, 0) + ') far exceeds the extra gas cost ($' + fmt(aggGas - singleGas, 2) + '). For this trade size, aggregator routing is clearly optimal.';
+        noteEl.style.borderColor = 'rgba(34,197,94,0.2)';
+        noteEl.style.background = 'rgba(34,197,94,0.08)';
+      } else {
+        noteEl.innerHTML = '⚠️ <strong>Marginal.</strong> Price improvement (~$' + fmt(aggOutput - singleDexOutput, 0) + ') barely covers extra gas ($' + fmt(aggGas - singleGas, 2) + '). For small trades, consider single-DEX.';
+        noteEl.style.borderColor = 'rgba(245,158,11,0.2)';
+        noteEl.style.background = 'rgba(245,158,11,0.08)';
+      }
+    }
+
+    // ── 4. Route Split ───────────────────────────────────────────────────────
+    function updateRouteSplit() {
+      const size = parseInt(document.getElementById('routeSizeSlider').value);
+      document.getElementById('routeSizeDisplay').textContent = size + ' ETH';
+
+      // Larger orders need more splitting
+      const venueCount = Math.min(5, Math.max(2, Math.ceil(size / 50) + 2));
+      const basePct = [45, 28, 17, 10, 0];
+
+      for (let i = 1; i <= 5; i++) {
+        const el = document.getElementById('pieBar' + i);
+        const pctEl = document.getElementById('piePct' + i);
+        const row = document.getElementById('pieRow' + i);
+        const pct = basePct[i - 1] + (Math.random() - 0.5) * 10;
+        if (i <= venueCount && pct > 0) {
+          el.style.width = Math.max(5, Math.round(pct)) + '%';
+          pctEl.textContent = Math.round(pct) + '%';
+          if (row) row.style.display = 'flex';
+        } else {
+          el.style.width = '0%';
+          pctEl.textContent = '0%';
+          if (row) row.style.display = 'none';
+        }
+      }
+
+      const baseVal = size * ETH_PRICE;
+      const aggOut = baseVal * (1 + 0.003 + size / 10000);
+      const singleOut = baseVal * (1 + 0.001 + size / 5000);
+      const savings = aggOut - singleOut;
+
+      document.getElementById('routeAggOut').textContent = '$' + fmt(aggOut, 0);
+      document.getElementById('routeSingleOut').textContent = '$' + fmt(singleOut, 0);
+      document.getElementById('routeSavings').textContent = '+$' + fmt(savings, 0);
+      document.getElementById('pathAmt').textContent = size + ' ETH';
+      document.getElementById('pathFinal').textContent = '$' + fmt(aggOut, 0);
+    }
+
+    // ── 6. MEV Calculator ────────────────────────────────────────────────────
+    function updateMevCalc() {
+      const tradeSize = parseFloat(document.getElementById('mevSlider').value);
+      document.getElementById('mevTradeSize').textContent = tradeSize + ' ETH';
+
+      const tradeValue = tradeSize * ETH_PRICE;
+      const lossPct = 0.5 + (tradeSize / 100) * 1.5; // sandwich loss % (worse for larger)
+      const lossAmt = tradeValue * (lossPct / 100);
+      const monthlyLoss = lossAmt * 3 * 30;
+
+      document.getElementById('mevLossAmt').textContent = '~$' + fmt(lossAmt, 0);
+      document.getElementById('mevLossPct').textContent = '-' + fmt(lossPct, 1) + '%';
+      document.getElementById('mevSavings').textContent = '~$' + fmt(lossAmt, 0) + ' per trade';
+      document.getElementById('mevMonthly').textContent = '~$' + fmt(monthlyLoss, 0) + ' saved';
+    }
+
+    // ── 7. Gas Calculator ────────────────────────────────────────────────────
+    function updateGasCalc() {
+      const tradeSize = parseFloat(document.getElementById('gasTradeSize').value) || 1000;
+      const gwei = parseInt(document.getElementById('gasGweiSlider').value);
+      const hops = parseInt(document.getElementById('gasHopsSlider').value);
+      const bps = parseInt(document.getElementById('gasBpsSlider').value);
+
+      document.getElementById('gasGweiDisplay').textContent = gwei + ' gwei';
+      document.getElementById('gasHopsDisplay').textContent = hops + ' hops';
+      document.getElementById('gasBpsDisplay').textContent = bps + ' bps';
+
+      const gasPerHop = gwei * GWEI_TO_USD * 150000; // ~150K gas per hop
+      const aggGasCost = gasPerHop * hops;
+      const singleGasCost = gasPerHop * 1.2;
+      const extraGas = aggGasCost - singleGasCost;
+      const improvement = tradeSize * (bps / 10000);
+      const netBenefit = improvement - extraGas;
+
+      document.getElementById('gasAggCost').textContent = '~$' + fmt(aggGasCost, 2);
+      document.getElementById('gasSingleCost').textContent = '~$' + fmt(singleGasCost, 2);
+      document.getElementById('gasExtra').textContent = '+$' + fmt(extraGas, 2);
+      document.getElementById('gasImprovement').textContent = '$' + fmt(improvement, 2);
+      document.getElementById('gasNetBenefit').textContent = (netBenefit >= 0 ? '+' : '') + '$' + fmt(netBenefit, 2);
+
+      const worthEl = document.getElementById('gasWorthIt');
+      worthEl.textContent = netBenefit > 0 ? '✅ YES' : '❌ NO';
+      worthEl.className = 'value ' + (netBenefit > 0 ? 'success' : 'danger');
+    }
+
+    // ── 8. Savings Tracker ───────────────────────────────────────────────────
+    function updateSavingsCalc() {
+      const vol = parseInt(document.getElementById('dailyVolSlider').value);
+      document.getElementById('dailyVolDisplay').textContent = '$' + vol.toLocaleString();
+
+      const trades = Math.max(1, Math.round(vol / 3000));
+      const avgImp = 0.012; // 1.2%
+      const daily = vol * avgImp;
+      const monthly = daily * 30;
+      const annual = daily * 365;
+
+      document.getElementById('saveTrades').textContent = trades + ' trades/day';
+      document.getElementById('saveImprovement').textContent = '~1.2%';
+      document.getElementById('saveDaily').textContent = '~$' + fmt(daily, 0);
+      document.getElementById('saveMonthly').textContent = '~$' + fmt(monthly, 0);
+      document.getElementById('saveAnnual').textContent = '~$' + fmt(annual, 0);
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    animateRoute();
+    updateSimulator();
+    updateRouteSplit();
+    updateMevCalc();
+    updateGasCalc();
+    updateSavingsCalc();
+  </script>
+  <!-- Tools & Links -->
+  <section class="tools-section">
+    <div class="container">
+      <div class="tools-header">🔗 Tools &amp; Links</div>
+      <div class="tools-grid">
+        <a href="https://coinbase.com/join/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🟣</span>
+          <span class="tool-name">Coinbase</span>
+          <span class="tool-desc">Buy &amp; trade crypto</span>
+        </a>
+        <a href="https://app.1inch.io/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🔀</span>
+          <span class="tool-name">1inch</span>
+          <span class="tool-desc">DEX aggregator</span>
+        </a>
+        <a href="https://defillama.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">📊</span>
+          <span class="tool-name">DeFiLlama</span>
+          <span class="tool-desc">TVL &amp; yield data</span>
+        </a>
+        <a href="https://debank.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">💼</span>
+          <span class="tool-name">DeBank</span>
+          <span class="tool-desc">Portfolio tracker</span>
+        </a>
+      </div>
+    </div>
+  </section>
+  <style>
+  .tools-section { padding: 40px 0 20px; }
+  .tools-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+  .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .tool-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; text-decoration: none; color: inherit; transition: all 0.2s; }
+  .tool-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  .tool-icon { font-size: 20px; flex-shrink: 0; }
+  .tool-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .tool-desc { font-size: 11px; color: var(--muted); margin-left: auto; }
+  </style>
+
+</body>
+</html>

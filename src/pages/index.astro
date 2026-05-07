@@ -6,8 +6,10 @@ const posts = (await getCollection('posts', ({ data }) => !data.draft))
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 ---
 
-<BaseLayout title="Blog">
-  <h1>Posts</h1>
+<BaseLayout title="systeminternals.dev — Systems programming, Linux internals & networking">
+  <h1>systeminternals.dev</h1>
+  <p style="color:var(--text-muted);margin-top:-0.5rem;margin-bottom:2rem;">Deep dives on Linux internals, networking protocols, distributed systems, and database performance. Plus an interactive <a href="/defi/">DeFi</a> sandbox.</p>
+  <h2 style="margin-top:1rem;">Latest posts</h2>
   <ul class="post-list">
     {posts.map((post) => {
       const formattedDate = post.data.date.toLocaleDateString('en-US', {

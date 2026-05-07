@@ -1,0 +1,863 @@
+---
+// Interactive Database Sharding Visualizer
+---
+
+<div class="canvas-wrapper">
+  <div class="controls">
+    <div class="control-group">
+      <label for="shard-algo-select">Mode:</label>
+      <select id="shard-algo-select">
+        <option value="hash-based">Hash-Based Sharding</option>
+        <option value="range-based">Range-Based Sharding</option>
+        <option value="consistent-hash">Consistent Hashing Ring</option>
+        <option value="resharding">Resharding Migration</option>
+        <option value="hot-spot">Hot Spot Detection</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="num-shards">Shards:</label>
+      <input type="range" id="num-shards" min="2" max="6" value="4" />
+      <span id="shards-display">4</span>
+    </div>
+    <div class="control-group">
+      <label for="num-keys">Keys to show:</label>
+      <input type="range" id="num-keys" min="6" max="20" value="12" />
+      <span id="keys-display">12</span>
+    </div>
+    <button id="step-btn">Step</button>
+    <button id="auto-btn">Auto-Play</button>
+    <button id="reset-btn">Reset</button>
+  </div>
+
+  <div class="canvas-row">
+    <canvas id="shard-canvas" width="960" height="420"></canvas>
+  </div>
+
+  <div class="step-info" id="step-info">
+    <span class="step-num" id="step-num">Step 0/5</span>
+    <span class="step-desc" id="step-desc">Click "Step" or "Auto-Play" to see hash-based sharding in action</span>
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="dot shard0-dot"></span>Shard 0</span>
+    <span class="legend-item"><span class="dot shard1-dot"></span>Shard 1</span>
+    <span class="legend-item"><span class="dot shard2-dot"></span>Shard 2</span>
+    <span class="legend-item"><span class="dot shard3-dot"></span>Shard 3</span>
+    <span class="legend-item"><span class="dot key-dot"></span>Key</span>
+    <span class="legend-item"><span class="dot hotspot-dot"></span>Hot Spot</span>
+  </div>
+
+  <style>
+    .canvas-wrapper {
+      background: #0f1117;
+      border: 1px solid #1e2432;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 2rem 0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .controls {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .control-group label {
+      color: #94a3b8;
+      font-size: 0.8rem;
+    }
+    select, input[type="range"] {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      color: #e2e8f0;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+    button {
+      background: #1e40af;
+      color: #e2e8f0;
+      border: 1px solid #3b82f6;
+      padding: 6px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .canvas-row { margin: 12px 0; }
+    canvas {
+      display: block;
+      border-radius: 8px;
+      background: #0a0c12;
+      border: 1px solid #1e2432;
+    }
+    .step-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 14px;
+      background: #13161f;
+      border-radius: 8px;
+      margin: 12px 0;
+    }
+    .step-num {
+      color: #60a5fa;
+      font-size: 0.85rem;
+      font-weight: 600;
+      min-width: 80px;
+    }
+    .step-desc {
+      color: #cbd5e1;
+      font-size: 0.85rem;
+    }
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding-top: 8px;
+      border-top: 1px solid #1e2432;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .shard0-dot { background: #22d3ee; }
+    .shard1-dot { background: #a78bfa; }
+    .shard2-dot { background: #fb923c; }
+    .shard3-dot { background: #4ade80; }
+    .key-dot { background: #fbbf24; }
+    .hotspot-dot { background: #f87171; }
+  </style>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('shard-canvas');
+  const ctx = canvas.getContext('2d');
+
+  let mode = 'hash-based';
+  let numShards = 4;
+  let numKeys = 12;
+  let step = 0;
+  let autoTimer = null;
+  let animating = false;
+
+  const SHARD_COLORS = ['#22d3ee', '#a78bfa', '#fb923c', '#4ade80', '#f87171', '#fbbf24'];
+  const SHARD_LABELS = ['Shard 0', 'Shard 1', 'Shard 2', 'Shard 3', 'Shard 4', 'Shard 5'];
+
+  // Sample keys for each mode
+  let keys = [];
+  let keyAssignments = [];
+  let hotSpotKeys = [];
+
+  const stepDescriptions = {
+    'hash-based': [
+      'Step 1/5: Keys arrive at the router (user_id values)',
+      'Step 2/5: Router computes hash(key) % numShards for each key',
+      'Step 3/5: Key 1001 → hash(1001) % 4 = 1 → Shard 1',
+      'Step 4/5: Keys are routed to their assigned shards in parallel',
+      'Step 5/5: Each shard stores its keys independently. No cross-shard coordination needed.',
+    ],
+    'range-based': [
+      'Step 1/5: Range-based shard mapping: users 1-2500 → Shard 0, 2501-5000 → Shard 1, etc.',
+      'Step 2/5: Router checks which range contains the key',
+      'Step 3/5: Key 1001 is in range [1, 2500] → Shard 0',
+      'Step 4/5: Sequential keys cluster together on the same shard (locality)',
+      'Step 5/5: Range queries like "users 100-500" are served by a single shard. Hot spot risk: newest users all go to Shard 3.',
+    ],
+    'consistent-hash': [
+      'Step 1/5: Consistent hashing ring: each shard occupies 90° of the 360° circle (4 shards)',
+      'Step 2/5: Virtual nodes add 150 positions per shard for even distribution',
+      'Step 3/5: Key hashed to a point on the ring; assigned to next shard clockwise',
+      'Step 4/5: Adding Shard 4 only affects keys in the 90° arc it occupies — not all keys',
+      'Step 5/5: Virtual nodes ensure each physical shard gets ~25% of keys even with small cluster',
+    ],
+    'resharding': [
+      'Step 1/5: Initially: hash(key) % 4 shards = 0,1,2,3',
+      'Step 2/5: Need to grow to 5 shards for more capacity',
+      'Step 3/5: With modulo routing, adding 1 shard remaps ALL keys (100 → 4, 101 → 0, etc.)',
+      'Step 4/5: Solution: dual-write to old AND new shards during migration',
+      'Step 5/5: Backfill new shard from source, then cutover reads. Consistent hashing avoids this remapping nightmare.',
+    ],
+    'hot-spot': [
+      'Step 1/5: Hot spot: user_id 999999 has 50M followers — all reads go to that shard',
+      'Step 2/5: Shard 2 is overloaded while other shards are idle',
+      'Step 3/5: Solution 1: Read replica for hot user data',
+      'Step 4/5: Solution 2: Reverse denormalization — shard by follower_id instead',
+      'Step 5/5: Solution 3: Cache hot user data in Redis. Cache hit serves 1M reads without touching DB.',
+    ],
+  };
+
+  function initKeys() {
+    keys = [];
+    keyAssignments = [];
+    hotSpotKeys = [];
+    step = 0;
+
+    if (mode === 'hot-spot') {
+      numKeys = 10;
+      // One celebrity key, rest normal
+      keys = [999999, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009];
+      keyAssignments = keys.map((k, i) => i === 0 ? 2 : i % 3);
+      hotSpotKeys = [999999];
+    } else if (mode === 'hash-based') {
+      for (let i = 0; i < numKeys; i++) {
+        keys.push(1001 + i * 100);
+        keyAssignments.push((1001 + i * 100) % numShards);
+      }
+    } else if (mode === 'range-based') {
+      const ranges = [];
+      const rangeSize = Math.ceil(10000 / numShards);
+      for (let i = 0; i < numShards; i++) {
+        ranges.push({ start: i * rangeSize + 1, end: (i + 1) * rangeSize, shard: i });
+      }
+      for (let i = 0; i < numKeys; i++) {
+        keys.push(1001 + i * 800);
+        const k = keys[i];
+        for (const r of ranges) {
+          if (k >= r.start && k <= r.end) {
+            keyAssignments.push(r.shard);
+            break;
+          }
+        }
+      }
+    } else if (mode === 'consistent-hash') {
+      numKeys = Math.min(numKeys, 12);
+      keys = [1001, 2002, 3003, 4004, 5005, 6006, 7007, 8008, 9009, 10010, 11011, 12012];
+      // Simulate consistent hash ring assignments
+      keyAssignments = keys.map((k, i) => i % numShards);
+    } else if (mode === 'resharding') {
+      numKeys = 8;
+      keys = [100, 104, 108, 112, 116, 120, 124, 128];
+      // Old assignment: % 4, New would be: % 5
+      const oldAssign = keys.map(k => k % 4);
+      const newAssign = keys.map(k => k % 5);
+      // Show migration: which keys need to move
+      keyAssignments = oldAssign; // For visualization
+      keys._newAssign = newAssign;
+      keys._oldAssign = oldAssign;
+    }
+
+    updateStepInfo();
+    draw();
+  }
+
+  function updateStepInfo() {
+    const stepNum = document.getElementById('step-num');
+    const stepDesc = document.getElementById('step-desc');
+    const descs = stepDescriptions[mode];
+    stepNum.textContent = `Step ${step}/${descs.length}`;
+    stepDesc.textContent = descs[Math.min(step, descs.length - 1)];
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (mode === 'consistent-hash') {
+      drawConsistentHash();
+    } else if (mode === 'resharding') {
+      drawResharding();
+    } else if (mode === 'hot-spot') {
+      drawHotSpot();
+    } else {
+      drawSharding();
+    }
+  }
+
+  function drawSharding() {
+    const shardBoxW = 160;
+    const shardBoxH = 260;
+    const margin = 40;
+    const startX = (canvas.width - numShards * shardBoxW - (numShards - 1) * margin) / 2;
+    const startY = 80;
+
+    // Draw router at top
+    const routerX = canvas.width / 2;
+    const routerY = 30;
+
+    ctx.fillStyle = '#3b82f6';
+    ctx.beginPath();
+    ctx.roundRect(routerX - 60, routerY - 18, 120, 36, 8);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 13px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Router', routerX, routerY + 5);
+
+    // Draw each shard
+    for (let s = 0; s < numShards; s++) {
+      const x = startX + s * (shardBoxW + margin);
+      const y = startY;
+
+      // Shard box
+      ctx.strokeStyle = SHARD_COLORS[s];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x, y, shardBoxW, shardBoxH, 8);
+      ctx.stroke();
+
+      // Fill with slight color
+      ctx.fillStyle = SHARD_COLORS[s] + '18';
+      ctx.fill();
+
+      // Shard label
+      ctx.fillStyle = SHARD_COLORS[s];
+      ctx.font = 'bold 12px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(SHARD_LABELS[s], x + shardBoxW / 2, y + 20);
+
+      // DB icon
+      ctx.fillStyle = SHARD_COLORS[s] + '60';
+      ctx.beginPath();
+      ctx.ellipse(x + shardBoxW / 2, y + 50, 35, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(x + shardBoxW / 2 - 35, y + 50, 70, 20);
+      ctx.fillStyle = SHARD_COLORS[s] + '30';
+      ctx.beginPath();
+      ctx.ellipse(x + shardBoxW / 2, y + 70, 35, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = SHARD_COLORS[s];
+      ctx.font = '10px Inter, sans-serif';
+      ctx.fillText('PostgreSQL', x + shardBoxW / 2, y + 64);
+
+      // Draw keys in shard
+      const shardKeys = [];
+      const shardKeyIndices = [];
+      for (let i = 0; i < keys.length; i++) {
+        if (keyAssignments[i] === s) {
+          shardKeys.push(keys[i]);
+          shardKeyIndices.push(i);
+        }
+      }
+
+      const keyY = y + 90;
+      const keysPerRow = 3;
+      for (let k = 0; k < shardKeys.length; k++) {
+        const kx = x + 15 + (k % keysPerRow) * 45;
+        const ky = keyY + Math.floor(k / keysPerRow) * 30;
+
+        if (ky > y + shardBoxH - 20) break;
+
+        const keyIndex = shardKeyIndices[k];
+        const animated = step >= 3 || (step >= 2 && k < 2);
+
+        if (animated || step >= 1) {
+          ctx.fillStyle = '#fbbf24';
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(kx, ky, 40, 22, 4);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#0f1117';
+          ctx.font = '10px JetBrains Mono, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(shardKeys[k], kx + 20, ky + 15);
+        }
+      }
+
+      // Count label
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px Inter, sans-serif';
+      ctx.fillText(`${shardKeys.length} keys`, x + shardBoxW / 2, y + shardBoxH - 10);
+    }
+
+    // Draw arrows from router to shards
+    if (step >= 2) {
+      ctx.strokeStyle = '#3b82f680';
+      ctx.lineWidth = 1;
+      for (let s = 0; s < numShards; s++) {
+        const x = startX + s * (shardBoxW + margin) + shardBoxW / 2;
+        const y = startY;
+
+        ctx.beginPath();
+        ctx.moveTo(routerX, routerY + 18);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        // Arrowhead
+        const angle = Math.atan2(y - (routerY + 18), x - routerX);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 6 * Math.cos(angle - 0.4), y - 6 * Math.sin(angle - 0.4));
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 6 * Math.cos(angle + 0.4), y - 6 * Math.sin(angle + 0.4));
+        ctx.stroke();
+      }
+    }
+
+    // Draw key-to-shard arrows during routing phase
+    if (step === 2) {
+      for (let s = 0; s < numShards; s++) {
+        const shardKeys = [];
+        for (let i = 0; i < keys.length; i++) {
+          if (keyAssignments[i] === s) shardKeys.push(keys[i]);
+        }
+        if (shardKeys.length === 0) continue;
+
+        const kx = routerX + 20 + s * 50;
+        const ky = routerY - 30;
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = '10px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${keys[s * 2] || keys[0]} % ${numShards} = ${s}`, kx, ky);
+      }
+    }
+  }
+
+  function drawConsistentHash() {
+    const cx = canvas.width / 2;
+    const cy = 210;
+    const ringR = 140;
+
+    // Draw ring
+    ctx.strokeStyle = '#4ade8030';
+    ctx.lineWidth = 30;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Ring border
+    ctx.strokeStyle = '#4ade8060';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR - 15, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR + 15, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Draw shard positions on ring
+    const shardAngles = [];
+    for (let s = 0; s < numShards; s++) {
+      const angle = (s / numShards) * Math.PI * 2 - Math.PI / 2;
+      shardAngles.push(angle);
+      const sx = cx + Math.cos(angle) * ringR;
+      const sy = cy + Math.sin(angle) * ringR;
+
+      // Virtual nodes
+      for (let v = 0; v < 3; v++) {
+        const vAngle = angle + (v - 1) * 0.15;
+        const vx = cx + Math.cos(vAngle) * ringR;
+        const vy = cy + Math.sin(vAngle) * ringR;
+        ctx.fillStyle = SHARD_COLORS[s] + '60';
+        ctx.beginPath();
+        ctx.arc(vx, vy, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Main shard position
+      ctx.fillStyle = SHARD_COLORS[s];
+      ctx.beginPath();
+      ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`S${s}`, sx, sy + 4);
+
+      // Shard label outside ring
+      const lx = cx + Math.cos(angle) * (ringR + 35);
+      const ly = cy + Math.sin(angle) * (ringR + 35);
+      ctx.fillStyle = SHARD_COLORS[s];
+      ctx.font = '10px JetBrains Mono, monospace';
+      ctx.fillText(`Shard ${s}`, lx, ly + 4);
+    }
+
+    // Draw key points on ring (step >= 2)
+    if (step >= 2) {
+      const displayKeys = keys.slice(0, Math.min(6, keys.length));
+      for (let k = 0; k < displayKeys.length; k++) {
+        const keyAngle = ((k / 6) * Math.PI * 2 - Math.PI / 2 + 0.3) % (Math.PI * 2);
+        const kx = cx + Math.cos(keyAngle) * ringR;
+        const ky = cy + Math.sin(keyAngle) * ringR;
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(kx, ky, 7, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#0f1117';
+        ctx.font = '8px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(displayKeys[k], kx, ky + 3);
+
+        // Draw line to assigned shard
+        const assignedShard = k % numShards;
+        const sa = shardAngles[assignedShard];
+        const sa2x = cx + Math.cos(sa) * ringR;
+        const sa2y = cy + Math.sin(sa) * ringR;
+
+        ctx.strokeStyle = '#fbbf2480';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(kx, ky);
+        // Arc clockwise to shard
+        ctx.arc(cx, cy, ringR, keyAngle, sa, keyAngle < sa);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Draw arc highlight for new shard (step 3)
+    if (step >= 3 && numShards < 6) {
+      const newAngle = (numShards / (numShards + 1)) * Math.PI * 2 - Math.PI / 2;
+      const arcStart = shardAngles[shardAngles.length - 1];
+      ctx.strokeStyle = '#f8717180';
+      ctx.lineWidth = 20;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR, arcStart, newAngle, false);
+      ctx.stroke();
+
+      ctx.fillStyle = '#f87171';
+      ctx.font = '9px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('New shard\ncovers this arc', cx + 60, cy - 20);
+    }
+
+    // Labels
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Consistent Hashing Ring', cx, cy + ringR + 65);
+    ctx.fillText(`360° / ${numShards} shards = ${(360 / numShards).toFixed(0)}° per shard`, cx, cy + ringR + 82);
+  }
+
+  function drawResharding() {
+    const boxW = 200;
+    const boxH = 300;
+    const leftX = 80;
+    const rightX = 540;
+    const topY = 80;
+
+    // Old cluster (4 shards)
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 12px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BEFORE: 4 Shards', leftX + boxW / 2, topY - 10);
+
+    for (let s = 0; s < 4; s++) {
+      const x = leftX;
+      const y = topY + s * (boxH / 4 + 8);
+      const shardH = boxH / 4 - 8;
+
+      ctx.strokeStyle = SHARD_COLORS[s];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x, y, boxW, shardH, 6);
+      ctx.stroke();
+      ctx.fillStyle = SHARD_COLORS[s] + '18';
+      ctx.fill();
+
+      ctx.fillStyle = SHARD_COLORS[s];
+      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.fillText(`Shard ${s}`, x + boxW / 2, y + 16);
+
+      // Show which keys belong
+      const shardKeys = keys.filter((k, i) => keys._oldAssign[i] === s);
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.fillText(shardKeys.slice(0, 3).join(', '), x + boxW / 2, y + shardH / 2);
+      if (shardKeys.length > 3) {
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(`+${shardKeys.length - 3} more`, x + boxW / 2, y + shardH / 2 + 14);
+      }
+    }
+
+    // Migration arrow
+    const midX = (leftX + boxW + rightX) / 2;
+    ctx.fillStyle = '#f87171';
+    ctx.font = 'bold 11px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠ hash(key) % 4 → % 5', midX, topY + 60);
+    ctx.fillStyle = '#f87171';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.fillText('All keys remap!', midX, topY + 78);
+
+    // Curved arrow
+    ctx.strokeStyle = '#f87171';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(midX, topY + 90);
+    ctx.quadraticCurveTo(midX + 60, topY + 150, midX, topY + 200);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#4ade80';
+    ctx.font = 'bold 11px Inter, sans-serif';
+    ctx.fillText('✓ Solution:', midX + 100, topY + 130);
+    ctx.font = '10px Inter, sans-serif';
+    ctx.fillText('Consistent Hashing', midX + 100, topY + 148);
+    ctx.fillText('Only 1/N keys remap', midX + 100, topY + 163);
+
+    // New cluster (5 shards) - right side
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 12px JetBrains Mono, monospace';
+    ctx.fillText('AFTER: 5 Shards', rightX + boxW / 2, topY - 10);
+
+    for (let s = 0; s < 5; s++) {
+      const x = rightX;
+      const y = topY + s * (boxH / 5 + 5);
+      const shardH = boxH / 5 - 5;
+
+      const col = s < 4 ? SHARD_COLORS[s] : '#f87171';
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x, y, boxW, shardH, 6);
+      ctx.stroke();
+      ctx.fillStyle = col + '18';
+      ctx.fill();
+
+      ctx.fillStyle = col;
+      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.fillText(`Shard ${s}${s === 4 ? ' (NEW)' : ''}`, x + boxW / 2, y + 14);
+
+      // Keys
+      const shardKeys = keys.filter((k, i) => {
+        if (s === 4) return keys._newAssign[i] === 4;
+        return keys._oldAssign[i] === s && keys._newAssign[i] === s;
+      });
+      const migratedKeys = keys.filter((k, i) => keys._oldAssign[i] !== keys._newAssign[i]);
+
+      if (s < 4) {
+        ctx.fillStyle = '#4ade80';
+        ctx.font = '9px Inter, sans-serif';
+        ctx.fillText(`Same: ${shardKeys.length}`, x + boxW / 2, y + shardH / 2);
+        if (migratedKeys.filter((_, i) => keys._oldAssign[i] === s).length > 0) {
+          ctx.fillStyle = '#f87171';
+          ctx.fillText(`Moved: ${migratedKeys.filter((_, i) => keys._oldAssign[i] === s).length}`, x + boxW / 2, y + shardH / 2 + 12);
+        }
+      } else {
+        ctx.fillStyle = '#f87171';
+        ctx.font = '9px Inter, sans-serif';
+        ctx.fillText(`Received: ${keys.filter((_, i) => keys._newAssign[i] === 4).length}`, x + boxW / 2, y + shardH / 2);
+      }
+    }
+  }
+
+  function drawHotSpot() {
+    const boxW = 200;
+    const boxH = 300;
+    const gap = 60;
+    const startX = (canvas.width - 3 * boxW - 2 * gap) / 2;
+    const topY = 80;
+
+    // Shard labels
+    const labels = ['Shard 0', 'Shard 1 (HOT!)', 'Shard 2'];
+    const isHot = [false, true, false];
+
+    for (let s = 0; s < 3; s++) {
+      const x = startX + s * (boxW + gap);
+      const y = topY;
+      const shardH = boxH - 30;
+
+      const col = isHot[s] ? '#f87171' : SHARD_COLORS[s];
+
+      ctx.strokeStyle = col;
+      ctx.lineWidth = isHot[s] ? 3 : 2;
+      ctx.beginPath();
+      ctx.roundRect(x, y, boxW, shardH, 8);
+      ctx.stroke();
+      ctx.fillStyle = col + '18';
+      ctx.fill();
+
+      ctx.fillStyle = col;
+      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(labels[s], x + boxW / 2, y + 20);
+
+      if (isHot[s]) {
+        // Hot spot: celebrity user with many followers
+        ctx.fillStyle = '#f8717180';
+        ctx.beginPath();
+        ctx.roundRect(x + 10, y + 30, boxW - 20, shardH - 40, 6);
+        ctx.fill();
+
+        ctx.fillStyle = '#f87171';
+        ctx.font = 'bold 14px JetBrains Mono, monospace';
+        ctx.fillText('user: 999999', x + boxW / 2, y + 70);
+        ctx.font = '12px Inter, sans-serif';
+        ctx.fillText('50M followers', x + boxW / 2, y + 90);
+        ctx.font = '10px Inter, sans-serif';
+        ctx.fillText('→ 1M reads/sec', x + boxW / 2, y + 108);
+
+        // Load bar
+        ctx.fillStyle = '#1a1d27';
+        ctx.beginPath();
+        ctx.roundRect(x + 20, y + 120, boxW - 40, 16, 4);
+        ctx.fill();
+        ctx.fillStyle = '#f87171';
+        ctx.beginPath();
+        ctx.roundRect(x + 20, y + 120, (boxW - 40) * 0.95, 16, 4);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = '9px JetBrains Mono, monospace';
+        ctx.fillText('95% CPU', x + boxW / 2, y + 132);
+
+        ctx.fillStyle = '#4ade80';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.fillText('✓ Read replica', x + boxW / 2, y + 165);
+        ctx.fillText('✓ Redis cache', x + boxW / 2, y + 180);
+      } else {
+        // Normal shard: show some keys
+        const shardKeys = keys.filter((k, i) => keyAssignments[i] === s && k !== 999999);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.fillText(`${shardKeys.length} keys`, x + boxW / 2, y + shardH / 2);
+        ctx.font = '9px JetBrains Mono, monospace';
+        ctx.fillText(shardKeys.slice(0, 4).join(', '), x + boxW / 2, y + shardH / 2 + 18);
+        ctx.fillText('← idle', x + boxW / 2, y + shardH / 2 + 36);
+
+        // Load bar
+        ctx.fillStyle = '#1a1d27';
+        ctx.beginPath();
+        ctx.roundRect(x + 20, y + shardH - 40, boxW - 40, 16, 4);
+        ctx.fill();
+        ctx.fillStyle = '#4ade80';
+        ctx.beginPath();
+        ctx.roundRect(x + 20, y + shardH - 40, (boxW - 40) * 0.15, 16, 4);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = '9px JetBrains Mono, monospace';
+        ctx.fillText('15% CPU', x + boxW / 2, y + shardH - 28);
+      }
+    }
+
+    // Hot spot indicator
+    if (step >= 1) {
+      ctx.fillStyle = '#f87171';
+      ctx.font = 'bold 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚠ Hot Spot: 1 shard at 95% capacity while others are idle', canvas.width / 2, topY + boxH + 20);
+    }
+
+    if (step >= 3) {
+      ctx.fillStyle = '#4ade80';
+      ctx.font = '11px Inter, sans-serif';
+      ctx.fillText('Solution: Read replica for user 999999 data → Shard 2 becomes primary for reads', canvas.width / 2, topY + boxH + 40);
+    }
+  }
+
+  // Controls
+  const select = document.getElementById('shard-algo-select');
+  const numShardsInput = document.getElementById('num-shards');
+  const numKeysInput = document.getElementById('num-keys');
+  const shardsDisplay = document.getElementById('shards-display');
+  const keysDisplay = document.getElementById('keys-display');
+  const stepBtn = document.getElementById('step-btn');
+  const autoBtn = document.getElementById('auto-btn');
+  const resetBtn = document.getElementById('reset-btn');
+
+  select.addEventListener('change', () => {
+    mode = select.value;
+    numShards = parseInt(numShardsInput.value);
+    numKeys = parseInt(numKeysInput.value);
+    stopAuto();
+    initKeys();
+  });
+
+  numShardsInput.addEventListener('input', () => {
+    numShards = parseInt(numShardsInput.value);
+    shardsDisplay.textContent = numShards;
+    if (mode !== 'hot-spot' && mode !== 'resharding') {
+      initKeys();
+    }
+  });
+
+  numKeysInput.addEventListener('input', () => {
+    numKeys = parseInt(numKeysInput.value);
+    keysDisplay.textContent = numKeys;
+    initKeys();
+  });
+
+  stepBtn.addEventListener('click', () => {
+    const maxStep = stepDescriptions[mode].length;
+    if (step < maxStep - 1) {
+      step++;
+      updateStepInfo();
+      draw();
+    }
+  });
+
+  autoBtn.addEventListener('click', () => {
+    if (autoTimer) {
+      stopAuto();
+    } else {
+      startAuto();
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    stopAuto();
+    initKeys();
+  });
+
+  function startAuto() {
+    autoBtn.textContent = 'Pause';
+    autoBtn.style.background = '#7c3aed';
+    autoTimer = setInterval(() => {
+      const maxStep = stepDescriptions[mode].length;
+      if (step < maxStep - 1) {
+        step++;
+        updateStepInfo();
+        draw();
+      } else {
+        stopAuto();
+      }
+    }, 1500);
+  }
+
+  function stopAuto() {
+    if (autoTimer) {
+      clearInterval(autoTimer);
+      autoTimer = null;
+    }
+    autoBtn.textContent = 'Auto-Play';
+    autoBtn.style.background = '#1e40af';
+  }
+
+  // Polyfill roundRect if needed
+  if (!ctx.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+      if (typeof r === 'number') r = [r, r, r, r];
+      const [tl, tr, br, bl] = r;
+      this.moveTo(x + tl, y);
+      this.lineTo(x + w - tr, y);
+      this.quadraticCurveTo(x + w, y, x + w, y + tr);
+      this.lineTo(x + w, y + h - br);
+      this.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+      this.lineTo(x + bl, y + h);
+      this.quadraticCurveTo(x, y + h, x, y + h - bl);
+      this.lineTo(x, y + tl);
+      this.quadraticCurveTo(x, y, x + tl, y);
+      this.closePath();
+    };
+  }
+
+  initKeys();
+})();
+</script>

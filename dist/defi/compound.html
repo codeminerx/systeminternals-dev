@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compound Finance — DeFi Visualizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "How does Compound Finance work?", "acceptedAnswer": {"@type": "Answer", "text": "Compound is an algorithmic money market protocol where interest rates are determined by the supply and demand ratio for each asset pool. When a pool is highly utilized (lots of borrowing), interest rates rise to incentivize more lending and discourage borrowing. Rates are compounded every block (~15 seconds on Ethereum)."}},
+      {"@type": "Question", "name": "What is Compound's cToken mechanism?", "acceptedAnswer": {"@type": "Answer", "text": "cTokens (like cETH, cDAI) are ERC-20 tokens you receive when you supply assets to Compound. They accrue value over time — 1 cETH will be redeemable for more than 1 ETH as interest accumulates. The exchange rate between cTokens and underlying assets increases continuously as interest is earned."}},
+      {"@type": "Question", "name": "What happened with Compound's governance?", "acceptedAnswer": {"@type": "Answer", "text": "Compound has an on-chain governance system where COMP token holders vote on proposals. In 2023, a controversial proposal led to a governance split, with some community members forking the protocol to create Compound III (Comet). The original Compound V2 continues operating under community governance."}},
+      {"@type": "Question", "name": "Is Compound suitable for earning yield on stablecoins?", "acceptedAnswer": {"@type": "Answer", "text": "Compound has historically offered competitive yields on stablecoins like USDC and USDT, though yields fluctuate with market conditions. During periods of high borrowing demand (DeFi summer periods, market volatility), stablecoin yields on Compound can reach 5-15% APY. During low activity, they can drop to 1-3%."}},
+      {"@type": "Question", "name": "What are the risks of supplying assets to Compound?", "acceptedAnswer": {"@type": "Answer", "text": "Main risks include: liquidation risk if collateral value drops relative to borrowed value, smart contract risk, and oracle risk. Unlike Aave, Compound uses a single collateral factor per asset rather than a separate liquidation threshold, making its risk model simpler but with less granularity."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html" class="nav-logo"><span>defi</span>visualizer</a>
+    <div class="nav-links">
+      <a href="index.html">Protocols</a>
+      <a href="compound.html" class="active">Compound</a>
+      <a href="aave.html">Aave</a>
+      <a href="uniswap.html">Uniswap</a>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="container">
+
+      <!-- Hero -->
+      <section class="protocol-hero">
+        <div class="protocol-icon">📈</div>
+        <h1>Compound Finance</h1>
+        <p class="tagline">Algorithmic Money Market</p>
+        <div class="protocol-meta">
+          <div class="meta-item">
+            <div class="label">Total Value Locked</div>
+            <div class="value">$1.2B</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Active Markets</div>
+            <div class="value">10</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">COMP Distributed</div>
+            <div class="value">~$45M/yr</div>
+          </div>
+          <div class="meta-item">
+            <div class="label">Supply / Borrow</div>
+            <div class="value">High</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- What is Compound -->
+      <section class="section" id="what">
+        <h2 class="section-title">What is <span>Compound</span>?</h2>
+        <div style="max-width:720px; font-size:15px; color:var(--muted); line-height:1.8; margin-top:20px;">
+          <p style="margin-bottom:16px; color:var(--text);">Compound is an algorithmic, autonomous interest rate protocol built on Ethereum — the protocol that coined the term "DeFi" for many. Instead of a centralized bank setting rates, mathematical formulas driven by supply and demand determine rates in real time, 24/7, with no human intervention.</p>
+
+          <p style="margin-bottom:16px; color:var(--text);">The protocol operates as a suite of markets, each for a specific asset like USDC, ETH, DAI, or WBTC. Liquidity providers deposit assets into these markets and immediately begin earning a variable interest rate that compounds every block. Borrowers can over-collateralize their positions to borrow against their supplied assets, also paying algorithmic interest. The key innovation that made Compound revolutionary is that everything — deposits, borrows, interest accrual, and governance — happens automatically through smart contracts, with no intermediary.</p>
+
+          <p style="margin-bottom:16px; color:var(--text);">The heart of Compound is the <strong style="color:var(--primary)">cToken</strong> system. When you supply USDC to Compound, you receive cUSDC tokens at a 1:1 ratio (initially). These cTokens are live receipts that represent your share of the USDC market. As interest accrues on the underlying pool, the exchange rate between cTokens and the underlying asset increases — meaning your cUSDC is always worth more USDC than you deposited. This is how your balance "compounds" automatically, without you doing anything. The same applies to cETH, cDAI, cUSDT, cWBTC, and all other cTokens.</p>
+
+          <p style="margin-bottom:16px; color:var(--text);">Compound is also a <strong style="color:var(--primary)">governance powerhouse</strong>. The COMP token gives holders direct control over the protocol: interest rate models, risk parameters like collateral factors and liquidation thresholds, which assets get listed, and even treasury management. Over 400,000 COMP holders participate in on-chain voting. This is real, functional decentralized governance — not theoretical. The protocol has survived numerous market stress tests and continues to operate entirely as coded, upgraded only through voter-approved proposals.</p>
+
+          <p style="color:var(--text);">What makes Compound especially elegant is its <strong style="color:var(--primary)">COMP liquidity mining</strong> program, which was the first major DeFi incentive experiment. When you supply or borrow on Compound, you earn COMP tokens pro-rata, creating a dual yield stream. The COMP rewards add a meaningful boost to effective supply/borrow APYs, which you can calculate below. This model of "governance as incentive" changed how protocols distribute tokens forever.</p>
+        </div>
+      </section>
+
+      <!-- cToken Mechanics -->
+      <section class="section" id="ctokens">
+        <h2 class="section-title">cToken <span>Mechanics</span></h2>
+        <p style="color:var(--muted); margin-bottom:32px; max-width:640px;">Here's how your deposit grows automatically over time. Deposit USDC, receive cUSDC, watch it compound.</p>
+
+        <div class="flow-diagram" id="ctoken-diagram">
+          <div class="flow-row">
+            <div class="flow-node primary">
+              <div class="flow-label">You Deposit</div>
+              <div class="flow-value">1,000 USDC</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node secondary">
+              <div class="flow-label">Receive</div>
+              <div class="flow-value">1,000 cUSDC</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node accent">
+              <div class="flow-label">Exchange Rate</div>
+              <div class="flow-value" id="exchange-rate">1.0042</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node" style="border-color:var(--success);">
+              <div class="flow-label">Worth</div>
+              <div class="flow-value" id="worth-display">1,004.20 USDC</div>
+            </div>
+          </div>
+          <div style="margin-top:24px; font-size:13px; color:var(--muted);">The exchange rate increases every block. No action needed from you.</div>
+        </div>
+
+        <!-- Growth curve canvas -->
+        <div class="yield-chart">
+          <div style="font-size:14px; font-weight:600; margin-bottom:4px; color:var(--primary);">cUSDC Value Over Time</div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">$1,000 deposit at 3.2% APY, compounding every block (~12s)</div>
+          <canvas id="growth-chart" height="180" style="width:100%; border-radius:8px;"></canvas>
+          <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:8px;">
+            <span>Today</span><span>1 month</span><span>3 months</span><span>6 months</span><span>1 year</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Supply Simulator -->
+      <section class="section" id="supply">
+        <h2 class="section-title">Supply <span>Simulator</span></h2>
+        <p style="color:var(--muted); margin-bottom:32px;">Deposit assets and watch your yield compound in real time.</p>
+
+        <div class="sandbox">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px;">
+            <div>
+              <div class="slider-group">
+                <label>Amount to Supply <span id="supply-amount-val">$5,000</span></label>
+                <input type="range" id="supply-amount" min="100" max="100000" step="100" value="5000">
+              </div>
+              <div class="slider-group">
+                <label>Asset <span id="supply-asset-val">USDC</span></label>
+                <input type="range" id="supply-asset" min="0" max="4" step="1" value="0">
+              </div>
+              <div class="slider-group">
+                <label>Time Horizon <span id="supply-time-val">6 months</span></label>
+                <input type="range" id="supply-time" min="1" max="365" step="1" value="180">
+              </div>
+
+              <div style="margin-top:16px;">
+                <label style="display:block; font-size:13px; color:var(--muted); margin-bottom:6px;">Compounding Frequency</label>
+                <select id="compound-freq" style="width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-family:var(--mono); font-size:14px; padding:8px 12px; border-radius:8px; outline:none;">
+                  <option value="1">Every Block (~12s)</option>
+                  <option value="365" selected>Daily</option>
+                  <option value="52">Weekly</option>
+                  <option value="12">Monthly</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-row">
+                <span class="label">Supply APY</span>
+                <span class="value success" id="supply-apy">3.24%</span>
+              </div>
+              <div class="result-row">
+                <span class="label">cToken Balance</span>
+                <span class="value" id="supply-ctokens">4,975.12 cUSDC</span>
+              </div>
+              <div class="result-row">
+                <span class="label">Daily Earnings</span>
+                <span class="value success" id="supply-daily">$0.44</span>
+              </div>
+              <div class="result-row">
+                <span class="label">Monthly Earnings</span>
+                <span class="value success" id="supply-monthly">$13.48</span>
+              </div>
+              <div class="result-row">
+                <span class="label">COMP Rewards / Year</span>
+                <span class="value" id="supply-comp">$41.25</span>
+              </div>
+              <div class="result-row">
+                <span class="label">Effective APY (with COMP)</span>
+                <span class="value success" id="supply-eff-apy">4.22%</span>
+              </div>
+              <div class="result-row" style="background:rgba(0,255,200,0.05); margin:-4px -4px 0; border-radius:8px;">
+                <span class="label">Final Balance</span>
+                <span class="value" id="supply-final" style="font-size:18px;">$5,080.89</span>
+              </div>
+            </div>
+          </div>
+
+          <canvas id="supply-chart" height="140" style="width:100%; margin-top:24px; border-radius:8px;"></canvas>
+        </div>
+      </section>
+
+      <!-- Borrow Simulator -->
+      <section class="section" id="borrow">
+        <h2 class="section-title">Borrow <span>Simulator</span></h2>
+        <p style="color:var(--muted); margin-bottom:32px;">Calculate true borrow costs including COMP rewards offset.</p>
+
+        <div class="sandbox">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px;">
+            <div>
+              <div class="slider-group">
+                <label>Amount to Borrow <span id="borrow-amount-val">$2,000</span></label>
+                <input type="range" id="borrow-amount" min="100" max="100000" step="100" value="2000">
+              </div>
+              <div class="slider-group">
+                <label>Asset to Borrow <span id="borrow-asset-val">USDC</span></label>
+                <input type="range" id="borrow-asset" min="0" max="4" step="1" value="0">
+              </div>
+              <div class="slider-group">
+                <label>Health Factor Target <span id="health-factor-val">2.0</span></label>
+                <input type="range" id="health-factor" min="1.1" max="5.0" step="0.1" value="2.0">
+              </div>
+              <div class="slider-group">
+                <label>ETH Price (collateral) <span id="eth-price-val">$3,200</span></label>
+                <input type="range" id="eth-price" min="1000" max="10000" step="50" value="3200">
+              </div>
+            </div>
+
+            <div class="result-box">
+              <div class="result-row">
+                <span class="label">Borrow APY</span>
+                <span class="value danger" id="borrow-apy">5.12%</span>
+              </div>
+              <div class="result-row">
+                <span class="label">Required Collateral (ETH)</span>
+                <span class="value" id="borrow-collateral">~1.5625 ETH</span>
+              </div>
+              <div class="result-row">
+                <span class="label">Daily Borrow Cost</span>
+                <span class="value danger" id="borrow-daily-cost">$0.28</span>
+              </div>
+              <div class="result-row">
+                <span class="label">Monthly Borrow Cost</span>
+                <span class="value danger" id="borrow-monthly-cost">$8.53</span>
+              </div>
+              <div class="result-row">
+                <span class="label">COMP Rewards / Year</span>
+                <span class="value success" id="borrow-comp">$32.50</span>
+              </div>
+              <div class="result-row">
+                <span class="label">Net APY (earn − pay)</span>
+                <span class="value" id="borrow-net-apy">−3.07%</span>
+              </div>
+              <div class="result-row" style="background:rgba(239,68,68,0.08); margin:-4px -4px 0; border-radius:8px;">
+                <span class="label">Net Monthly Cost</span>
+                <span class="value danger" id="borrow-net-monthly" style="font-size:18px;">$5.81</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="borrow-warning" style="margin-top:16px; padding:12px 16px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:8px; font-size:13px; color:var(--accent); display:none;">
+            ⚠️ Health factor below 1.5 risks liquidation. Maintain a buffer for price volatility.
+          </div>
+        </div>
+      </section>
+
+      <!-- Interest Rate Model -->
+      <section class="section" id="rates">
+        <h2 class="section-title">Interest Rate <span>Model</span></h2>
+        <p style="color:var(--muted); margin-bottom:32px;">Compound uses a piecewise interest rate model — rates stay low until the "kink" at 80% utilization, then rise sharply.</p>
+
+        <div class="sandbox">
+          <div class="slider-group" style="max-width:480px;">
+            <label>Market Utilization Rate <span id="util-val">65%</span></label>
+            <input type="range" id="util-slider" min="0" max="100" step="1" value="65">
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:24px;">
+            <div class="chart-bar">
+              <div class="bar-label">Supply Rate</div>
+              <div class="bar-track"><div class="bar-fill" id="supply-rate-bar" style="width:5%; background:linear-gradient(90deg, var(--primary), #00d4aa);"></div></div>
+              <div class="bar-val" id="supply-rate-val">0.52%</div>
+            </div>
+            <div class="chart-bar">
+              <div class="bar-label">Borrow Rate</div>
+              <div class="bar-track"><div class="bar-fill" id="borrow-rate-bar" style="width:8%; background:linear-gradient(90deg, var(--danger), #ff6b6b);"></div></div>
+              <div class="bar-val" id="borrow-rate-val">5.12%</div>
+            </div>
+          </div>
+
+          <canvas id="rate-curve-chart" height="200" style="width:100%; margin-top:24px; border-radius:8px;"></canvas>
+
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:24px;">
+            <div style="background:var(--surface-2); border-radius:8px; padding:16px; text-align:center;">
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Kink Point</div>
+              <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--accent); margin-top:4px;">80%</div>
+              <div style="font-size:12px; color:var(--muted);">Utilization</div>
+            </div>
+            <div style="background:var(--surface-2); border-radius:8px; padding:16px; text-align:center;">
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Base Rate</div>
+              <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--primary); margin-top:4px;">0%</div>
+              <div style="font-size:12px; color:var(--muted);">Below kink</div>
+            </div>
+            <div style="background:var(--surface-2); border-radius:8px; padding:16px; text-align:center;">
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Multiplied Slope</div>
+              <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--danger); margin-top:4px;">5x</div>
+              <div style="font-size:12px; color:var(--muted);">Above kink</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMP Rewards Calculator -->
+      <section class="section" id="comp">
+        <h2 class="section-title">COMP Rewards <span>Calculator</span></h2>
+        <p style="color:var(--muted); margin-bottom:32px;">Calculate COMP token rewards from supply and borrow activity. COMP price: <span id="comp-price" style="color:var(--primary); font-family:var(--mono);">$87.50</span></p>
+
+        <div class="sandbox">
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px; margin-bottom:24px;">
+            <div class="input-group">
+              <label>USDC Supplied</label>
+              <input type="number" id="comp-usdc-supply" value="10000" placeholder="0">
+            </div>
+            <div class="input-group">
+              <label>ETH Supplied</label>
+              <input type="number" id="comp-eth-supply" value="0" placeholder="0">
+            </div>
+            <div class="input-group">
+              <label>USDC Borrowed</label>
+              <input type="number" id="comp-usdc-borrow" value="0" placeholder="0">
+            </div>
+          </div>
+
+          <div class="result-box" style="display:grid; grid-template-columns:repeat(4,1fr); gap:0;">
+            <div style="padding:16px; border-right:1px solid var(--border);">
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; margin-bottom:8px;">COMP / Day</div>
+              <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--primary);" id="comp-daily">0.048</div>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;" id="comp-daily-val">$4.20</div>
+            </div>
+            <div style="padding:16px; border-right:1px solid var(--border);">
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; margin-bottom:8px;">COMP / Week</div>
+              <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--primary);" id="comp-weekly">0.336</div>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;" id="comp-weekly-val">$29.40</div>
+            </div>
+            <div style="padding:16px; border-right:1px solid var(--border);">
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; margin-bottom:8px;">COMP / Year</div>
+              <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--primary);" id="comp-yearly">17.52</div>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;" id="comp-yearly-val">$1,533</div>
+            </div>
+            <div style="padding:16px;">
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; margin-bottom:8px;">COMP APR</div>
+              <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--success);" id="comp-apr">0.92%</div>
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">of USDC position</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Utilization by Market -->
+      <section class="section" id="markets">
+        <h2 class="section-title">Utilization by <span>Market</span></h2>
+        <p style="color:var(--muted); margin-bottom:32px;">Current utilization rates across top Compound markets — high utilization means higher rates for suppliers and borrowers.</p>
+
+        <div class="sandbox" id="util-bars">
+          <div class="chart-bar"><div class="bar-label">USDC</div><div class="bar-track"><div class="bar-fill" id="bar-usdc" style="width:87%;"></div></div><div class="bar-val" id="val-usdc">87%</div></div>
+          <div class="chart-bar"><div class="bar-label">USDT</div><div class="bar-track"><div class="bar-fill" id="bar-usdt" style="width:62%;"></div></div><div class="bar-val" id="val-usdt">62%</div></div>
+          <div class="chart-bar"><div class="bar-label">ETH</div><div class="bar-track"><div class="bar-fill" id="bar-eth" style="width:74%;"></div></div><div class="bar-val" id="val-eth">74%</div></div>
+          <div class="chart-bar"><div class="bar-label">DAI</div><div class="bar-track"><div class="bar-fill" id="bar-dai" style="width:41%;"></div></div><div class="bar-val" id="val-dai">41%</div></div>
+          <div class="chart-bar"><div class="bar-label">WBTC</div><div class="bar-track"><div class="bar-fill" id="bar-wbtc" style="width:55%;"></div></div><div class="bar-val" id="val-wbtc">55%</div></div>
+          <div class="chart-bar"><div class="bar-label">COMP</div><div class="bar-track"><div class="bar-fill" id="bar-comp" style="width:28%;"></div></div><div class="bar-val" id="val-comp">28%</div></div>
+          <div class="chart-bar"><div class="bar-label">LINK</div><div class="bar-track"><div class="bar-fill" id="bar-link" style="width:19%;"></div></div><div class="bar-val" id="val-link">19%</div></div>
+        </div>
+      </section>
+
+      <!-- Governance -->
+      <section class="section" id="governance">
+        <h2 class="section-title">COMP <span>Governance</span></h2>
+        <p style="color:var(--muted); margin-bottom:32px;">Compound is governed by COMP token holders who vote on proposals to update the protocol.</p>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:16px;">
+          <div class="card">
+            <div class="card-icon">📊</div>
+            <h3>Proposal Lifecycle</h3>
+            <p>Proposals go through a 2-day review period, then a 3-day voting window. Requires 400,000 COMP quorum to pass.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon">⚙️</div>
+            <h3>Parameter Changes</h3>
+            <p>Rates, collateral factors, liquidation thresholds, reserve factors — all voted on by COMP holders.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon">🗳️</div>
+            <h3>Token Distribution</h3>
+            <p>COMP distributes ~4.7M tokens/year to suppliers and borrowers pro-rata. ~400K COMP holders active in votes.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon">🔗</div>
+            <h3>Permissionless Listing</h3>
+            <p>Through governance, any asset meeting risk assessments can be listed. Over 10 assets currently supported.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Risk -->
+      <section class="section" id="risk">
+        <h2 class="section-title">Risk <span>Factors</span></h2>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px; margin-top:20px;">
+          <div class="card" style="border-color:rgba(239,68,68,0.3);">
+            <div class="card-icon" style="background:rgba(239,68,68,0.1);">⚠️</div>
+            <h3 style="color:var(--danger);">Liquidation Risk</h3>
+            <p>If your health factor drops below 1.0 due to collateral price drops, your position can be partially liquidated. Always maintain a healthy buffer above the liquidation threshold.</p>
+            <div class="card-stats">
+              <div class="card-stat"><div class="val danger">~1.5x</div><div class="lbl">Safe HF</div></div>
+              <div class="card-stat"><div class="val danger">8.5%</div><div class="lbl">Liquidation<br>penalty</div></div>
+            </div>
+          </div>
+          <div class="card" style="border-color:rgba(168,85,247,0.3);">
+            <div class="card-icon" style="background:rgba(168,85,247,0.1);">🔐</div>
+            <h3 style="color:var(--secondary);">Smart Contract Risk</h3>
+            <p>Compound's v2 contracts have been audited multiple times and hold billions in TVL. However, no smart contract is 100% safe — audits and bug bounties mitigate but don't eliminate this risk.</p>
+            <div class="card-stats">
+              <div class="card-stat"><div class="val" style="color:var(--secondary);">$1.2B+</div><div class="lbl">TVL Secured</div></div>
+              <div class="card-stat"><div class="val" style="color:var(--secondary);">~$1M</div><div class="lbl">Max Bug Bounty</div></div>
+            </div>
+          </div>
+          <div class="card" style="border-color:rgba(245,158,11,0.3);">
+            <div class="card-icon" style="background:rgba(245,158,11,0.1);">🗳️</div>
+            <h3 style="color:var(--accent);">Governance Attack</h3>
+            <p>A malicious actor with enough COMP could pass proposals to drain the protocol. This is a systemic DeFi risk — concentration of governance tokens is an ongoing debate in the community.</p>
+            <div class="card-stats">
+              <div class="card-stat"><div class="val" style="color:var(--accent);">400K+</div><div class="lbl">COMP for<br>quorum</div></div>
+              <div class="card-stat"><div class="val" style="color:var(--accent);">5 days</div><div class="lbl">Voting<br>window</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Glossary -->
+      <section class="section" id="glossary">
+        <h2 class="section-title">Glossary</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:12px; margin-top:20px;">
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">cToken</div>
+            <div style="font-size:13px; color:var(--muted);">The receipt token you receive when supplying assets. cUSDC, cETH, cDAI, etc. Your cToken balance is fixed, but its exchange rate against the underlying asset grows with interest.</div>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">Supply APY</div>
+            <div style="font-size:13px; color:var(--muted);">The annual percentage yield you earn on supplied assets. This is the interest paid by borrowers, distributed to suppliers pro-rata, and compounds automatically via the cToken exchange rate.</div>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">Borrow APY</div>
+            <div style="font-size:13px; color:var(--muted);">The annual interest rate you pay on borrowed assets. This rate is variable and changes based on utilization — the higher the market utilization, the higher your borrow rate.</div>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">Utilization Rate</div>
+            <div style="font-size:13px; color:var(--muted);">The percentage of supplied capital that is currently lent out. High utilization = more supply for borrowers needed = higher rates. It's the primary driver of Compound's interest rate algorithm.</div>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">COMP Token</div>
+            <div style="font-size:13px; color:var(--muted);">Compound's governance token. Earned by both suppliers and borrowers. Gives holders voting rights over protocol parameters, new listings, and treasury allocations. Currently distributing ~4.7M tokens per year.</div>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">Interest Rate Model</div>
+            <div style="font-size:13px; color:var(--muted);">The mathematical formula that determines borrow rates. Compound uses a piecewise model: rates are low and flat below the kink (80% utilization), then rise steeply above it. This incentivizes liquidity when markets are stressed.</div>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">Kink</div>
+            <div style="font-size:13px; color:var(--muted);">The inflection point in Compound's interest rate model at 80% utilization. Below the kink, rates rise slowly. Above the kink, the slope multiplier increases ~5x, making borrowing much more expensive to incentivize supply.</div>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">Reserve Factor</div>
+            <div style="font-size:13px; color:var(--muted);">A percentage of borrower interest that goes to the protocol's reserve treasury rather than suppliers. Currently set at 10-20% for most markets. These reserves serve as a safety backstop and can be used for upgrades or buybacks.</div>
+          </div>
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div style="font-weight:700; color:var(--primary); margin-bottom:4px;">Health Factor</div>
+            <div style="font-size:13px; color:var(--muted);">Your collateral value divided by your borrowed value. Below 1.0 means liquidation. A health factor of 2.0 means your collateral is worth 2x your borrowed position — a common safe target.</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        <div class="footer-links">
+          <a href="index.html">Protocols</a>
+          <a href="https://compound.finance" target="_blank">Compound Finance ↗</a>
+          <a href="https://etherscan.io/address/0xc00e94cb662c3520282e6f5717214004a7f26888" target="_blank">COMP on Etherscan ↗</a>
+        </div>
+        DeFi Visualizer — Built for education, not financial advice.
+      </div>
+    </div>
+  </div>
+
+<script>
+// ─── Data ───────────────────────────────────────────────────────────────────
+const ASSETS = ['USDC', 'ETH', 'DAI', 'USDT', 'WBTC'];
+const SUPPLY_APYS = [3.24, 2.10, 3.47, 3.18, 0.85];  // %
+const BORROW_APYS = [5.12, 3.85, 6.20, 4.95, 2.40];  // %
+const COMP_PRICE = 87.50;
+const COMP_DIST_PER_DAY = 12900; // COMP distributed per day across protocol
+const COMP_REWARDS_RATE = 0.40; // fraction of COMP that goes to suppliers/borrowers per market
+
+// ─── Utility ────────────────────────────────────────────────────────────────
+function formatCurrency(v) {
+  if (v >= 1000000) return '$' + (v/1000000).toFixed(2) + 'M';
+  if (v >= 1000) return '$' + (v/1000).toFixed(1) + 'K';
+  return '$' + v.toFixed(2);
+}
+function formatToken(v, decimals=4) { return v.toFixed(decimals); }
+
+// ─── cToken / Growth Chart ──────────────────────────────────────────────────
+function drawGrowthChart() {
+  const canvas = document.getElementById('growth-chart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth;
+  canvas.width = W;
+  const H = 180;
+
+  ctx.clearRect(0, 0, W, H);
+  const apy = 0.0324;
+  const principal = 1000;
+  const days = 365;
+  const maxVal = principal * Math.pow(1 + apy, days / 365);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i <= 4; i++) {
+    const y = H * i / 4;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(0,255,200,0.25)');
+  grad.addColorStop(1, 'rgba(0,255,200,0)');
+
+  ctx.beginPath();
+  for (let d = 0; d <= days; d++) {
+    const x = (d / days) * W;
+    const y = H - ((Math.pow(1 + apy/365, d) - 1) / (maxVal/principal - 1)) * (H - 20) - 10;
+    d === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  const lastX = W;
+  const lastY = H - ((maxVal - principal) / (maxVal/principal - 1)) * (H - 20) - 10 + ((maxVal/principal - 1) / (maxVal/principal - 1)) * (H - 20) * 0 + 10;
+  ctx.lineTo(lastX, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  for (let d = 0; d <= days; d++) {
+    const x = (d / days) * W;
+    const val = principal * Math.pow(1 + apy/365, d);
+    const y = H - ((val - principal) / (maxVal - principal)) * (H - 30) - 15;
+    d === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#00ffc8';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Endpoint label
+  const endX = W;
+  const endY = H - ((maxVal - principal) / (maxVal - principal)) * (H - 30) - 15;
+  ctx.fillStyle = '#00ffc8';
+  ctx.font = 'bold 12px JetBrains Mono';
+  ctx.fillText('$' + maxVal.toFixed(0), endX - 48, endY - 6);
+}
+
+// ─── Supply Chart ───────────────────────────────────────────────────────────
+function drawSupplyChart(days, apy, principal, canvasId) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth;
+  canvas.width = W;
+  const H = 140;
+
+  ctx.clearRect(0, 0, W, H);
+  const maxVal = principal * Math.pow(1 + apy/365, days);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  for (let i = 1; i <= 3; i++) {
+    const y = H * i / 3;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(34,197,94,0.2)');
+  grad.addColorStop(1, 'rgba(34,197,94,0)');
+
+  ctx.beginPath();
+  for (let d = 0; d <= days; d++) {
+    const x = (d / days) * W;
+    const y = H - ((Math.pow(1 + apy/365, d) - 1) / (maxVal/principal - 1)) * (H - 20) - 10;
+    d === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  for (let d = 0; d <= days; d++) {
+    const x = (d / days) * W;
+    const val = principal * Math.pow(1 + apy/365, d);
+    const y = H - ((val - principal) / (maxVal - principal)) * (H - 30) - 15;
+    d === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+// ─── Interest Rate Curve ────────────────────────────────────────────────────
+function interestRate(util, assetIdx) {
+  const baseApy = BORROW_APYS[assetIdx];
+  const kink = 0.80;
+  const multiplier = 5;
+  const baseRate = 0;
+  if (util <= kink) {
+    return baseRate + (util / kink) * (baseApy * 0.6);
+  } else {
+    const excess = util - kink;
+    const remaining = 1 - kink;
+    return baseApy * 0.6 + (excess / remaining) * (baseApy * multiplier * 0.6);
+  }
+}
+
+function drawRateCurveChart(assetIdx) {
+  const canvas = document.getElementById('rate-curve-chart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth;
+  canvas.width = W;
+  const H = 200;
+
+  ctx.clearRect(0, 0, W, H);
+  const maxRate = 25; // 25% max on chart
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  [25, 50, 75].forEach(pct => {
+    const y = H - (pct / 100) * (H - 20) - 10;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText(pct + '%', 4, y - 2);
+  });
+
+  // Kink line
+  const kinkX = 0.80 * W;
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = 'rgba(245,158,11,0.5)';
+  ctx.beginPath(); ctx.moveTo(kinkX, 0); ctx.lineTo(kinkX, H); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = '10px JetBrains Mono';
+  ctx.fillText('Kink 80%', kinkX + 4, 14);
+
+  // Supply rate curve (green)
+  ctx.beginPath();
+  for (let u = 0; u <= 100; u++) {
+    const x = (u / 100) * W;
+    const borrowRate = interestRate(u / 100, assetIdx);
+    const supplyRate = borrowRate * 0.55; // suppliers get ~55% of borrow rate
+    const y = H - (supplyRate / maxRate) * (H - 20) - 10;
+    u === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Borrow rate curve (red)
+  ctx.beginPath();
+  for (let u = 0; u <= 100; u++) {
+    const x = (u / 100) * W;
+    const rate = interestRate(u / 100, assetIdx);
+    const y = H - (rate / maxRate) * (H - 20) - 10;
+    u === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Legend
+  ctx.fillStyle = '#22c55e';
+  ctx.fillRect(W - 140, 8, 12, 12);
+  ctx.fillStyle = '#64748b';
+  ctx.font = '11px Inter';
+  ctx.fillText('Supply Rate', W - 124, 18);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(W - 140, 26, 12, 12);
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('Borrow Rate', W - 124, 36);
+}
+
+// ─── Update Functions ───────────────────────────────────────────────────────
+function getAssetIndex(sliderVal) {
+  return parseInt(document.getElementById('supply-asset').value);
+}
+
+function updateSupplySim() {
+  const amount = parseFloat(document.getElementById('supply-amount').value);
+  const assetIdx = parseInt(document.getElementById('supply-asset').value);
+  const days = parseInt(document.getElementById('supply-time').value);
+  const compoundFreq = parseInt(document.getElementById('compound-freq').value);
+  const apy = SUPPLY_APYS[assetIdx] / 100;
+  const dailyRate = apy / 365;
+
+  document.getElementById('supply-amount-val').textContent = formatCurrency(amount);
+  document.getElementById('supply-asset-val').textContent = ASSETS[assetIdx];
+  document.getElementById('supply-time-val').textContent = days < 30 ? days + ' days' : Math.round(days/30) + ' month' + (Math.round(days/30) !== 1 ? 's' : '');
+
+  const supplyApy = SUPPLY_APYS[assetIdx];
+  const ctokens = amount / (1 + 0.001); // simulated exchange rate
+  const daily = amount * dailyRate;
+  const monthly = amount * (Math.pow(1 + dailyRate, 30) - 1);
+  const compYearly = amount * 0.004125; // COMP rewards at ~0.4% of position
+  const compYearlyVal = compYearly * COMP_PRICE;
+  const effApy = supplyApy + (compYearlyVal / amount * 100);
+
+  document.getElementById('supply-apy').textContent = supplyApy.toFixed(2) + '%';
+  document.getElementById('supply-ctokens').textContent = formatToken(ctokens) + ' c' + ASSETS[assetIdx];
+  document.getElementById('supply-daily').textContent = '$' + daily.toFixed(2);
+  document.getElementById('supply-monthly').textContent = '$' + monthly.toFixed(2);
+  document.getElementById('supply-comp').textContent = formatCurrency(compYearlyVal);
+  document.getElementById('supply-eff-apy').textContent = effApy.toFixed(2) + '%';
+
+  // Final balance
+  let final = amount;
+  const periodsPerDay = compoundFreq / 365;
+  const ratePerPeriod = dailyRate / (365 / compoundFreq);
+  for (let d = 0; d < days; d++) {
+    for (let p = 0; p < periodsPerDay; p++) {
+      final *= (1 + ratePerPeriod);
+    }
+  }
+  document.getElementById('supply-final').textContent = formatCurrency(final);
+
+  drawSupplyChart(days, apy, amount, 'supply-chart');
+}
+
+function updateBorrowSim() {
+  const borrowAmount = parseFloat(document.getElementById('borrow-amount').value);
+  const assetIdx = parseInt(document.getElementById('borrow-asset').value);
+  const hf = parseFloat(document.getElementById('health-factor').value);
+  const ethPrice = parseFloat(document.getElementById('eth-price').value);
+
+  document.getElementById('borrow-amount-val').textContent = formatCurrency(borrowAmount);
+  document.getElementById('borrow-asset-val').textContent = ASSETS[assetIdx];
+  document.getElementById('health-factor-val').textContent = hf.toFixed(1);
+  document.getElementById('eth-price-val').textContent = '$' + ethPrice.toLocaleString();
+
+  const borrowApy = BORROW_APYS[assetIdx] / 100;
+  const collateralFactor = 0.80; // ETH collateral factor
+  const requiredCollateral = (borrowAmount * hf) / (collateralFactor * ethPrice);
+  const dailyCost = borrowAmount * (borrowApy / 365);
+  const monthlyCost = borrowAmount * (Math.pow(1 + borrowApy/365, 30) - 1);
+  const compYearly = borrowAmount * 0.0040;
+  const compYearlyVal = compYearly * COMP_PRICE;
+  const netApy = borrowApy - (compYearlyVal / borrowAmount);
+  const netMonthly = monthlyCost - (compYearlyVal / 365 * 30);
+
+  document.getElementById('borrow-apy').textContent = BORROW_APYS[assetIdx].toFixed(2) + '%';
+  document.getElementById('borrow-collateral').textContent = '~' + requiredCollateral.toFixed(4) + ' ETH';
+  document.getElementById('borrow-daily-cost').textContent = '$' + dailyCost.toFixed(2);
+  document.getElementById('borrow-monthly-cost').textContent = '$' + monthlyCost.toFixed(2);
+  document.getElementById('borrow-comp').textContent = formatCurrency(compYearlyVal);
+  document.getElementById('borrow-net-apy').textContent = (netApy * 100).toFixed(2) + '%';
+  document.getElementById('borrow-net-apy').className = netApy > 0 ? 'value danger' : 'value success';
+  document.getElementById('borrow-net-monthly').textContent = '$' + Math.abs(netMonthly).toFixed(2);
+  document.getElementById('borrow-net-monthly').className = netMonthly > 0 ? 'value danger' : 'value success';
+
+  // Warning
+  const warning = document.getElementById('borrow-warning');
+  if (hf < 1.5) warning.style.display = 'block';
+  else warning.style.display = 'none';
+}
+
+function updateRateModel() {
+  const util = parseInt(document.getElementById('util-slider').value);
+  const assetIdx = 0; // USDC market
+
+  document.getElementById('util-val').textContent = util + '%';
+
+  const supplyRate = interestRate(util/100, assetIdx) * 0.55;
+  const borrowRate = interestRate(util/100, assetIdx);
+
+  document.getElementById('supply-rate-val').textContent = supplyRate.toFixed(2) + '%';
+  document.getElementById('borrow-rate-val').textContent = borrowRate.toFixed(2) + '%';
+
+  const maxBar = 20;
+  document.getElementById('supply-rate-bar').style.width = Math.min(100, (supplyRate / maxBar) * 100) + '%';
+  document.getElementById('borrow-rate-bar').style.width = Math.min(100, (borrowRate / maxBar) * 100) + '%';
+
+  drawRateCurveChart(assetIdx);
+}
+
+function updateCompCalc() {
+  const usdcSupply = parseFloat(document.getElementById('comp-usdc-supply').value) || 0;
+  const ethSupply = parseFloat(document.getElementById('comp-eth-supply').value) || 0;
+  const usdcBorrow = parseFloat(document.getElementById('comp-usdc-borrow').value) || 0;
+
+  // COMP per day based on market size
+  const totalValue = usdcSupply + ethSupply * 3200 + usdcBorrow;
+  const compPerYear = totalValue * 0.004125; // ~0.4% in COMP
+  const compPerDay = compPerYear / 365;
+  const compPerWeek = compPerYear / 52;
+
+  document.getElementById('comp-daily').textContent = formatToken(compPerDay, 3);
+  document.getElementById('comp-daily-val').textContent = '$' + (compPerDay * COMP_PRICE).toFixed(2);
+  document.getElementById('comp-weekly').textContent = formatToken(compPerWeek, 3);
+  document.getElementById('comp-weekly-val').textContent = '$' + (compPerWeek * COMP_PRICE).toFixed(2);
+  document.getElementById('comp-yearly').textContent = formatToken(compPerYear, 2);
+  document.getElementById('comp-yearly-val').textContent = '$' + (compPerYear * COMP_PRICE).toLocaleString('en-US', {maximumFractionDigits: 0});
+  const compApr = usdcSupply > 0 ? (compPerYear / usdcSupply) * 100 : 0;
+  document.getElementById('comp-apr').textContent = compApr.toFixed(2) + '%';
+}
+
+// ─── cToken Diagram Animation ────────────────────────────────────────────────
+let exchangeRate = 1.0042;
+function animateCtoken() {
+  exchangeRate += 0.000001;
+  if (exchangeRate > 1.05) exchangeRate = 1.0042;
+  document.getElementById('exchange-rate').textContent = exchangeRate.toFixed(4);
+  document.getElementById('worth-display').textContent = '$' + (1000 * exchangeRate).toFixed(2);
+}
+
+// ─── Event Listeners ────────────────────────────────────────────────────────
+document.getElementById('supply-amount').addEventListener('input', updateSupplySim);
+document.getElementById('supply-asset').addEventListener('input', updateSupplySim);
+document.getElementById('supply-time').addEventListener('input', updateSupplySim);
+document.getElementById('compound-freq').addEventListener('input', updateSupplySim);
+
+document.getElementById('borrow-amount').addEventListener('input', updateBorrowSim);
+document.getElementById('borrow-asset').addEventListener('input', updateBorrowSim);
+document.getElementById('health-factor').addEventListener('input', updateBorrowSim);
+document.getElementById('eth-price').addEventListener('input', updateBorrowSim);
+
+document.getElementById('util-slider').addEventListener('input', updateRateModel);
+
+document.getElementById('comp-usdc-supply').addEventListener('input', updateCompCalc);
+document.getElementById('comp-eth-supply').addEventListener('input', updateCompCalc);
+document.getElementById('comp-usdc-borrow').addEventListener('input', updateCompCalc);
+
+// ─── Init ───────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  drawGrowthChart();
+  updateSupplySim();
+  updateBorrowSim();
+  updateRateModel();
+  updateCompCalc();
+
+  // Animate cToken exchange rate
+  setInterval(animateCtoken, 800);
+
+  // Animate utilization bars on scroll
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.querySelectorAll('.bar-fill').forEach(bar => {
+          bar.style.transition = 'width 1.5s ease';
+        });
+      }
+    });
+  }, { threshold: 0.3 });
+  const utilSection = document.getElementById('util-bars');
+  if (utilSection) observer.observe(utilSection);
+});
+
+// Redraw charts on resize
+window.addEventListener('resize', () => {
+  drawGrowthChart();
+  updateSupplySim();
+  updateRateModel();
+});
+</script>
+  <!-- Tools & Links -->
+  <section class="tools-section">
+    <div class="container">
+      <div class="tools-header">🔗 Tools &amp; Links</div>
+      <div class="tools-grid">
+        <a href="https://coinbase.com/join/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🟣</span>
+          <span class="tool-name">Coinbase</span>
+          <span class="tool-desc">Buy &amp; trade crypto</span>
+        </a>
+        <a href="https://app.1inch.io/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🔀</span>
+          <span class="tool-name">1inch</span>
+          <span class="tool-desc">DEX aggregator</span>
+        </a>
+        <a href="https://defillama.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">📊</span>
+          <span class="tool-name">DeFiLlama</span>
+          <span class="tool-desc">TVL &amp; yield data</span>
+        </a>
+        <a href="https://debank.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">💼</span>
+          <span class="tool-name">DeBank</span>
+          <span class="tool-desc">Portfolio tracker</span>
+        </a>
+      </div>
+    </div>
+  </section>
+  <style>
+  .tools-section { padding: 40px 0 20px; }
+  .tools-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+  .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .tool-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; text-decoration: none; color: inherit; transition: all 0.2s; }
+  .tool-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  .tool-icon { font-size: 20px; flex-shrink: 0; }
+  .tool-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .tool-desc { font-size: 11px; color: var(--muted); margin-left: auto; }
+  </style>
+
+</body>
+</html>

@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeFi Glossary – DeFi Visualizer</title>
+  <meta name="description" content="Comprehensive glossary of 80+ DeFi terms: AMM, APY, APR, TVL, liquidation, impermanent loss, yield farming, staking, MEV, flash loans, and more.">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question","name": "What is impermanent loss?","acceptedAnswer": {"@type": "Answer","text": "Impermanent loss is the temporary loss of value liquidity providers experience when providing assets to an AMM pool compared to simply holding those assets."}},
+      {"@type": "Question","name": "What is the difference between APY and APR?","acceptedAnswer": {"@type": "Answer","text": "APR is the simple annual interest rate without compounding. APY includes the effect of compounding interest over a year, making it higher than APR for the same nominal rate."}},
+      {"@type": "Question","name": "What is a flash loan?","acceptedAnswer": {"@type": "Answer","text": "A flash loan is an uncollateralized loan executed within a single blockchain transaction. It must be repaid plus fees before the transaction ends, or the entire transaction reverts."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+  <style>
+    /* ── Glossary overrides ── */
+    .glossary-wrap { padding: 80px 0 80px; }
+    .glossary-sticky {
+      position: sticky;
+      top: 56px;
+      z-index: 50;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+      margin-bottom: 40px;
+    }
+    .sticky-inner { display: flex; flex-direction: column; gap: 12px; }
+
+    .search-bar {
+      position: relative;
+      max-width: 600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .search-bar input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      padding: 12px 16px 12px 44px;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .search-bar input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,255,200,0.1); }
+    .search-bar .si {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .search-bar .clear-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      display: none;
+    }
+    .search-bar .clear-btn.show { display: block; }
+
+    .cat-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .cat-tab {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .cat-tab:hover { border-color: var(--primary); color: var(--text); }
+    .cat-tab.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--bg);
+    }
+
+    /* Popular */
+    .popular-section { margin-bottom: 48px; }
+    .popular-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .popular-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .popular-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+    .popular-chip:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .popular-chip .chip-term {
+      font-weight: 700;
+      font-size: 15px;
+      margin-bottom: 4px;
+      color: var(--accent);
+    }
+    .popular-chip .chip-def { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+    /* A–Z nav */
+    .az-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: center;
+      margin-bottom: 40px;
+    }
+    .az-nav a {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    .az-nav a:hover { color: var(--primary); border-color: var(--primary); }
+    .az-nav a.disabled { color: var(--border); pointer-events: none; }
+
+    /* Term cards */
+    .terms-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .term-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    .term-card.visible { opacity: 1; transform: translateY(0); transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.2s, box-shadow 0.2s; }
+    .term-card:hover { border-color: var(--primary); box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
+    .term-card.hidden { display: none; }
+    .term-card .term-category {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    .cat-lending { background: rgba(34,197,94,0.12); color: #22c55e; }
+    .cat-amm { background: rgba(0,255,200,0.12); color: var(--primary); }
+    .cat-staking { background: rgba(168,85,247,0.12); color: var(--secondary); }
+    .cat-risk { background: rgba(239,68,68,0.12); color: var(--danger); }
+    .cat-mev { background: rgba(245,158,11,0.12); color: var(--accent); }
+    .cat-bridges { background: rgba(59,130,246,0.12); color: #3b82f6; }
+    .cat-governance { background: rgba(236,72,153,0.12); color: #ec4899; }
+    .cat-general { background: rgba(100,116,139,0.12); color: var(--muted); }
+
+    .term-card h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .term-card h3 .term-acronym {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--surface-2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--muted);
+    }
+    .term-card .term-def { font-size: 14px; color: var(--muted); line-height: 1.55; }
+    .term-card .term-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .term-card .term-links a {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      transition: all 0.15s;
+    }
+    .term-card .term-links a:hover { color: var(--primary); border-color: var(--primary); }
+
+    /* Hover popup */
+    .term-card .hover-detail {
+      display: none;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface-2);
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .term-card:hover .hover-detail { display: block; }
+
+    /* No results */
+    .no-results {
+      text-align: center;
+      padding: 80px 0;
+      color: var(--muted);
+    }
+    .no-results i { font-size: 40px; margin-bottom: 16px; display: block; }
+    .no-results h3 { font-size: 20px; margin-bottom: 8px; color: var(--text); }
+    .no-results p { font-size: 14px; }
+
+    /* Section header */
+    .section-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 48px 0 24px;
+    }
+    .section-divider span {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .section-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Stats bar */
+    .glossary-stats {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-bottom: 40px;
+    }
+    .gstat { text-align: center; }
+    .gstat .gs-val {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .gstat .gs-lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    @media (max-width: 768px) {
+      .terms-grid { grid-template-columns: 1fr; }
+      .popular-grid { grid-template-columns: 1fr 1fr; }
+      .az-nav a { width: 28px; height: 28px; font-size: 11px; }
+      .glossary-stats { gap: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-logo"><i class="fa-solid fa-chart-line"></i> <span>DeFi</span>Visualizer</a>
+  <div class="nav-links">
+    <a href="index.html">Dashboard</a>
+    <a href="risk-dashboard.html">Risk</a>
+    <a href="glossary.html" class="active">Glossary</a>
+    <a href="aave.html">Aave</a>
+    <a href="curve.html">Curve</a>
+    <a href="compound.html">Compound</a>
+    <a href="makerdao.html">MakerDAO</a>
+    <a href="lido.html">Lido</a>
+    <a href="bridges.html">Bridges</a>
+    <a href="mev.html">MEV</a>
+    <a href="eigenlayer.html">EigenLayer</a>
+    <a href="pendle.html">Pendle</a>
+    <a href="aggregators.html">Aggr.</a>
+  </div>
+</nav>
+
+<main class="container glossary-wrap">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-label"><span class="dot"></span> Reference Guide</div>
+    <h1>DeFi <span class="grad">Glossary</span></h1>
+    <p>80+ essential terms, concepts, and mechanisms that power decentralized finance — from Airdrop to ZK-Rollup.</p>
+  </section>
+
+  <!-- Stats bar -->
+  <div class="glossary-stats">
+    <div class="gstat"><div class="gs-val">80+</div><div class="gs-lbl">Terms</div></div>
+    <div class="gstat"><div class="gs-val">7</div><div class="gs-lbl">Categories</div></div>
+    <div class="gstat"><div class="gs-val">A–Z</div><div class="gs-lbl">Navigable</div></div>
+  </div>
+
+  <!-- Sticky filter bar -->
+  <div class="glossary-sticky">
+    <div class="sticky-inner container">
+      <div class="search-bar">
+        <i class="fa-solid fa-magnifying-glass si"></i>
+        <input type="text" id="searchInput" placeholder="Search terms, concepts, mechanisms…" autocomplete="off">
+        <button class="clear-btn" id="clearSearch"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="cat-tabs" id="catTabs">
+        <button class="cat-tab active" data-cat="all">All Terms</button>
+        <button class="cat-tab" data-cat="lending">Lending</button>
+        <button class="cat-tab" data-cat="amm">AMM</button>
+        <button class="cat-tab" data-cat="staking">Staking</button>
+        <button class="cat-tab" data-cat="risk">Risk</button>
+        <button class="cat-tab" data-cat="mev">MEV</button>
+        <button class="cat-tab" data-cat="bridges">Bridges</button>
+        <button class="cat-tab" data-cat="governance">Governance</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Popular terms -->
+  <section class="popular-section" id="popularSection">
+    <div class="popular-label"><i class="fa-solid fa-fire"></i> Popular Terms</div>
+    <div class="popular-grid">
+      <a href="#term-amm" class="popular-chip" onclick="scrollToTerm('amm');return false;">
+        <div class="chip-term">AMM</div>
+        <div class="chip-def">Automated market maker — a decentralized exchange mechanism using liquidity pools instead of order books.</div>
+      </a>
+      <a href="#term-tvl" class="popular-chip" onclick="scrollToTerm('tvl');return false;">
+        <div class="chip-term">TVL</div>
+        <div class="chip-def">Total value locked — the aggregate amount of assets deposited in a DeFi protocol.</div>
+      </a>
+      <a href="#term-impermanent-loss" class="popular-chip" onclick="scrollToTerm('impermanent-loss');return false;">
+        <div class="chip-term">Impermanent Loss</div>
+        <div class="chip-def">Value gap between LP assets in a pool vs. holding them in a wallet.</div>
+      </a>
+      <a href="#term-apr" class="popular-chip" onclick="scrollToTerm('apr');return false;">
+        <div class="chip-term">APR vs APY</div>
+        <div class="chip-def">Simple annual rate vs. compound-adjusted annual yield — know the difference.</div>
+      </a>
+      <a href="#term-liquidation" class="popular-chip" onclick="scrollToTerm('liquidation');return false;">
+        <div class="chip-term">Liquidation</div>
+        <div class="chip-def">Forced closure of a collateralized loan when its health factor drops too low.</div>
+      </a>
+      <a href="#term-flash-loan" class="popular-chip" onclick="scrollToTerm('flash-loan');return false;">
+        <div class="chip-term">Flash Loan</div>
+        <div class="chip-def">Uncollateralized loan within a single transaction, reverted if not repaid.</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- A–Z Navigation -->
+  <div class="az-nav" id="azNav"></div>
+
+  <!-- Terms grid -->
+  <div class="terms-grid" id="termsGrid">
+
+    <!-- ════════════════════════════════════ A ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-A"><span>A</span></div>
+
+    <div class="term-card" id="term-airdrop" data-cat="general" data-term="airdrop airdrop">
+      <span class="term-category cat-general">General</span>
+      <h3>Airdrop</h3>
+      <p class="term-def">Tokens distributed for free to wallet addresses, often as a reward for protocol usage, early adoption, or as a public good allocation. Airdrops are a common go-to-market strategy in DeFi.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">Often used to bootstrap decentralised governance by distributing tokens widely to community members.</div>
+    </div>
+
+    <div class="term-card" id="term-amm" data-cat="amm" data-term="amm automated market maker automated market maker">
+      <span class="term-category cat-amm">AMM</span>
+      <h3>AMM <span class="term-acronym">Automated Market Maker</span></h3>
+      <p class="term-def">A DEX mechanism using mathematical pricing functions (typically x·y=k) and liquidity pools instead of traditional order books. Liquidity providers deposit token pairs; traders swap against them at prices determined algorithmically.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">Uniswap, Curve, and Balancer are popular AMMs. The pricing curve can be stable (for similar assets) or volatile (for unrelated pairs).</div>
+    </div>
+
+    <div class="term-card" id="term-anti-griefing" data-cat="risk" data-term="anti-griefing mechanism">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Anti-Griefing Mechanism</h3>
+      <p class="term-def">Protocol rules designed to prevent malicious actors from exploiting or harming other users — e.g., caps on liquidation bonuses, cooldown periods, or moral hazard safeguards.</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Prevents malicious liquidators from gaming liquidation thresholds to steal value from borrowers.</div>
+    </div>
+
+    <div class="term-card" id="term-apr" data-cat="lending" data-term="apr annual percentage rate">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>APR <span class="term-acronym">Annual Percentage Rate</span></h3>
+      <p class="term-def">The simple annual interest rate charged for borrowing or earned via lending — excludes compounding. APR is lower than APY for the same nominal rate when interest is compounded multiple times per year.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="compound.html">Compound</a>
+      </div>
+      <div class="hover-detail">If a protocol reports APR of 5%, paid monthly, the actual APY is ~5.12% because each month's interest earns interest in subsequent months.</div>
+    </div>
+
+    <div class="term-card" id="term-apy" data-cat="lending" data-term="apy annual percentage yield compound interest">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>APY <span class="term-acronym">Annual Percentage Yield</span></h3>
+      <p class="term-def">The effective annual yield including the effect of compounding interest over the measurement period. APY = (1 + r/n)<sup>n</sup> − 1 where n = compounding periods per year.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="lido.html">Lido</a>
+      </div>
+      <div class="hover-detail">A 5% APR compounded daily yields approximately 5.127% APY. Always compare APY when evaluating yield opportunities.</div>
+    </div>
+
+    <div class="term-card" id="term-authorization" data-cat="general" data-term="authorization approval token approval">
+      <span class="term-category cat-general">General</span>
+      <h3>Authorization / Approval</h3>
+      <p class="term-def">An on-chain transaction where a user grants a smart contract permission to transfer a specific token on their behalf. Required once per token per spender (though many tokens use infinite approvals for UX convenience).</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">Revoking unused approvals regularly is a key security hygiene practice. Use a token approval explorer or revoke.cash to audit approvals.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ B ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-B"><span>B</span></div>
+
+    <div class="term-card" id="term-backrun" data-cat="mev" data-term="backrun back-running transaction ordering">
+      <span class="term-category cat-mev">MEV</span>
+      <h3>Backrun</h3>
+      <p class="term-def">A bot or miner strategy that submits a transaction immediately after a large on-chain trade to profit from the price impact. Commonly seen after a big swap moves the price, allowing a backrunner to buy low and sell high in the next block.</p>
+      <div class="term-links">
+        <a href="mev.html">MEV</a>
+      </div>
+      <div class="hover-detail">Backrunning is one of the most common MEV strategies. It requires the bot to watch the mempool and submit within the same block after the target transaction.</div>
+    </div>
+
+    <div class="term-card" id="term-bonding-curve" data-cat="amm" data-term="bonding curve token pricing curve">
+      <span class="term-category cat-amm">AMM</span>
+      <h3>Bonding Curve</h3>
+      <p class="term-def">A mathematical curve that defines the price of a token as a function of its circulating supply. As tokens are bought, price rises along the curve; as tokens are sold, price falls. Used by AMMs and some token distribution mechanisms.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+      </div>
+      <div class="hover-detail">Bonding curves can be linear, exponential, or custom. They enable continuous price discovery without an order book.</div>
+    </div>
+
+    <div class="term-card" id="term-bridge" data-cat="bridges" data-term="bridge cross-chain bridge token bridge">
+      <span class="term-category cat-bridges">Bridges</span>
+      <h3>Bridge</h3>
+      <p class="term-def">A protocol that locks tokens on one blockchain and mints equivalent wrapped tokens on another, enabling cross-chain asset transfers. Bridges can be trust-minimized (-liquidity pools, proof-of-stake) or trusted (custodial).</p>
+      <div class="term-links">
+        <a href="bridges.html">Bridges</a>
+      </div>
+      <div class="hover-detail">Cross-chain bridges have suffered the largest DeFi exploits. Always verify bridge security models before transferring significant value.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ C ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-C"><span>C</span></div>
+
+    <div class="term-card" id="term-cdp" data-cat="lending" data-term="cdp collateral debt position makerdao vault">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>CDP <span class="term-acronym">Collateral Debt Position</span></h3>
+      <p class="term-def">A smart contract vault where users lock collateral (e.g., ETH) to generate synthetic debt (e.g., DAI). MakerDAO pioneered this model. The position is automatically liquidated if collateral falls below the required ratio.</p>
+      <div class="term-links">
+        <a href="makerdao.html">MakerDAO</a>
+      </div>
+      <div class="hover-detail">Unlike traditional loans, CDPs don't have fixed repayment schedules — users can close their position at any time by repaying the generated stablecoin.</div>
+    </div>
+
+    <div class="term-card" id="term-collateral-factor" data-cat="lending" data-term="collateral factor loan-to-value ltv borrowing power">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>Collateral Factor</h3>
+      <p class="term-def">The maximum percentage of an asset's value that can be borrowed against it. If ETH has a 80% collateral factor, a user can borrow up to $800 worth of other assets for every $1,000 of ETH supplied.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="compound.html">Compound</a>
+      </div>
+      <div class="hover-detail">Higher collateral factors allow more leverage but increase liquidation risk. Assets with higher volatility typically have lower collateral factors.</div>
+    </div>
+
+    <div class="term-card" id="term-compound" data-cat="lending" data-term="compound interest yield accruing interest">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>Compound Interest</h3>
+      <p class="term-def">Interest earned on both the principal and previously accumulated interest. In DeFi, interest is typically accrued per Ethereum block or per second, compounding continuously rather than on a fixed schedule.</p>
+      <div class="term-links">
+        <a href="compound.html">Compound</a>
+        <a href="aave.html">Aave</a>
+      </div>
+      <div class="hover-detail">The compounding frequency dramatically affects APY. Daily compounding on a 5% APR yields ~5.127% APY; per-second compounding yields ~5.127%. The difference is marginal at small rates but significant over time.</div>
+    </div>
+
+    <div class="term-card" id="term-convex-finance" data-cat="staking" data-term="convex finance cvx crv staking yield optimizer">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>Convex Finance</h3>
+      <p class="term-def">A yield aggregator built on Curve that allows CRV stakers to earn boosted CRV rewards without actively managing positions. It simplifies Curve LPing and automatically compounds yields for users.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+      </div>
+      <div class="hover-detail">Users deposit their Curve LP tokens into Convex to receive cvxCRV, which auto-claims and re-stakes CRV rewards on behalf of LPs.</div>
+    </div>
+
+    <div class="term-card" id="term-crv" data-cat="staking" data-term="crv curve dao token governance">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>CRV <span class="term-acronym">Curve DAO Token</span></h3>
+      <p class="term-def">The governance token of the Curve Finance protocol. CRV holders stake it to vote on protocol parameters, gauge weights, and rewards allocation. Staked CRV (veCRV) provides additional governance power and fee claims.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+      </div>
+      <div class="hover-detail">CRV has a 3-month to 4-year lockup period for veCRV (vote-escrowed CRV). Longer locks receive higher boost multipliers.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ D ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-D"><span>D</span></div>
+
+    <div class="term-card" id="term-dao" data-cat="governance" data-term="dao decentralized autonomous organization governance">
+      <span class="term-category cat-governance">Governance</span>
+      <h3>DAO <span class="term-acronym">Decentralized Autonomous Organization</span></h3>
+      <p class="term-def">An on-chain organization governed by token holders who vote on proposals to allocate treasury, update protocol parameters, or upgrade smart contracts. DAOs replace traditional corporate structures with transparent, programmable governance.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="makerdao.html">MakerDAO</a>
+      </div>
+      <div class="hover-detail">MakerDAO, Curve DAO, and Aave DAO are among the largest DeFi treasuries, collectively controlling billions in assets through on-chain voting.</div>
+    </div>
+
+    <div class="term-card" id="term-dex" data-cat="amm" data-term="dex decentralized exchange amm swap">
+      <span class="term-category cat-amm">AMM</span>
+      <h3>DEX <span class="term-acronym">Decentralized Exchange</span></h3>
+      <p class="term-def">A non-custodial exchange running on a blockchain via smart contracts, enabling direct token swaps without intermediaries. AMM DEXs (Uniswap, Curve) use liquidity pools; order-book DEXs use off-chain or on-chain order books.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="aggregators.html">Aggregators</a>
+      </div>
+      <div class="hover-detail">DEXs eliminate counterparty risk (you always control your funds) but introduce smart contract risk, impermanent loss, and slippage risk.</div>
+    </div>
+
+    <div class="term-card" id="term-distribution-model" data-cat="governance" data-term="distribution model emission schedule token allocation">
+      <span class="term-category cat-governance">Governance</span>
+      <h3>Distribution Model</h3>
+      <p class="term-def">The mechanism by which a protocol allocates its token supply — through liquidity mining, staking rewards, team allocations, or airdrops. The distribution model directly shapes long-term decentralization and governance quality.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">Wide token distribution correlates with stronger censorship resistance and decentralisation. Protocols with concentrated team/VC allocations face higher governance capture risk.</div>
+    </div>
+
+    <div class="term-card" id="term-dpi" data-cat="general" data-term="dpi defi pulse index passive index">
+      <span class="term-category cat-general">General</span>
+      <h3>DPI <span class="term-acronym">DeFi Pulse Index</span></h3>
+      <p class="term-def">A passive, rules-based index that tracks a basket of the largest DeFi tokens by market weight. Allows investors to gain diversified DeFi exposure without picking individual tokens.</p>
+      <div class="term-links">
+        <a href="aggregators.html">Aggregators</a>
+      </div>
+      <div class="hover-detail">DPI rebalances quarterly. Holdings include UNI, AAVE, MKR, COMP, SNX, and other top DeFi tokens proportional to float-adjusted market cap.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ E ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-E"><span>E</span></div>
+
+    <div class="term-card" id="term-eigenlayer" data-cat="staking" data-term="eigenlayer restaking liquid staking avs">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>EigenLayer</h3>
+      <p class="term-def">A middleware protocol on Ethereum that enables restaking of ETH (or LSDs like stETH/rETH) to secure multiple parallel networks (AVSs) simultaneously, earning additional yield on already-staked capital.</p>
+      <div class="term-links">
+        <a href="eigenlayer.html">EigenLayer</a>
+        <a href="lido.html">Lido</a>
+      </div>
+      <div class="hover-detail">Restakers opt into EigenLayer contracts and delegate stake to AVS operators. Slashing on any AVS can result in total stake slashing across all services.</div>
+    </div>
+
+    <div class="term-card" id="term-emission" data-cat="governance" data-term="emission token emission schedule inflation">
+      <span class="term-category cat-governance">Governance</span>
+      <h3>Emission</h3>
+      <p class="term-def">The rate at which a DeFi protocol mints and distributes its native tokens as rewards to liquidity providers, stakers, or governance participants. Emission schedules can be fixed, decaying, or dynamic based on governance votes.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">High emissions dilute existing token holders and are typically used as a bootstrapping incentive. Sustainable protocols eventually transition to fee-revenue-based incentives.</div>
+    </div>
+
+    <div class="term-card" id="term-erc-20" data-cat="general" data-term="erc-20 token standard ethereum">
+      <span class="term-category cat-general">General</span>
+      <h3>ERC-20</h3>
+      <p class="term-def">The Ethereum standard for fungible tokens. Defines a common interface for token transfers, balances, allowances, and supply. Every token on Ethereum (and EVM-compatible chains) that follows this standard is ERC-20 compatible.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">Most DeFi tokens (USDT, USDC, DAI, UNI, AAVE) are ERC-20 tokens. Each has a contract address that uniquely identifies it on Ethereum.</div>
+    </div>
+
+    <div class="term-card" id="term-erc-4626" data-cat="general" data-term="erc-4626 tokenized vault standard yield">
+      <span class="term-category cat-general">General</span>
+      <h3>ERC-4626 <span class="term-acronym">Tokenized Vault Standard</span></h3>
+      <p class="term-def">An Ethereum standard for tokenized yield-bearing vaults that extends ERC-20. Enables composable yield strategies — a single interface for deposits, withdrawals, share accounting, and yield accrual across any vault.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="pendle.html">Pendle</a>
+      </div>
+      <div class="hover-detail">ERC-4626 dramatically improves interoperability between yield protocols and aggregators, reducing integration effort and audit surface.</div>
+    </div>
+
+    <div class="term-card" id="term-eth-staking" data-cat="staking" data-term="eth staking beacon chain pos proof of stake">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>ETH Staking</h3>
+      <p class="term-def">Depositing ETH into the Ethereum Beacon Chain as proof-of-stake validator collateral to secure the network and earn staking rewards (~4–5% APY as of 2024). Staked ETH is locked until future upgrades.</p>
+      <div class="term-links">
+        <a href="lido.html">Lido</a>
+        <a href="eigenlayer.html">EigenLayer</a>
+      </div>
+      <div class="hover-detail">Stakers run validators that attest to blocks and earn rewards. Penalties (slashing) apply for downtime or malicious behaviour. Liquid staking tokens (LSTs) represent staked ETH for use in DeFi.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ F ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-F"><span>F</span></div>
+
+    <div class="term-card" id="term-fee-tier" data-cat="amm" data-term="fee tier lp fee trading fee pool fee">
+      <span class="term-category cat-amm">AMM</span>
+      <h3>Fee Tier</h3>
+      <p class="term-def">The percentage of each swap that liquidity providers earn in a Uniswap V3 pool (0.05%, 0.30%, 1.00%, and custom tiers). Higher fee tiers compensate for higher price impact risk in volatile token pairs.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="aggregators.html">Aggregators</a>
+      </div>
+      <div class="hover-detail">Stable asset pairs (USDC/USDT) typically use 0.05% or 0.01% tiers. Volatile pairs (ETH/MKR) use 0.30% or higher.</div>
+    </div>
+
+    <div class="term-card" id="term-flash-loan" data-cat="mev" data-term="flash loan uncollateralized loan atomic loan arbitrage">
+      <span class="term-category cat-mev">MEV</span>
+      <h3>Flash Loan</h3>
+      <p class="term-def">An uncollateralized loan executed entirely within one blockchain transaction. The assets must be borrowed and returned (plus fees) within the same block or the entire transaction reverts — no collateral required.</p>
+      <div class="term-links">
+        <a href="mev.html">MEV</a>
+        <a href="aave.html">Aave</a>
+      </div>
+      <div class="hover-detail">Flash loans enable complex arbitrage, collateral swaps, and self-liquidation strategies — all without upfront capital. They're a key enabler of DeFi composability but also power exploit vectors.</div>
+    </div>
+
+    <div class="term-card" id="term-fren" data-cat="general" data-term="fren friend crypto slang community">
+      <span class="term-category cat-general">General</span>
+      <h3>Fren</h3>
+      <p class="term-def">A term of endearment in crypto culture meaning "friend." Used in CT (Crypto Twitter) and Discord to address fellow community members or people you've interacted with online. DeFi is social — fren is how we address each other.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">Originated from the Pobble frens concept and became ubiquitous in DeFi Twitter culture. "GM frens" is a common morning greeting.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ G ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-G"><span>G</span></div>
+
+    <div class="term-card" id="term-gas" data-cat="general" data-term="gas ethereum transaction fee fee market">
+      <span class="term-category cat-general">General</span>
+      <h3>Gas</h3>
+      <p class="term-def">The unit of computational effort required to execute an Ethereum transaction or smart contract call. Gas is priced in gwei (1 gwei = 10<sup>-9</sup> ETH) and paid to validators. Complex DeFi interactions consume more gas than simple transfers.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">Gas fees spike during network congestion. DeFi interactions like multi-step swaps or complex vault operations can cost $10–$200+ in gas during peak periods on Ethereum mainnet.</div>
+    </div>
+
+    <div class="term-card" id="term-governance-token" data-cat="governance" data-term="governance token voting dao proposal">
+      <span class="term-category cat-governance">Governance</span>
+      <h3>Governance Token</h3>
+      <p class="term-def">A token that confers voting rights in a DAO. Token holders can propose and vote on protocol upgrades, parameter changes, treasury allocations, and fee structures. The weight of votes is typically proportional to token holdings.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="makerdao.html">MakerDAO</a>
+        <a href="aave.html">Aave</a>
+      </div>
+      <div class="hover-detail">Large token holders ("whales") can dominate governance votes. Quorum requirements set the minimum participation needed for a proposal to pass.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ H ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-H"><span>H</span></div>
+
+    <div class="term-card" id="term-health-factor" data-cat="lending" data-term="health factor liquidation threshold borrow">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>Health Factor</h3>
+      <p class="term-def">A numerical score indicating the solvency of a borrower's position = (Total Collateral × Collateral Factor) / Total Borrowed Value. Below 1.0 triggers liquidation. Higher health factor = safer position.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="compound.html">Compound</a>
+      </div>
+      <div class="hover-detail">If your Health Factor drops below 1.0, your collateral can be liquidated by anyone. Most protocols recommend keeping HF > 2.0 for safety margin against price volatility.</div>
+    </div>
+
+    <div class="term-card" id="term-hooked" data-cat="general" data-term="hooked addictive tokenomics engagement">
+      <span class="term-category cat-general">General</span>
+      <h3>Hooked</h3>
+      <p class="term-def">Slang for being psychologically and financially invested in a DeFi protocol or token community. Once hooked, you're actively checking positions, participating in governance, and accumulating more — frens don't leave.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">Protocols use yield farming, NFT rewards, and governance token incentives to make users hooked. The community aspect is often what keeps frens around even through bear markets.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ I ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-I"><span>I</span></div>
+
+    <div class="term-card" id="term-impermanent-loss" data-cat="amm" data-term="impermanent loss il lp loss impermanent">
+      <span class="term-category cat-amm">AMM</span>
+      <h3>Impermanent Loss (IL)</h3>
+      <p class="term-def">The difference in value between holding assets in an AMM liquidity pool versus holding them in a wallet. Occurs when the price ratio of pooled assets diverges from deposit-time ratio. Called "impermanent" because it locks in only when LP removes liquidity.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">IL is typically most severe in volatile token pairs. Stablecoin/stable pairs (USDC/USDT) have near-zero IL. Impermanent loss is a hidden cost that erodes LP returns before fees.</div>
+    </div>
+
+    <div class="term-card" id="term-incentive-alignment" data-cat="risk" data-term="incentive alignment principal agent moral hazard">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Incentive Alignment</h3>
+      <p class="term-def">The degree to which the incentives of different protocol participants (lenders, borrowers, stakers, team) are aligned to promote behaviour that benefits the protocol long-term rather than exploiting others.</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Poor incentive alignment leads to moral hazard — where one party can take risks that are socialised onto others. The best DeFi protocols design game-theoretic incentive structures carefully.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ J ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-J"><span>J</span></div>
+
+    <div class="term-card" id="term-jit" data-cat="mev" data-term="jit just-in-time liquidity injection attack">
+      <span class="term-category cat-mev">MEV</span>
+      <h3>JIT <span class="term-acronym">Just-In-Time Liquidity</span></h3>
+      <p class="term-def">A MEV strategy where a bot detects a large pending swap in the mempool, front-runs it by providing liquidity just before the swap executes, then withdraws immediately after. Collects extremely high LP fees but requires precise timing and gas optimization.</p>
+      <div class="term-links">
+        <a href="mev.html">MEV</a>
+        <a href="curve.html">Curve</a>
+      </div>
+      <div class="hover-detail">JIT was more common before Uniswap V3's range tick mechanism made it structurally similar. It can harm regular LPs by creating extreme price impact then normalizing.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ K ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-K"><span>K</span></div>
+
+    <div class="term-card" id="term-keeper" data-cat="mev" data-term="keeper bot automation liquidation arbitrage">
+      <span class="term-category cat-mev">MEV</span>
+      <h3>Keeper</h3>
+      <p class="term-def">An autonomous bot that performs necessary protocol maintenance tasks — liquidating unhealthy positions, triggering protocol actions, or maintaining peg stability. Keepers earn fees for executing these tasks.</p>
+      <div class="term-links">
+        <a href="mev.html">MEV</a>
+        <a href="makerdao.html">MakerDAO</a>
+      </div>
+      <div class="hover-detail">Keepers are the operational backbone of many DeFi protocols. In MakerDAO, keepers bid on ETH collateral at auction. In Aave/Compound, keepers liquidate underwater positions.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ L ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-L"><span>L</span></div>
+
+    <div class="term-card" id="term-liquid-staking" data-cat="staking" data-term="liquid staking ls teth steth reth withdrawal credentials">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>Liquid Staking</h3>
+      <p class="term-def">A staking mechanism that issues a liquid token (LST) representing the user's staked ETH position. LSTs can be used in DeFi while ETH is staked, enabling yield on yield. Prominent examples: Lido stETH, Rocket Pool rETH, Fraxtal frxETH.</p>
+      <div class="term-links">
+        <a href="lido.html">Lido</a>
+        <a href="eigenlayer.html">EigenLayer</a>
+      </div>
+      <div class="hover-detail">Post-Shanghai upgrade, staked ETH withdrawals are enabled, but liquid staking remains popular for composability. LSTs trade at slight discounts or premiums to spot ETH based on demand.</div>
+    </div>
+
+    <div class="term-card" id="term-liquidation-bonus" data-cat="lending" data-term="liquidation bonus liquidation penalty penalty discount">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>Liquidation Bonus</h3>
+      <p class="term-def">The financial reward paid to liquidators for closing an underwater borrower position. Typically a percentage of the collateral value — e.g., a 10% liquidation bonus means liquidators can buy $1,000 worth of collateral for $900 of borrowed assets.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="compound.html">Compound</a>
+      </div>
+      <div class="hover-detail">A high liquidation bonus can cause cascading liquidations as liquidators compete. Protocols tune this dynamically based on gas costs and market conditions.</div>
+    </div>
+
+    <div class="term-card" id="term-liquidation" data-cat="lending" data-term="liquidation underwater position health factor collateral">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>Liquidation</h3>
+      <p class="term-def">The forced closure of a collateralized borrowing position when its health factor drops below 1.0 due to collateral price decline or borrowed asset price increase. A liquidator repays the debt and receives the collateral at a bonus.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="makerdao.html">MakerDAO</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Liquidators are typically automated keeper bots competing for the bonus. Users can avoid liquidation by maintaining a high health factor, adding collateral, or reducing debt.</div>
+    </div>
+
+    <div class="term-card" id="term-lockup-period" data-cat="staking" data-term="lockup period vesting unlock schedule">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>Lockup Period</h3>
+      <p class="term-def">A defined period during which deposited tokens cannot be withdrawn. Used in staking protocols to ensure long-term commitment and prevent governance attacks. Curve uses CRV lockups; EigenLayer uses ETH restaking lockups.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="eigenlayer.html">EigenLayer</a>
+      </div>
+      <div class="hover-detail">Longer lockup periods often come with higher yield boosts or governance power multipliers (veCRV model).</div>
+    </div>
+
+    <div class="term-card" id="term-lp" data-cat="amm" data-term="lp liquidity provider pool position token">
+      <span class="term-category cat-amm">AMM</span>
+      <h3>LP <span class="term-acronym">Liquidity Provider</span></h3>
+      <p class="term-def">A user who deposits token pairs into an AMM liquidity pool to enable trading. LPs earn swap fees proportional to their share of the pool. In return, they receive LP tokens representing their fractional ownership.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="aggregators.html">Aggregators</a>
+      </div>
+      <div class="hover-detail">LP returns = swap fees earned − impermanent loss − gas costs. The net return can be negative in highly volatile pools even if trading volume is high.</div>
+    </div>
+
+    <div class="term-card" id="term-lsd" data-cat="staking" data-term="lsd liquid staking derivative steth reth frxeth">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>LSD <span class="term-acronym">Liquid Staking Derivative</span></h3>
+      <p class="term-def">A token representing a user's stake in a proof-of-stake network, tradeable on secondary markets while the underlying stake remains locked. Examples: stETH (Lido), rETH (Rocket Pool), frxETH (Frax).</p>
+      <div class="term-links">
+        <a href="lido.html">Lido</a>
+        <a href="eigenlayer.html">EigenLayer</a>
+      </div>
+      <div class="hover-detail">LSDs are one of the most capital-efficient DeFi primitives — they allow ETH to earn staking yield while simultaneously being used as collateral in lending markets.</div>
+    </div>
+
+    <div class="term-card" id="term-ltv" data-cat="lending" data-term="ltv loan to value collateral factor borrow limit">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>LTV <span class="term-acronym">Loan-to-Value</span></h3>
+      <p class="term-def">The ratio of borrowed value to collateral value, expressed as a percentage. Maximum LTV is set by the protocol and defines the borrowing limit. When LTV exceeds the liquidation threshold, the position is subject to liquidation.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="makerdao.html">MakerDAO</a>
+      </div>
+      <div class="hover-detail">LTV is the inverse of the collateral factor: a collateral factor of 75% corresponds to a max LTV of 75%. ETH typically has 80% LTV on Aave; wBTC has 70%.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ M ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-M"><span>M</span></div>
+
+    <div class="term-card" id="term-mev" data-cat="mev" data-term="mev maximal extractable value block builder priority fee">
+      <span class="term-category cat-mev">MEV</span>
+      <h3>MEV <span class="term-acronym">Maximal Extractable Value</span></h3>
+      <p class="term-def">The profit a block proposer (miner/validator) or MEV searcher can extract by reordering, front-running, or back-running transactions within a block. MEV was formerly called "Miner Extractable Value" before the Merge.</p>
+      <div class="term-links">
+        <a href="mev.html">MEV</a>
+      </div>
+      <div class="hover-detail">MEV is a double-edged sword: it can improve market efficiency through arbitrage but also enables front-running that harms retail traders. The Flashbots ecosystem attempts to democratize MEV rewards.</div>
+    </div>
+
+    <div class="term-card" id="term-morphology" data-cat="risk" data-term="morphology risk morphology type system">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Morphology (Risk)</h3>
+      <p class="term-def">In risk analysis, morphology refers to the structural classification of different DeFi risk types — market risk, credit risk, liquidity risk, operational risk, and governance risk. Understanding morphology helps frame which risks are correlated and which are independent.</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">A robust risk framework maps all DeFi risks into a morphology tree and identifies single points of failure across the stack.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ N ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-N"><span>N</span></div>
+
+    <div class="term-card" id="term-narrative" data-cat="general" data-term="narrative crypto narrative market sentiment theme">
+      <span class="term-category cat-general">General</span>
+      <h3>Narrative</h3>
+      <p class="term-def">A thematic investment thesis that captures market attention and drives token price movements independent of fundamentals. Examples: "AI Summer," "Restaking," "Liquid Restaking," "RWA." Narratives can inflate bubble cycles and drive capital flows.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">Being early to a narrative is highly profitable. By the time a narrative is fully priced in ("narrative is priced in"), the opportunity has passed.</div>
+    </div>
+
+    <div class="term-card" id="term-native-token" data-cat="general" data-term="native token chain coin eth gas token">
+      <span class="term-category cat-general">General</span>
+      <h3>Native Token</h3>
+      <p class="term-def">The primary cryptocurrency of a blockchain — ETH for Ethereum, MATIC for Polygon, SOL for Solana. Used to pay gas/transaction fees and can serve as collateral or staking asset within that chain's DeFi ecosystem.</p>
+      <div class="term-links">
+        <a href="lido.html">Lido</a>
+      </div>
+      <div class="hover-detail">On L2s like Arbitrum and Optimism, the native token (ETH) is used for gas. Some L2s have their own governance tokens (ARB, OP) used for protocol governance.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ O ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-O"><span>O</span></div>
+
+    <div class="term-card" id="term-oracle" data-cat="general" data-term="oracle price feed chainlink data availability">
+      <span class="term-category cat-general">General</span>
+      <h3>Oracle</h3>
+      <p class="term-def">A data service that feeds external information (primarily asset prices) into on-chain smart contracts. Without oracles, DeFi protocols cannot know the current market price of assets used as collateral. Chainlink is the dominant oracle network.</p>
+      <div class="term-links">
+        <a href="makerdao.html">MakerDAO</a>
+        <a href="aave.html">Aave</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Oracle manipulation attacks (flash loan price attacks) are a major DeFi exploit vector. Protocols use TWAPs (time-weighted average prices) and multi-oracle setups to mitigate manipulation risk.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ P ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-P"><span>P</span></div>
+
+    <div class="term-card" id="term-penrose" data-cat="staking" data-term="penrose curve wars vecrv voting">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>Penrose / Curve Wars</h3>
+      <p class="term-def">The competitive race to accumulate veCRV (vote-escrowed CRV) to control Curve DAO governance and direct CRV emissions to preferred pools. Protocols like Convex Finance and Yearn Finance accumulated large veCRV positions, creating a multi-billion dollar governance battle.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">The Curve Wars illustrated how governance token concentration can be a systemic risk — whoever controls CRV emissions controls the largest stablecoin liquidity layer on Ethereum.</div>
+    </div>
+
+    <div class="term-card" id="term-poh" data-cat="governance" data-term="poh proof of humanity identity sybil resistance">
+      <span class="term-category cat-governance">Governance</span>
+      <h3>PoH <span class="term-acronym">Proof of Humanity</span></h3>
+      <p class="term-def">A social identity verification system that uses human verification (KYC + video interview) to assign unique personhood credentials on-chain. Used to prevent Sybil attacks (one person multiple identities) in token distributions and governance.</p>
+      <div class="term-links">
+        <a href="governance.html">Governance</a>
+      </div>
+      <div class="hover-detail">Gitcoin Grants uses PoH to prevent duplicate quadratic funding contributions. Worldcoin uses a similar biometric approach with its Orb device.</div>
+    </div>
+
+    <div class="term-card" id="term-pool-utilization" data-cat="lending" data-term="pool utilization borrowing usage rate supply demand">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>Pool Utilization</h3>
+      <p class="term-def">The percentage of supplied liquidity that has been borrowed at any given time: Utilization = Total Borrows / Total Supply. High utilization (>80%) means tight liquidity, higher borrow rates, and increased risk of insolvency for lenders.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="compound.html">Compound</a>
+      </div>
+      <div class="hover-detail">Interest rate models in lending protocols typically feature a kink point (e.g., 80% utilization) where the borrow rate increases non-linearly to incentivize repayments and attract more supply.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ Q ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-Q"><span>Q</span></div>
+
+    <div class="term-card" id="term-quorum" data-cat="governance" data-term="quorum governance vote participation threshold">
+      <span class="term-category cat-governance">Governance</span>
+      <h3>Quorum</h3>
+      <p class="term-def">The minimum number of votes required for a governance proposal to be valid. If quorum is not reached, the proposal fails regardless of vote margin. Quorum requirements prevent low-participation governance decisions from having outsized impact.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="makerdao.html">MakerDAO</a>
+      </div>
+      <div class="hover-detail">MakerDAO requires 50%+ of MKR voted to pass executive votes. Uniswap requires 10M UNI (4% of supply) to bring a proposal to a vote.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ R ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-R"><span>R</span></div>
+
+    <div class="term-card" id="term-restaking" data-cat="staking" data-term="restaking eigenlayer capital efficiency double yield">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>Restaking</h3>
+      <p class="term-def">The practice of re-staking ETH or LSDs (liquid staking derivatives) into additional validation roles to earn additional yield on already-staked capital. EigenLayer pioneered native restaking; Lido allows rETH to be restaked in liquid staking configurations.</p>
+      <div class="term-links">
+        <a href="eigenlayer.html">EigenLayer</a>
+        <a href="lido.html">Lido</a>
+      </div>
+      <div class="hover-detail">Restaking amplifies yield but also amplifies slashing risk — if an AVS is compromised, restakers can be slashed across all services they're securing simultaneously.</div>
+    </div>
+
+    <div class="term-card" id="term-risk-profile" data-cat="risk" data-term="risk profile asset classification credit market liquidity">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Risk Profile</h3>
+      <p class="term-def">A structured assessment of the risks associated with a specific DeFi protocol, asset, or strategy. Risk profiles typically cover smart contract risk, market risk, liquidity risk, oracle risk, and governance risk.</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Risk profiles are dynamic — they change as TVL fluctuates, new code is deployed, market conditions shift, and team responses to incidents evolve.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ S ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-S"><span>S</span></div>
+
+    <div class="term-card" id="term-sandwich-attack" data-cat="mev" data-term="sandwich attack front-run back-run mev attack">
+      <span class="term-category cat-mev">MEV</span>
+      <h3>Sandwich Attack</h3>
+      <p class="term-def">A MEV strategy where a bot front-runs a victim's trade by buying the same asset at a lower price, then sells immediately after the victim's trade executes at the higher price. Highly predatory and profitable for the attacker at the expense of the victim.</p>
+      <div class="term-links">
+        <a href="mev.html">MEV</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Sandwich attacks are most effective against large market orders with high slippage tolerance. Using DEX aggregators with lower slippage settings and MEV protection reduces susceptibility.</div>
+    </div>
+
+    <div class="term-card" id="term-security-model" data-cat="risk" data-term="security model audit audit tracks security council timelock">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Security Model</h3>
+      <p class="term-def">The collective mechanisms a protocol uses to protect user funds: smart contract audits (Trail of Bits, OpenZeppelin, Certik), bug bounty programs, multi-sig timelock wallets, and security councils (like Uniswap's Security Council).</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Audits are necessary but not sufficient — they only cover the code at a point in time. Timelocks and security councils provide on-chain upgrade governance that prevents malicious upgrades.</div>
+    </div>
+
+    <div class="term-card" id="term-shamir-secret-sharing" data-cat="risk" data-term="shamir secret sharing sss key management multi-sig">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Shamir Secret Sharing</h3>
+      <p class="term-def">A cryptographic method of dividing a secret (e.g., a private key) into n shares, requiring k of them to reconstruct the original. Used in multi-sig key management for protocol treasuries to eliminate single points of failure.</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">If 3-of-5 keyholders hold Shamir shares, any 3 can sign a transaction but no single keyholder or pair can. This dramatically reduces key theft risk.</div>
+    </div>
+
+    <div class="term-card" id="term-slippage" data-cat="amm" data-term="slippage price impact swap tolerance">
+      <span class="term-category cat-amm">AMM</span>
+      <h3>Slippage</h3>
+      <p class="term-def">The difference between the expected execution price of a swap and the actual price at execution. Slippage increases with larger trade sizes and lower liquidity. Set too low, swaps revert; set too high, you're vulnerable to sandwich attacks.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="aggregators.html">Aggregators</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">A 0.5% slippage tolerance on a $10,000 swap means you accept anywhere from $9,950 to $10,000 value received. For stablecoin swaps, 0.05% slippage is usually sufficient. For volatile tokens, 0.5–1.0% may be needed.</div>
+    </div>
+
+    <div class="term-card" id="term-smart-contract-audit" data-cat="risk" data-term="smart contract audit audit firm vulnerability">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Smart Contract Audit</h3>
+      <p class="term-def">A systematic code review by a specialised security firm (Trail of Bits, OpenZeppelin, Quantstamp, Certik) that identifies vulnerabilities, logic bugs, and potential edge cases before mainnet deployment.</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Audits are not guarantees — many major exploits (Beanstalk, Wormhole) occurred in audited code. Always combine audits with bug bounties, timelocks, and on-chain monitoring.</div>
+    </div>
+
+    <div class="term-card" id="term-sniping" data-cat="mev" data-term="sniping mev bot new token launch pump">
+      <span class="term-category cat-mev">MEV</span>
+      <h3>Sniping</h3>
+      <p class="term-def">A bot strategy that detects and immediately buys newly listed tokens on a DEX before other buyers can — typically immediately after a liquidity pool goes live. Sniper bots race to be first in line at the initial price.</p>
+      <div class="term-links">
+        <a href="mev.html">MEV</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Sniper bots are highly competitive. They use gas bidding wars to jump the queue. Some DEXs now implement anti-sniping mechanisms like locking LP for the first few blocks.</div>
+    </div>
+
+    <div class="term-card" id="term-stableswap" data-cat="amm" data-term="stableswap stablecoin exchange curve crypto swap">
+      <span class="term-category cat-amm">AMM</span>
+      <h3>Stableswap</h3>
+      <p class="term-def">An AMM variant optimized for swapping assets that are meant to maintain a 1:1 parity (e.g., USDC/USDT, wBTC/renBTC). Uses a bonding curve that is flat near the peg and more curved at extremes, dramatically reducing impermanent loss for like-valued assets.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+      </div>
+      <div class="hover-detail">Curve's StableSwap formula allows near-zero slippage for stablecoin swaps — large trades ($10M+) can execute at or near a 1:1 rate. This is impossible on a standard AMM, which would have massive price impact.</div>
+    </div>
+
+    <div class="term-card" id="term-staking" data-cat="staking" data-term="staking proof of stake rewards validator earn yield">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>Staking</h3>
+      <p class="term-def">Depositing a blockchain's native token into a proof-of-stake network to support network operations (validating transactions, securing the chain) in exchange for staking rewards. DeFi staking typically involves LSTs (liquid staking derivatives).</p>
+      <div class="term-links">
+        <a href="lido.html">Lido</a>
+        <a href="eigenlayer.html">EigenLayer</a>
+      </div>
+      <div class="hover-detail">Staking rewards on Ethereum are approximately 4–5% APY as of 2024, paid in ETH. Liquid staking derivatives allow users to earn staking yields while using their position as DeFi collateral.</div>
+    </div>
+
+    <div class="term-card" id="term-superfluid" data-cat="staking" data-term="superfluid staking stream vesting real-time">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>Superfluid Staking</h3>
+      <p class="term-def">A concept (associated with Superfluid protocol) where token stakes generate streaming yields — rewards that accrue in real-time per second rather than in discrete epochs or periods. Enables continuous, granular yield distribution.</p>
+      <div class="term-links">
+        <a href="eigenlayer.html">EigenLayer</a>
+      </div>
+      <div class="hover-detail">Superfluid enables use cases like streaming payments, real-time staking yields, and progressive vest schedules where tokens unlock continuously rather than in cliff/vest schedules.</div>
+    </div>
+
+    <div class="term-card" id="term-sybil-attack" data-cat="governance" data-term="sybil attack identity governance duplicate vote">
+      <span class="term-category cat-governance">Governance</span>
+      <h3>Sybil Attack</h3>
+      <p class="term-def">An attack where a single entity creates multiple fake identities (Sybil identities) to gain disproportionate governance power. For example, splitting 1M tokens into 100 wallets of 10K each to meet per-wallet vote caps.</p>
+      <div class="term-links">
+        <a href="governance.html">Governance</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">DeFi protocols counter Sybil attacks with identity verification (PoH), per-wallet vote minimums, and quadratic voting mechanisms that make creating many identities disproportionately expensive.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ T ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-T"><span>T</span></div>
+
+    <div class="term-card" id="term-timelock" data-cat="risk" data-term="timelock time lock multisig delay upgrade security">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Timelock</h3>
+      <p class="term-def">A security mechanism that requires a multi-sig transaction to wait a predetermined period (e.g., 48 hours) before executing, giving the community time to detect and respond to potentially malicious upgrades.</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+        <a href="makerdao.html">MakerDAO</a>
+      </div>
+      <div class="hover-detail">Timelocks are standard in major DeFi protocols. A 48-hour timelock means the team cannot instantly upgrade contracts — a malicious upgrade would need to sit publicly visible for 48 hours before activation.</div>
+    </div>
+
+    <div class="term-card" id="term-treasury" data-cat="governance" data-term="treasury dao treasury multi-sig assets war chest">
+      <span class="term-category cat-governance">Governance</span>
+      <h3>Treasury</h3>
+      <p class="term-def">A DAO's stored assets (tokens, NFTs, stablecoins) managed by on-chain governance. Treasuries fund protocol development, grants, security audits, and operational costs. A large treasury indicates protocol health and sustainability.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="makerdao.html">MakerDAO</a>
+        <a href="aave.html">Aave</a>
+      </div>
+      <div class="hover-detail">MakerDAO's treasury is one of the largest, holding billions in a diversified mix of real-world assets (RWA) and crypto assets. Uniswap DAO holds over $3B in UNI tokens.</div>
+    </div>
+
+    <div class="term-card" id="term-tvl" data-cat="general" data-term="tvl total value locked protocol size locked assets">
+      <span class="term-category cat-general">General</span>
+      <h3>TVL <span class="term-acronym">Total Value Locked</span></h3>
+      <p class="term-def">The aggregate US dollar value of all assets deposited in a DeFi protocol. TVL is the primary metric for measuring protocol size and adoption. A protocol with $500M TVL has $500M of user funds at risk in its smart contracts.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">TVL is reported differently by trackers — some use cross-chain aggregates, others just mainnet. Differences in TVL reporting methodology explain discrepancies between DeFiLlama, DeFiPulse, and DeBank.</div>
+    </div>
+
+    <div class="term-card" id="term-tvm" data-cat="general" data-term="tvm television money defi tvl metric">
+      <span class="term-category cat-general">General</span>
+      <h3>TVM <span class="term-acronym">Total Value Metrics</span></h3>
+      <p class="term-def">A broader framework beyond TVL that measures all value flowing through a DeFi protocol — including total swap volume, total loans originated, total governance participation, and other activity-based metrics that give a fuller picture than TVL alone.</p>
+      <div class="term-links">
+        <a href="index.html">Dashboard</a>
+      </div>
+      <div class="hover-detail">TVL can be misleading — a protocol with high TVL may have low usage. TVM captures actual economic activity beyond just deposits.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ U ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-U"><span>U</span></div>
+
+    <div class="term-card" id="term-utxo" data-cat="general" data-term="utxo unspent transaction output bitcoin accounting">
+      <span class="term-category cat-general">General</span>
+      <h3>UTXO <span class="term-acronym">Unspent Transaction Output</span></h3>
+      <p class="term-def">Bitcoin's accounting model where each transaction consumes previous outputs and creates new ones. In contrast, Ethereum uses an account-based model. Understanding UTXO vs. account-based models matters for cross-chain bridge design.</p>
+      <div class="term-links">
+        <a href="bridges.html">Bridges</a>
+      </div>
+      <div class="hover-detail">UTXO's properties make it well-suited for privacy-preserving protocols. zk-rollups and Validiums use UTXO-like models within a ZK proof framework for scalability.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ V ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-V"><span>V</span></div>
+
+    <div class="term-card" id="term-vecrv" data-cat="staking" data-term="vecrv vote escrowed crv lock curve governance">
+      <span class="term-category cat-staking">Staking</span>
+      <h3>veCRV <span class="term-acronym">Vote-Escrowed CRV</span></h3>
+      <p class="term-def">CRV tokens locked for up to 4 years in Curve DAO. veCRV holders govern the protocol, vote on gauge weight allocations (deciding which pools get CRV emissions), and earn 50% of Curve's trading fees. Longer lock = more veCRV = more voting power.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+      </div>
+      <div class="hover-detail">A 4-year lock of 1 CRV = 1 veCRV. A 1-year lock of 1 CRV = 0.25 veCRV. veCRV is non-transferable. The lockup mechanism ensures long-term aligned incentives for Curve governance.</div>
+    </div>
+
+    <div class="term-card" id="term-vesting" data-cat="governance" data-term="vesting token vesting cliff schedule unlock">
+      <span class="term-category cat-governance">Governance</span>
+      <h3>Vesting</h3>
+      <p class="term-def">A schedule that unlocks allocated tokens gradually over time rather than all at once. Vesting typically has a cliff (period before any tokens unlock) and a linear or granular unlock schedule. Used to align team, investors, and advisors with long-term protocol success.</p>
+      <div class="term-links">
+        <a href="curve.html">Curve</a>
+        <a href="aave.html">Aave</a>
+      </div>
+      <div class="hover-detail">A 4-year vesting with 1-year cliff means no tokens unlock in year 1; then 25% unlocks at year 1; then remaining 75% unlocks monthly or quarterly over the next 3 years. Uniswap's team and investor UNI tokens vest over 4 years with a 1-year cliff.</div>
+    </div>
+
+    <div class="term-card" id="term-volatility" data-cat="risk" data-term="volatility price swing risk asset risk">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Volatility</h3>
+      <p class="term-def">The degree to which an asset's price fluctuates over time, typically measured as the standard deviation of daily returns. High volatility assets (ETH, MEME tokens) require larger collateral factors and liquidation buffers.</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+        <a href="aave.html">Aave</a>
+      </div>
+      <div class="hover-detail">In DeFi lending, volatility directly affects how quickly a borrower's health factor can drop. Assets with >50% daily volatility swings have very low collateral factors (if accepted at all) because price drops can immediately trigger liquidations.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ W ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-W"><span>W</span></div>
+
+    <div class="term-card" id="term-wallet-diversity" data-cat="risk" data-term="wallet diversity key management multi-sig custody">
+      <span class="term-category cat-risk">Risk</span>
+      <h3>Wallet Diversity</h3>
+      <p class="term-def">Distributing a DAO's or protocol's signing keys across multiple holders, geographic regions, and security setups to prevent a single point of failure. A 3-of-5 multi-sig is more secure than a 1-of-2 multi-sig.</p>
+      <div class="term-links">
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">Wallet diversity is a fundamental security practice. The Ronin bridge hack succeeded because all 5 validation keys were controlled by a single entity (Axie/Coatue). Distributed keys across independent organizations resist targeted attacks.</div>
+    </div>
+
+    <div class="term-card" id="term-wbtc" data-cat="general" data-term="wbtc wrapped bitcoin ethereum erc-20 bitcoin">
+      <span class="term-category cat-general">General</span>
+      <h3>WBTC <span class="term-acronym">Wrapped Bitcoin</span></h3>
+      <p class="term-def">An ERC-20 token backed 1:1 by Bitcoin held in custodied reserves (via BitGo). Enables Bitcoin holders to access Ethereum DeFi — using BTC as collateral on Aave, supplying to Curve pools, or earning yield in Frax.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="curve.html">Curve</a>
+        <a href="bridges.html">Bridges</a>
+      </div>
+      <div class="hover-detail">WBTC is bridged Bitcoin — users trust BitGo's custodianship of the underlying BTC. Alternatives like renBTC (now discontinued) and HBTC offer different custodian models. The wBTC trust model has been scrutinized post-2022.</div>
+    </div>
+
+    <!-- ════════════════════════════════════ Y ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-Y"><span>Y</span></div>
+
+    <div class="term-card" id="term-yield-aggregator" data-cat="lending" data-term="yield aggregator yearn beefy收益聚合器">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>Yield Aggregator</h3>
+      <p class="term-def">A protocol (e.g., Yearn Finance, Beefy Finance) that automatically moves user funds between DeFi strategies to maximimize yield. Depositors get a single vault that optimises across lending protocols, AMMs, and staking positions automatically.</p>
+      <div class="term-links">
+        <a href="aggregators.html">Aggregators</a>
+        <a href="curve.html">Curve</a>
+      </div>
+      <div class="hover-detail">Yearn vaults automate complex multi-step strategies — e.g., USDC → Aave lending + Curve LP + Convex staking — that would be too gas-intensive for individual users to execute manually.</div>
+    </div>
+
+    <div class="term-card" id="term-yield-farming" data-cat="lending" data-term="yield farming liquidity mining earn defi yield">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>Yield Farming</h3>
+      <p class="term-def">The practice of deploying capital across DeFi protocols to maximimize returns by earning token incentives, swap fees, and interest. A yield farmer might supply USDC to Aave, LP the aUSDC in Curve, and stake the LP tokens in Convex — stacking yields from multiple sources.</p>
+      <div class="term-links">
+        <a href="aggregators.html">Aggregators</a>
+        <a href="curve.html">Curve</a>
+        <a href="aave.html">Aave</a>
+      </div>
+      <div class="hover-detail">Yield farming returns consist of: base yield (interest from lending/swap fees) + token incentives (protocol emissions) + compound leverage. In bear markets, token incentives can drop to near-zero, making sustainable base yield critical.</div>
+    </div>
+
+    <div class="term-card" id="term-yield" data-cat="lending" data-term="yield interest return rate apy defi">
+      <span class="term-category cat-lending">Lending</span>
+      <h3>Yield</h3>
+      <p class="term-def">The return generated on invested capital, expressed as a percentage per year. In DeFi, yield comes from three sources: lending interest, AMM swap fees, and token incentives. The composition of these sources determines sustainability.</p>
+      <div class="term-links">
+        <a href="aave.html">Aave</a>
+        <a href="lido.html">Lido</a>
+        <a href="risk-dashboard.html">Risk Dashboard</a>
+      </div>
+      <div class="hover-detail">A 15% APY might consist of 3% sustainable base yield + 12% token emissions — the latter vanishes when emissions are reduced. Always ask: "What is the sustainable base yield, excluding token incentives?"</div>
+    </div>
+
+    <!-- ════════════════════════════════════ Z ════════════════════════════════════ -->
+    <div class="section-divider" id="anchor-Z"><span>Z</span></div>
+
+    <div class="term-card" id="term-zk-rollup" data-cat="general" data-term="zk rollup zero knowledge rollup validity proof l2">
+      <span class="term-category cat-general">General</span>
+      <h3>ZK-Rollup</h3>
+      <p class="term-def">A Layer 2 scaling solution that bundles hundreds of transactions into a single on-chain proof verified via zero-knowledge cryptography. ZK-Rollups (zkSync, Starknet, Polygon zkEVM) offer high throughput with Ethereum security guarantees.</p>
+      <div class="term-links">
+        <a href="bridges.html">Bridges</a>
+      </div>
+      <div class="hover-detail">ZK-Rollups post validity proofs (SNARKs/STARKs) on Ethereum mainnet, meaning anyone can verify the chain state is correct. This makes ZK-Rollups more secure than optimistic rollups, which rely on fraud proof challenges.</div>
+    </div>
+
+  </div>
+
+  <!-- No results -->
+  <div class="no-results" id="noResults" style="display:none;">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <h3>No terms found</h3>
+    <p>Try a different search term or browse by category above.</p>
+  </div>
+
+</main>
+
+<footer class="footer">
+  <div class="footer-links">
+    <a href="index.html">Dashboard</a>
+    <a href="risk-dashboard.html">Risk</a>
+    <a href="glossary.html">Glossary</a>
+    <a href="aave.html">Aave</a>
+    <a href="curve.html">Curve</a>
+    <a href="compound.html">Compound</a>
+    <a href="makerdao.html">MakerDAO</a>
+  </div>
+  <p>DeFi Visualizer &mdash; Built for frens, by frens.</p>
+</footer>
+
+<script>
+(function() {
+  // ── Build A–Z nav ──────────────────────────────────────────────────
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const azNav = document.getElementById('azNav');
+
+  // Collect which letters have terms
+  const cards = document.querySelectorAll('.term-card');
+  const usedLetters = new Set();
+  cards.forEach(card => {
+    const heading = card.querySelector('h3');
+    if (heading) {
+      const firstLetter = heading.textContent.trim()[0].toUpperCase();
+      if (/[A-Z]/.test(firstLetter)) usedLetters.add(firstLetter);
+    }
+  });
+
+  letters.forEach(letter => {
+    const a = document.createElement('a');
+    a.textContent = letter;
+    if (usedLetters.has(letter)) {
+      a.href = '#anchor-' + letter;
+    } else {
+      a.classList.add('disabled');
+      a.href = '#anchor-A';
+    }
+    azNav.appendChild(a);
+  });
+
+  // ── Search & Filter ────────────────────────────────────────────────
+  const searchInput = document.getElementById('searchInput');
+  const clearBtn = document.getElementById('clearSearch');
+  const catTabs = document.querySelectorAll('.cat-tab');
+  const termCards = document.querySelectorAll('.term-card');
+  const noResults = document.getElementById('noResults');
+  const popularSection = document.getElementById('popularSection');
+
+  let activeCat = 'all';
+  let searchQuery = '';
+
+  function filterCards() {
+    let visibleCount = 0;
+    const q = searchQuery.toLowerCase().trim();
+
+    termCards.forEach(card => {
+      const cat = card.dataset.cat || '';
+      const term = card.dataset.term || '';
+      const text = (card.querySelector('h3')?.textContent || '') + ' ' +
+                  (card.querySelector('.term-def')?.textContent || '') + ' ' + term;
+
+      const matchesCat = activeCat === 'all' || cat === activeCat;
+      const matchesSearch = !q || text.toLowerCase().includes(q);
+
+      if (matchesCat && matchesSearch) {
+        card.classList.remove('hidden');
+        visibleCount++;
+      } else {
+        card.classList.add('hidden');
+      }
+    });
+
+    noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+
+    // Show/hide popular section and section dividers based on search
+    if (q) {
+      popularSection.style.display = 'none';
+      document.querySelectorAll('.section-divider').forEach(el => {
+        el.style.display = 'none';
+      });
+    } else {
+      popularSection.style.display = 'block';
+      document.querySelectorAll('.section-divider').forEach(el => {
+        el.style.display = 'flex';
+      });
+    }
+  }
+
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value;
+    clearBtn.classList.toggle('show', searchQuery.length > 0);
+    filterCards();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    searchQuery = '';
+    clearBtn.classList.remove('show');
+    filterCards();
+    searchInput.focus();
+  });
+
+  catTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      catTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      activeCat = tab.dataset.cat;
+      filterCards();
+    });
+  });
+
+  // ── Scroll-to-term helper ─────────────────────────────────────────
+  window.scrollToTerm = function(id) {
+    const el = document.getElementById('term-' + id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.borderColor = 'var(--primary)';
+      el.style.boxShadow = '0 0 24px rgba(0,255,200,0.4)';
+      setTimeout(() => {
+        el.style.borderColor = '';
+        el.style.boxShadow = '';
+      }, 2000);
+    }
+  };
+
+  // ── Scroll-triggered entrance animations ────────────────────────────
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  termCards.forEach(card => observer.observe(card));
+
+  // ── Init filter state ───────────────────────────────────────────────
+  filterCards();
+})();
+</script>
+
+  <!-- Tools & Links -->
+  <section class="tools-section">
+    <div class="container">
+      <div class="tools-header">🔗 Tools &amp; Links</div>
+      <div class="tools-grid">
+        <a href="https://coinbase.com/join/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🟣</span>
+          <span class="tool-name">Coinbase</span>
+          <span class="tool-desc">Buy &amp; trade crypto</span>
+        </a>
+        <a href="https://www.coingecko.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🪙</span>
+          <span class="tool-name">CoinGecko</span>
+          <span class="tool-desc">Price &amp; market data</span>
+        </a>
+        <a href="https://defillama.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">📊</span>
+          <span class="tool-name">DeFiLlama</span>
+          <span class="tool-desc">TVL &amp; yield data</span>
+        </a>
+        <a href="https://debank.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">💼</span>
+          <span class="tool-name">DeBank</span>
+          <span class="tool-desc">Portfolio tracker</span>
+        </a>
+      </div>
+    </div>
+  </section>
+  <style>
+  .tools-section { padding: 40px 0 20px; }
+  .tools-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+  .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .tool-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; text-decoration: none; color: inherit; transition: all 0.2s; }
+  .tool-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  .tool-icon { font-size: 20px; flex-shrink: 0; }
+  .tool-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .tool-desc { font-size: 11px; color: var(--muted); margin-left: auto; }
+  </style>
+
+</body>
+</html>

@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layer 2 Rollups Explained – Optimistic vs ZK Comparison | DeFiVis</title>
+  <meta name="description" content="Deep dive into Layer 2 rollups: compare Optimistic vs ZK Rollups, explore Arbitrum, Base, zkSync, Starknet and learn how L2s scale Ethereum with real-time fee comparisons.">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230a0a0f'/><circle cx='16' cy='16' r='8' fill='none' stroke='%2300ffc8' stroke-width='2'/><circle cx='16' cy='16' r='3' fill='%2300ffc8'/></svg>">
+
+  <!-- FAQ Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is the difference between Optimistic and ZK Rollups?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Optimistic Rollups assume transactions are valid by default and use fraud proofs to challenge invalid ones, with a ~7-day withdrawal delay. ZK Rollups generate cryptographic validity proofs (SNARKs/STARKs) for every batch, enabling near-instant withdrawals but currently higher proving costs."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why do Optimistic rollups have a 7-day withdrawal delay?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The 7-day challenge period exists because Optimistic Rollups don't verify transactions at submission time. Anyone can submit a fraud proof within 7 days if they spot an invalid transaction. This gives honest participants time to detect and correct malicious behavior."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Are ZK Rollups faster than Optimistic Rollups?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "In terms of finality and withdrawal times, yes — ZK Rollups can complete withdrawals in minutes or hours vs the 7-day delay on Optimistic Rollups. However, ZK Rollups currently have higher computational costs for generating proofs."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which L2 has the most DeFi activity?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Arbitrum currently leads in TVL with over $10B locked, followed by Optimism and Base. The leading ZK Rollups like zkSync Era and Starknet are growing rapidly but still lag in total value locked."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it safe to use Layer 2?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes — Layer 2 networks inherit Ethereum's security. Funds on L2 are secured by Ethereum mainnet consensus. However, each L2 has its own upgrade keyholders and smart contract risks. Always use audited bridges and reputable protocols."
+        }
+      }
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">DeFi<span>Flow</span></a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="glossary.html">Glossary</a>
+      <a href="bridges.html">Bridges</a>
+      <a href="mev.html">MEV</a>
+      <a href="layer2.html" class="active">Layer 2</a>
+    </div>
+  </nav>
+
+  <main class="page">
+
+    <!-- HERO -->
+    <section class="hero container" id="hero">
+      <div class="hero-label">
+        <span class="dot"></span>
+        Layer 2 Explainer
+      </div>
+      <h1>Layer 2<br><span class="grad">Rollups Explained</span></h1>
+      <p>How Ethereum scales beyond 15 TPS — bundling thousands of transactions into one, secured by Ethereum consensus.</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <a href="#what-is-l2" class="hero-cta" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);">Start Learning ↓</a>
+        <a href="#compare" class="hero-cta">Compare L2s →</a>
+      </div>
+
+      <!-- Hero Diagram: L1/L2 Flow -->
+      <div style="margin-top:48px;" aria-hidden="true">
+        <svg id="hero-diagram" viewBox="0 0 900 280" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:900px;">
+          <!-- Background grid -->
+          <defs>
+            <pattern id="l2grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e1e2e" stroke-width="0.5"/>
+            </pattern>
+            <linearGradient id="ethGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#00ffc8;stop-opacity:0.2"/>
+              <stop offset="50%" style="stop-color:#00ffc8;stop-opacity:0.8"/>
+              <stop offset="100%" style="stop-color:#00ffc8;stop-opacity:0.2"/>
+            </linearGradient>
+            <linearGradient id="l2Grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#a855f7;stop-opacity:0.2"/>
+              <stop offset="50%" style="stop-color:#a855f7;stop-opacity:0.8"/>
+              <stop offset="100%" style="stop-color:#a855f7;stop-opacity:0.2"/>
+            </linearGradient>
+            <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#00ffc8"/>
+            </marker>
+            <marker id="arrowPurple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#a855f7"/>
+            </marker>
+            <filter id="glowGreen">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glowPurple">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <rect width="900" height="280" fill="#12121a" rx="16"/>
+          <rect width="900" height="280" fill="url(#l2grid)" rx="16"/>
+
+          <!-- ETHEREUM LAYER label -->
+          <text x="450" y="24" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" letter-spacing="2">ETHEREUM MAINNET (L1)</text>
+          <line x1="50" y1="36" x2="850" y2="36" stroke="#1e1e2e" stroke-width="1"/>
+
+          <!-- L1 Block -->
+          <rect x="680" y="56" width="160" height="80" rx="10" fill="#12121a" stroke="#00ffc8" stroke-width="2" filter="url(#glowGreen)"/>
+          <text x="760" y="82" text-anchor="middle" fill="#00ffc8" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700">ETHEREUM</text>
+          <text x="760" y="98" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Consensus + Execution</text>
+          <text x="760" y="116" text-anchor="middle" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="10">~15 TPS</text>
+
+          <!-- L2 ROLLUP label -->
+          <text x="450" y="160" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" letter-spacing="2">LAYER 2 ROLLUP</text>
+          <line x1="50" y1="172" x2="850" y2="172" stroke="#1e1e2e" stroke-width="1"/>
+
+          <!-- L2 Block -->
+          <rect x="200" y="192" width="200" height="72" rx="10" fill="#12121a" stroke="#a855f7" stroke-width="2" filter="url(#glowPurple)"/>
+          <text x="300" y="218" text-anchor="middle" fill="#a855f7" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700">ROLLUP SEQUENCER</text>
+          <text x="300" y="234" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Bundles + Compresses TXs</text>
+          <text x="300" y="250" text-anchor="middle" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="10">1,000–15,000 TPS</text>
+
+          <!-- User nodes -->
+          <circle cx="80" cy="228" r="20" fill="#12121a" stroke="#00ffc8" stroke-width="2"/>
+          <text x="80" y="233" text-anchor="middle" fill="#00ffc8" font-size="16">👤</text>
+          <text x="80" y="262" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="9">User</text>
+
+          <circle cx="130" cy="228" r="20" fill="#12121a" stroke="#00ffc8" stroke-width="2"/>
+          <text x="130" y="233" text-anchor="middle" fill="#00ffc8" font-size="16">👤</text>
+          <text x="130" y="262" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="9">User</text>
+
+          <circle cx="540" cy="100" r="20" fill="#12121a" stroke="#a855f7" stroke-width="2"/>
+          <text x="540" y="105" text-anchor="middle" fill="#a855f7" font-size="16">📦</text>
+          <text x="540" y="134" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="9">TX Batch</text>
+
+          <!-- Arrows with animation -->
+          <path d="M100 228 Q150 200 200 222" stroke="url(#ethGrad)" stroke-width="2" fill="none" marker-end="url(#arrowGreen)" stroke-dasharray="4,3">
+            <animate attributeName="stroke-dashoffset" from="14" to="0" dur="1.5s" repeatCount="indefinite"/>
+          </path>
+          <path d="M160 228 Q180 210 200 210" stroke="url(#ethGrad)" stroke-width="2" fill="none" marker-end="url(#arrowGreen)" stroke-dasharray="4,3">
+            <animate attributeName="stroke-dashoffset" from="14" to="0" dur="1.5s" repeatCount="indefinite"/>
+          </path>
+
+          <!-- L2 to L1 arrow -->
+          <path d="M400 228 Q520 180 680 90" stroke="url(#l2Grad)" stroke-width="2.5" fill="none" marker-end="url(#arrowPurple)" stroke-dasharray="6,4">
+            <animate attributeName="stroke-dashoffset" from="20" to="0" dur="2s" repeatCount="indefinite"/>
+          </path>
+
+          <!-- Batch detail label -->
+          <rect x="450" y="205" width="80" height="28" rx="6" fill="#1a1a24" stroke="#a855f7" stroke-width="1"/>
+          <text x="490" y="223" text-anchor="middle" fill="#a855f7" font-family="JetBrains Mono,monospace" font-size="10">Validity / Fraud Proof</text>
+
+          <!-- Animated pulse dots -->
+          <circle cx="420" cy="215" r="4" fill="#a855f7" opacity="0.8">
+            <animate attributeName="opacity" values="0.2;1;0.2" dur="1.5s" repeatCount="indefinite"/>
+            <animate attributeName="r" values="3;6;3" dur="1.5s" repeatCount="indefinite"/>
+          </circle>
+          <circle cx="500" cy="200" r="4" fill="#a855f7" opacity="0.8">
+            <animate attributeName="opacity" values="0.2;1;0.2" dur="1.5s" begin="0.5s" repeatCount="indefinite"/>
+            <animate attributeName="r" values="3;6;3" dur="1.5s" begin="0.5s" repeatCount="indefinite"/>
+          </circle>
+          <circle cx="580" cy="180" r="4" fill="#a855f7" opacity="0.8">
+            <animate attributeName="opacity" values="0.2;1;0.2" dur="1.5s" begin="1s" repeatCount="indefinite"/>
+            <animate attributeName="r" values="3;6;3" dur="1.5s" begin="1s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+      </div>
+    </section>
+
+    <!-- WHAT IS LAYER 2 -->
+    <section class="section container" id="what-is-l2">
+      <div class="section-header">
+        <h2 class="section-title">What is <span>Layer 2</span>?</h2>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+        <div>
+          <p style="color:var(--muted);font-size:16px;line-height:1.8;margin-bottom:24px;">
+            Layer 2 (L2) is a collective term for solutions built <strong style="color:var(--text);">on top of Ethereum</strong> that handle transaction execution off the main blockchain while posting transaction data back to Ethereum. This lets L2s scale to thousands of transactions per second while inheriting Ethereum's security guarantees.
+          </p>
+          <p style="color:var(--muted);font-size:16px;line-height:1.8;margin-bottom:24px;">
+            The core problem L2s solve is Ethereum's <strong style="color:var(--text);">congestion</strong>. When DeFi mania hits, gas fees spike to $50–$200+ per transaction, making small Defi interactions prohibitively expensive. L2s batch hundreds of user transactions into a single L1 submission, dramatically reducing per-transaction costs.
+          </p>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+            <div style="font-size:13px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">The Bottleneck</div>
+            <div style="font-family:var(--mono);font-size:15px;color:var(--text);line-height:1.6;">
+              Ethereum L1 can process ~<span style="color:var(--danger);font-weight:700;">15 TPS</span> (transactions per second). During peak usage, this creates bidding wars for block space, driving costs sky high.
+            </div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="font-size:13px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">The L2 Solution</div>
+            <div style="font-family:var(--mono);font-size:15px;color:var(--text);line-height:1.6;">
+              L2s process <span style="color:var(--success);font-weight:700;">1,000–15,000 TPS</span> locally, then post compressed transaction data + a proof to Ethereum. Users pay fractions of a cent per transaction.
+            </div>
+          </div>
+        </div>
+
+        <!-- L2 Architecture Diagram -->
+        <div>
+          <div class="sandbox">
+            <div class="sandbox-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              L2 Architecture
+            </div>
+            <svg viewBox="0 0 380 340" xmlns="http://www.w3.org/2000/svg" style="width:100%;">
+              <!-- User Layer -->
+              <rect x="10" y="10" width="360" height="60" rx="8" fill="#12121a" stroke="#1e1e2e" stroke-width="1"/>
+              <text x="190" y="28" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" letter-spacing="1.5">USER LAYER</text>
+              <circle cx="70" cy="55" r="14" fill="#1a1a24" stroke="#00ffc8" stroke-width="1.5"/>
+              <text x="70" y="59" text-anchor="middle" fill="#00ffc8" font-size="12">👤</text>
+              <circle cx="120" cy="55" r="14" fill="#1a1a24" stroke="#00ffc8" stroke-width="1.5"/>
+              <text x="120" y="59" text-anchor="middle" fill="#00ffc8" font-size="12">👤</text>
+              <circle cx="170" cy="55" r="14" fill="#1a1a24" stroke="#00ffc8" stroke-width="1.5"/>
+              <text x="170" y="59" text-anchor="middle" fill="#00ffc8" font-size="12">👤</text>
+              <circle cx="220" cy="55" r="14" fill="#1a1a24" stroke="#00ffc8" stroke-width="1.5"/>
+              <text x="220" y="59" text-anchor="middle" fill="#00ffc8" font-size="12">👤</text>
+              <circle cx="270" cy="55" r="14" fill="#1a1a24" stroke="#00ffc8" stroke-width="1.5"/>
+              <text x="270" y="59" text-anchor="middle" fill="#00ffc8" font-size="12">👤</text>
+              <circle cx="320" cy="55" r="14" fill="#1a1a24" stroke="#00ffc8" stroke-width="1.5"/>
+              <text x="320" y="59" text-anchor="middle" fill="#00ffc8" font-size="12">👤</text>
+              <text x="355" cy="60" text-anchor="end" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="9">Many users...</text>
+
+              <!-- Arrow -->
+              <path d="M190 70 L190 95" stroke="#00ffc8" stroke-width="2" marker-end="url(#arrowGreen)" fill="none"/>
+
+              <!-- L2 Sequencer -->
+              <rect x="60" y="100" width="260" height="80" rx="10" fill="#1a1a24" stroke="#a855f7" stroke-width="2"/>
+              <text x="190" y="120" text-anchor="middle" fill="#a855f7" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700">SEQUENCER</text>
+              <text x="190" y="136" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Executes transactions, batches them</text>
+              <text x="190" y="152" text-anchor="middle" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="10">⚡ Fast execution (no L1 delay)</text>
+              <text x="190" y="168" text-anchor="middle" fill="#a855f7" font-family="JetBrains Mono,monospace" font-size="10">🔗 Posts state diffs to L1</text>
+
+              <!-- Arrow to L1 -->
+              <path d="M190 180 L190 210" stroke="#a855f7" stroke-width="2.5" stroke-dasharray="5,3" marker-end="url(#arrowPurple)" fill="none">
+                <animate attributeName="stroke-dashoffset" from="16" to="0" dur="1.5s" repeatCount="indefinite"/>
+              </path>
+
+              <!-- Proof arrow (ZK or Fraud) -->
+              <path d="M240 140 L310 140" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowPurple)" fill="none">
+                <animate attributeName="stroke-dashoffset" from="14" to="0" dur="2s" repeatCount="indefinite"/>
+              </path>
+              <rect x="245" y="148" width="70" height="20" rx="5" fill="#1a1a24" stroke="#f59e0b" stroke-width="1"/>
+              <text x="280" y="162" text-anchor="middle" fill="#f59e0b" font-family="JetBrains Mono,monospace" font-size="9">Proof</text>
+
+              <!-- L1 Ethereum -->
+              <rect x="60" y="215" width="260" height="80" rx="10" fill="#12121a" stroke="#00ffc8" stroke-width="2"/>
+              <text x="190" y="235" text-anchor="middle" fill="#00ffc8" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700">ETHEREUM L1</text>
+              <text x="190" y="251" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Stores compressed TX data</text>
+              <text x="190" y="267" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Verifies proofs (ZK or fraud)</text>
+              <text x="190" y="283" text-anchor="middle" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="10">🔒 Finality + Security</text>
+
+              <!-- Cost comparison -->
+              <text x="20" y="310" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="9">L1: $2–200+ per TX</text>
+              <text x="20" y="326" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="9">L2: $0.01–0.30 per TX</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- TPS Comparison Bars -->
+      <div class="sandbox" style="margin-top:32px;">
+        <div class="sandbox-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Transactions Per Second Comparison
+        </div>
+        <div class="yield-chart">
+          <div class="chart-bar">
+            <div class="bar-label">Ethereum L1</div>
+            <div class="bar-track" style="position:relative;">
+              <div class="bar-fill" id="tps-eth" style="width:0%;background:linear-gradient(90deg,#ef4444,#f59e0b);"></div>
+            </div>
+            <div class="bar-val">~15 TPS</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">Optimism</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="tps-op" style="width:0%;background:linear-gradient(90deg,#a855f7,#00ffc8);"></div>
+            </div>
+            <div class="bar-val">~4,000 TPS</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">Arbitrum</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="tps-arb" style="width:0%;background:linear-gradient(90deg,#a855f7,#00ffc8);"></div>
+            </div>
+            <div class="bar-val">~7,500 TPS</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">Base</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="tps-base" style="width:0%;background:linear-gradient(90deg,#a855f7,#00ffc8);"></div>
+            </div>
+            <div class="bar-val">~5,000 TPS</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">zkSync Era</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="tps-zk" style="width:0%;background:linear-gradient(90deg,#22c55e,#00ffc8);"></div>
+            </div>
+            <div class="bar-val">~10,000 TPS</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">Starknet</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="tps-stark" style="width:0%;background:linear-gradient(90deg,#22c55e,#00ffc8);"></div>
+            </div>
+            <div class="bar-val">~15,000 TPS</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROLLUP TYPES DEEP DIVE -->
+    <section class="section container" id="rollup-types">
+      <div class="section-header">
+        <h2 class="section-title">Rollup Types <span>Deep Dive</span></h2>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px;">
+
+        <!-- Optimistic Rollups -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+            <div style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;">⚖️</div>
+            <div>
+              <h3 style="font-size:22px;font-weight:700;color:#f59e0b;">Optimistic Rollups</h3>
+              <p style="color:var(--muted);font-size:13px;">Assumes valid → challenges if wrong</p>
+            </div>
+          </div>
+
+          <div style="margin-bottom:20px;">
+            <div style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">How It Works</div>
+            <p style="font-size:14px;color:var(--muted);line-height:1.7;">
+              When you submit a transaction to an Optimistic Rollup, the sequencer <strong style="color:var(--text);">assumes it's valid</strong> and immediately executes it. The transaction is posted to L1, and anyone can later challenge it by computing a <strong style="color:var(--text);">fraud proof</strong> if they spot an error. This "innocent until proven guilty" model is simple but requires the 7-day challenge window.
+            </p>
+          </div>
+
+          <!-- 7-Day Delay Animation -->
+          <div style="background:var(--surface-2);border-radius:10px;padding:16px;margin-bottom:20px;">
+            <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:12px;">⏳ 7-Day Challenge Window (Withdrawal Delay)</div>
+            <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;">
+              <div class="delay-day" style="flex:1;min-width:36px;background:#1a1a24;border:1px solid #f59e0b;border-radius:6px;padding:6px 4px;text-align:center;">
+                <div style="font-family:var(--mono);font-size:11px;color:#f59e0b;font-weight:600;">Day 1</div>
+                <div style="font-size:9px;color:#64748b;">Deposit</div>
+              </div>
+              <div class="delay-day" style="flex:1;min-width:36px;background:#1a1a24;border:1px solid #f59e0b;border-radius:6px;padding:6px 4px;text-align:center;">
+                <div style="font-family:var(--mono);font-size:11px;color:#f59e0b;font-weight:600;">Day 2</div>
+                <div style="font-size:9px;color:#64748b;">Challenge</div>
+              </div>
+              <div class="delay-day" style="flex:1;min-width:36px;background:#1a1a24;border:1px solid #f59e0b;border-radius:6px;padding:6px 4px;text-align:center;">
+                <div style="font-family:var(--mono);font-size:11px;color:#f59e0b;font-weight:600;">Day 3</div>
+                <div style="font-size:9px;color:#64748b;">Challenge</div>
+              </div>
+              <div class="delay-day" style="flex:1;min-width:36px;background:#1a1a24;border:1px solid #f59e0b;border-radius:6px;padding:6px 4px;text-align:center;">
+                <div style="font-family:var(--mono);font-size:11px;color:#f59e0b;font-weight:600;">Day 4</div>
+                <div style="font-size:9px;color:#64748b;">Window</div>
+              </div>
+              <div class="delay-day" style="flex:1;min-width:36px;background:#1a1a24;border:1px solid #f59e0b;border-radius:6px;padding:6px 4px;text-align:center;">
+                <div style="font-family:var(--mono);font-size:11px;color:#f59e0b;font-weight:600;">Day 5</div>
+                <div style="font-size:9px;color:#64748b;">Window</div>
+              </div>
+              <div class="delay-day" style="flex:1;min-width:36px;background:#1a1a24;border:1px solid #f59e0b;border-radius:6px;padding:6px 4px;text-align:center;">
+                <div style="font-family:var(--mono);font-size:11px;color:#f59e0b;font-weight:600;">Day 6</div>
+                <div style="font-size:9px;color:#64748b;">Window</div>
+              </div>
+              <div class="delay-day active" style="flex:1;min-width:36px;background:rgba(245,158,11,0.15);border:1px solid #22c55e;border-radius:6px;padding:6px 4px;text-align:center;box-shadow:0 0 12px rgba(34,197,94,0.3);">
+                <div style="font-family:var(--mono);font-size:11px;color:#22c55e;font-weight:600;">Day 7</div>
+                <div style="font-size:9px;color:#64748b;">✅ Final</div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:#64748b;">No challenges filed → funds released automatically</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+            <div style="background:var(--surface-2);border-radius:8px;padding:14px;text-align:center;">
+              <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:#f59e0b;">⚠️ 7 days</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px;">Withdrawal delay</div>
+            </div>
+            <div style="background:var(--surface-2);border-radius:8px;padding:14px;text-align:center;">
+              <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:#22c55e;">$0.10–0.50</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px;">Typical TX cost</div>
+            </div>
+          </div>
+
+          <div style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Use Cases</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+            <span style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#f59e0b;font-size:12px;padding:4px 12px;border-radius:20px;">General DeFi</span>
+            <span style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#f59e0b;font-size:12px;padding:4px 12px;border-radius:20px;">NFT Trading</span>
+            <span style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#f59e0b;font-size:12px;padding:4px 12px;border-radius:20px;">Perpetuals</span>
+            <span style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#f59e0b;font-size:12px;padding:4px 12px;border-radius:20px;">Governance</span>
+          </div>
+
+          <div style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Projects</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span style="background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 12px;border-radius:20px;font-weight:600;">Arbitrum</span>
+            <span style="background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 12px;border-radius:20px;font-weight:600;">Optimism</span>
+            <span style="background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 12px;border-radius:20px;font-weight:600;">Base</span>
+            <span style="background:var(--surface-2);border:1px solid var(--border);color:var(--muted);font-size:12px;padding:4px 12px;border-radius:20px;">Metis</span>
+          </div>
+        </div>
+
+        <!-- ZK Rollups -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+            <div style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.3);width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;">🔐</div>
+            <div>
+              <h3 style="font-size:22px;font-weight:700;color:#22c55e;">ZK Rollups</h3>
+              <p style="color:var(--muted);font-size:13px;">Cryptographic proof → always valid</p>
+            </div>
+          </div>
+
+          <div style="margin-bottom:20px;">
+            <div style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">How It Works</div>
+            <p style="font-size:14px;color:var(--muted);line-height:1.7;">
+              ZK Rollups generate a <strong style="color:var(--text);">cryptographic proof</strong> (SNARK or STARK) for every batch of transactions. This proof mathematically proves that the sequencer executed the transactions correctly — without needing anyone to re-execute. L1 validators verify the proof in milliseconds. No challenge period needed.
+            </p>
+          </div>
+
+          <!-- Proof Generation Viz -->
+          <div style="background:var(--surface-2);border-radius:10px;padding:16px;margin-bottom:20px;">
+            <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:12px;">⚡ Instant Proof → Near-Instant Withdrawal</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;">
+              <div style="background:#1a1a24;border:1px solid #22c55e;border-radius:8px;padding:10px 14px;text-align:center;">
+                <div style="font-size:11px;color:#64748b;">TX Batch</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#22c55e;font-weight:600;">1,000 txns</div>
+              </div>
+              <span style="color:#22c55e;font-size:16px;">→</span>
+              <div style="background:#1a1a24;border:1px solid #22c55e;border-radius:8px;padding:10px 14px;text-align:center;">
+                <div style="font-size:11px;color:#64748b;">ZK Prover</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#22c55e;font-weight:600;">⏱ 5–20 min</div>
+              </div>
+              <span style="color:#22c55e;font-size:16px;">→</span>
+              <div style="background:rgba(34,197,94,0.15);border:1px solid #22c55e;border-radius:8px;padding:10px 14px;text-align:center;box-shadow:0 0 12px rgba(34,197,94,0.3);">
+                <div style="font-size:11px;color:#64748b;">Proof on L1</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#22c55e;font-weight:600;">✓ Verified</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SNARK vs STARK -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+            <div style="background:var(--surface-2);border-radius:8px;padding:14px;">
+              <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:#22c55e;margin-bottom:6px;">SNARK</div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.5;">Succinct Non-interactive ARgument of Knowledge. Smaller proofs (~200 bytes), faster verification, trusted setup required.</div>
+            </div>
+            <div style="background:var(--surface-2);border-radius:8px;padding:14px;">
+              <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:#a855f7;margin-bottom:6px;">STARK</div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.5;">Scalable Transparent ARgument of Knowledge. No trusted setup, larger proofs, quantum-resistant.</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+            <div style="background:var(--surface-2);border-radius:8px;padding:14px;text-align:center;">
+              <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:#22c55e;">~Minutes</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px;">Withdrawal time</div>
+            </div>
+            <div style="background:var(--surface-2);border-radius:8px;padding:14px;text-align:center;">
+              <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:#a855f7;">$0.20–1.00</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px;">Typical TX cost (higher proving)</div>
+            </div>
+          </div>
+
+          <div style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Use Cases</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+            <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e;font-size:12px;padding:4px 12px;border-radius:20px;">High-frequency trading</span>
+            <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e;font-size:12px;padding:4px 12px;border-radius:20px;">Privacy DeFi</span>
+            <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e;font-size:12px;padding:4px 12px;border-radius:20px;">Gaming</span>
+            <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e;font-size:12px;padding:4px 12px;border-radius:20px;">Micropayments</span>
+          </div>
+
+          <div style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Projects</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span style="background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 12px;border-radius:20px;font-weight:600;">zkSync Era</span>
+            <span style="background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 12px;border-radius:20px;font-weight:600;">Starknet</span>
+            <span style="background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 12px;border-radius:20px;font-weight:600;">Polygon zkEVM</span>
+            <span style="background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 12px;border-radius:20px;font-weight:600;">Scroll</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Proof Comparison Animation -->
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Optimistic vs ZK: How a Block Is Finalized
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;">
+          <!-- Optimistic path -->
+          <div style="text-align:center;">
+            <div style="font-size:13px;font-weight:700;color:#f59e0b;margin-bottom:16px;text-transform:uppercase;letter-spacing:1px;">Optimistic Path</div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+              <div style="background:#1a1a24;border:2px solid #f59e0b;border-radius:10px;padding:14px 24px;min-width:200px;text-align:center;margin-bottom:0;">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">1. User TX</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#f59e0b;font-weight:600;">Submitted to Sequencer</div>
+              </div>
+              <div style="color:#f59e0b;font-size:18px;line-height:1;">↓</div>
+              <div style="background:#1a1a24;border:2px solid #f59e0b;border-radius:10px;padding:14px 24px;min-width:200px;text-align:center;">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">2. Execute</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#f59e0b;font-weight:600;">Assumed Valid → Executed</div>
+              </div>
+              <div style="color:#f59e0b;font-size:18px;line-height:1;">↓</div>
+              <div style="background:#1a1a24;border:2px solid #f59e0b;border-radius:10px;padding:14px 24px;min-width:200px;text-align:center;">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">3. Posted to L1</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#f59e0b;font-weight:600;">TX data + state root</div>
+              </div>
+              <div style="color:#f59e0b;font-size:18px;line-height:1;">↓</div>
+              <div style="background:rgba(245,158,11,0.1);border:2px solid #f59e0b;border-radius:10px;padding:14px 24px;min-width:200px;text-align:center;box-shadow:0 0 16px rgba(245,158,11,0.2);">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">4. Wait 7 Days</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#f59e0b;font-weight:600;">⚠️ Challenge Period</div>
+              </div>
+              <div style="color:#f59e0b;font-size:18px;line-height:1;">↓</div>
+              <div style="background:rgba(34,197,94,0.1);border:2px solid #22c55e;border-radius:10px;padding:14px 24px;min-width:200px;text-align:center;">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">5. Final (if no challenge)</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#22c55e;font-weight:600;">✓ Withdrawal possible</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ZK path -->
+          <div style="text-align:center;">
+            <div style="font-size:13px;font-weight:700;color:#22c55e;margin-bottom:16px;text-transform:uppercase;letter-spacing:1px;">ZK Rollup Path</div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+              <div style="background:#1a1a24;border:2px solid #22c55e;border-radius:10px;padding:14px 24px;min-width:200px;text-align:center;margin-bottom:0;">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">1. User TX</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#22c55e;font-weight:600;">Submitted to Sequencer</div>
+              </div>
+              <div style="color:#22c55e;font-size:18px;line-height:1;">↓</div>
+              <div style="background:#1a1a24;border:2px solid #22c55e;border-radius:10px;padding:14px 24px;min-width:200px;text-align:center;">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">2. Execute + Prove</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#22c55e;font-weight:600;">Generate ZK Proof (5-20 min)</div>
+              </div>
+              <div style="color:#22c55e;font-size:18px;line-height:1;">↓</div>
+              <div style="background:#1a1a24;border:2px solid #22c55e;border-radius:10px;padding:14px 24px;min-width:200px;text-align:center;">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">3. Verify on L1</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#22c55e;font-weight:600;">⚡ Fast (~few seconds)</div>
+              </div>
+              <div style="color:#22c55e;font-size:18px;line-height:1;">↓</div>
+              <div style="background:rgba(34,197,94,0.15);border:2px solid #22c55e;border-radius:10px;padding:14px 24px;min-width:200px;text-align:center;box-shadow:0 0 16px rgba(34,197,94,0.3);">
+                <div style="font-size:11px;color:#64748b;margin-bottom:4px;">4. Immediately Final</div>
+                <div style="font-family:var(--mono);font-size:13px;color:#22c55e;font-weight:600;">✓ Instant Withdrawal</div>
+              </div>
+              <div style="color:transparent;font-size:18px;line-height:1;">↓</div>
+              <div style="opacity:0;padding:14px 24px;min-width:200px;">
+                <div style="font-family:var(--mono);font-size:13px;color:#22c55e;font-weight:600;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPARISON TABLE -->
+    <section class="section container" id="compare">
+      <div class="section-header">
+        <h2 class="section-title">L2 <span>Comparison Table</span></h2>
+      </div>
+
+      <div class="sandbox">
+        <div style="overflow-x:auto;">
+          <table id="compare-table" style="width:100%;border-collapse:collapse;font-size:14px;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border);">
+                <th style="text-align:left;padding:12px 16px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;user-select:none;" data-sort="feature">Feature ↕</th>
+                <th style="text-align:left;padding:12px 16px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;user-select:none;" data-sort="optimistic">Optimistic ↕</th>
+                <th style="text-align:left;padding:12px 16px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;user-select:none;" data-sort="zk">ZK Rollups ↕</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="compare-row" style="border-bottom:1px solid var(--border);transition:background 0.15s;">
+                <td style="padding:14px 16px;font-weight:600;color:var(--text);">Withdrawal Time</td>
+                <td style="padding:14px 16px;color:#f59e0b;font-family:var(--mono);">~7 days</td>
+                <td style="padding:14px 16px;color:#22c55e;font-family:var(--mono);">Minutes–hours</td>
+              </tr>
+              <tr class="compare-row" style="border-bottom:1px solid var(--border);transition:background 0.15s;">
+                <td style="padding:14px 16px;font-weight:600;color:var(--text);">Gas Cost</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Lower (no proving)</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Higher (proving cost)</td>
+              </tr>
+              <tr class="compare-row" style="border-bottom:1px solid var(--border);transition:background 0.15s;">
+                <td style="padding:14px 16px;font-weight:600;color:var(--text);">EVM Compatibility</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Very High (OP Stack)</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Improving rapidly</td>
+              </tr>
+              <tr class="compare-row" style="border-bottom:1px solid var(--border);transition:background 0.15s;">
+                <td style="padding:14px 16px;font-weight:600;color:var(--text);">Proof Type</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Fraud proof</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Validity proof (SNARK/STARK)</td>
+              </tr>
+              <tr class="compare-row" style="border-bottom:1px solid var(--border);transition:background 0.15s;">
+                <td style="padding:14px 16px;font-weight:600;color:var(--text);">TPS</td>
+                <td style="padding:14px 16px;color:#a855f7;font-family:var(--mono);font-weight:600;">~2,000–7,500</td>
+                <td style="padding:14px 16px;color:#22c55e;font-family:var(--mono);font-weight:600;">~5,000–15,000</td>
+              </tr>
+              <tr class="compare-row" style="border-bottom:1px solid var(--border);transition:background 0.15s;">
+                <td style="padding:14px 16px;font-weight:600;color:var(--text);">Complexity</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Simpler design</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Complex cryptography</td>
+              </tr>
+              <tr class="compare-row" style="border-bottom:1px solid var(--border);transition:background 0.15s;">
+                <td style="padding:14px 16px;font-weight:600;color:var(--text);">Trusted Setup</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Not required</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Required (SNARK) / Not (STARK)</td>
+              </tr>
+              <tr class="compare-row" style="border-bottom:1px solid var(--border);transition:background 0.15s;">
+                <td style="padding:14px 16px;font-weight:600;color:var(--text);">Quantum Resistance</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">Yes (ECDSA)</td>
+                <td style="padding:14px 16px;color:var(--text);font-family:var(--mono);">STARK: Yes, SNARK: No</td>
+              </tr>
+              <tr class="compare-row" style="transition:background 0.15s;">
+                <td style="padding:14px 16px;font-weight:600;color:var(--text);">Ecosystem Size</td>
+                <td style="padding:14px 16px;color:#22c55e;font-family:var(--mono);font-weight:600;">Larger (more TVL)</td>
+                <td style="padding:14px 16px;color:#f59e0b;font-family:var(--mono);">Growing fast</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROJECT CARDS -->
+    <section class="section container" id="projects">
+      <div class="section-header">
+        <h2 class="section-title">Major <span>L2 Projects</span></h2>
+      </div>
+
+      <div class="cards">
+        <!-- Arbitrum -->
+        <div class="card" id="card-arbitrum" style="cursor:default;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="background:rgba(40,160,240,0.15);border:1px solid rgba(40,160,240,0.3);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">🔵</div>
+            <div>
+              <h3 style="font-size:17px;margin-bottom:2px;">Arbitrum</h3>
+              <span style="font-size:11px;color:var(--muted);">Optimistic Rollup</span>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:16px;">
+            The largest L2 by TVL. Arbitrum One and Arbitrum Nova serve different needs — One for DeFi (full security), Nova for social/gaming (lower fees). Built by Offchain Labs, using the Arbitrum Rollup protocol.
+          </p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val" id="stat-arbitrum-tvl">$10.2B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">~7,500</div>
+              <div class="lbl">TPS Cap</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">2,000+</div>
+              <div class="lbl">DApps</div>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="background:rgba(40,160,240,0.1);border:1px solid rgba(40,160,240,0.2);color:#28a0f0;font-size:11px;padding:3px 10px;border-radius:12px;">EVM Equivalent</span>
+            <span style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#f59e0b;font-size:11px;padding:3px 10px;border-radius:12px;">7-day delay</span>
+          </div>
+        </div>
+
+        <!-- Optimism -->
+        <div class="card" id="card-optimism" style="cursor:default;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="background:rgba(220,30,30,0.15);border:1px solid rgba(220,30,30,0.3);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">🔴</div>
+            <div>
+              <h3 style="font-size:17px;margin-bottom:2px;">Optimism</h3>
+              <span style="font-size:11px;color:var(--muted);">Optimistic Rollup</span>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:16px;">
+            The original Ethereum L2. Pioneered the Optimistic Rollup design and created the OP Stack — an open-source development stack that anyone can use to build their own L2. Home to RetroPGF (Retroactive Public Goods Funding).
+          </p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val" id="stat-op-tvl">$4.1B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">~4,000</div>
+              <div class="lbl">TPS Cap</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">OP Stack</div>
+              <div class="lbl">Tech</div>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="background:rgba(220,30,30,0.1);border:1px solid rgba(220,30,30,0.2);color:#dc1e1e;font-size:11px;padding:3px 10px;border-radius:12px;">OP Stack</span>
+            <span style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#f59e0b;font-size:11px;padding:3px 10px;border-radius:12px;">RetroPGF</span>
+          </div>
+        </div>
+
+        <!-- Base -->
+        <div class="card" id="card-base" style="cursor:default;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="background:rgba(0,82,255,0.15);border:1px solid rgba(0,82,255,0.3);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">🔷</div>
+            <div>
+              <h3 style="font-size:17px;margin-bottom:2px;">Base</h3>
+              <span style="font-size:11px;color:var(--muted);">Optimistic Rollup</span>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:16px;">
+            Built by Coinbase, Base is an Ethereum L2 designed to bring the next billion users onchain. Low fees, Coinbase integration, and the "gasless send" feature make it the easiest L2 for mainstream adoption.
+          </p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val" id="stat-base-tvl">$8.7B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">~5,000</div>
+              <div class="lbl">TPS Cap</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">Coinbase</div>
+              <div class="lbl">Backed by</div>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="background:rgba(0,82,255,0.1);border:1px solid rgba(0,82,255,0.2);color:#0052ff;font-size:11px;padding:3px 10px;border-radius:12px;">Gasless sends</span>
+            <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e;font-size:11px;padding:3px 10px;border-radius:12px;">No withdrawal delay</span>
+          </div>
+        </div>
+
+        <!-- zkSync Era -->
+        <div class="card" id="card-zksync" style="cursor:default;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="background:rgba(70,163,255,0.15);border:1px solid rgba(70,163,255,0.3);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">⚡</div>
+            <div>
+              <h3 style="font-size:17px;margin-bottom:2px;">zkSync Era</h3>
+              <span style="font-size:11px;color:var(--muted);">ZK Rollup</span>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:16px;">
+            Matter Labs' ZK Rollup featuring native Account Abstraction (smart contract wallets built-in). zkSync Era uses its own LLVM-based compiler for EVM compatibility, enabling most Solidity contracts to deploy as-is.
+          </p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val" id="stat-zk-tvl">$1.8B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">~10,000</div>
+              <div class="lbl">TPS Cap</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">SNARK</div>
+              <div class="lbl">Proof</div>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="background:rgba(70,163,255,0.1);border:1px solid rgba(70,163,255,0.2);color:#46a3ff;font-size:11px;padding:3px 10px;border-radius:12px;">Account Abstraction</span>
+            <span style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e;font-size:11px;padding:3px 10px;border-radius:12px;">Instant exits</span>
+          </div>
+        </div>
+
+        <!-- Starknet -->
+        <div class="card" id="card-starknet" style="cursor:default;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="background:rgba(162,39,255,0.15);border:1px solid rgba(162,39,255,0.3);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">🌌</div>
+            <div>
+              <h3 style="font-size:17px;margin-bottom:2px;">Starknet</h3>
+              <span style="font-size:11px;color:var(--muted);">ZK Rollup (STARK)</span>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:16px;">
+            Uses STARK proofs (quantum-resistant, no trusted setup) and Cairo — a custom language for provable computation. Starknet is particularly strong in gaming and high-throughput use cases. Token launched Dec 2023.
+          </p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val" id="stat-stark-tvl">$1.1B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">~15,000</div>
+              <div class="lbl">TPS Cap</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">Cairo</div>
+              <div class="lbl">Language</div>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="background:rgba(162,39,255,0.1);border:1px solid rgba(162,39,255,0.2);color:#a227ff;font-size:11px;padding:3px 10px;border-radius:12px;">STARK proofs</span>
+            <span style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:#f59e0b;font-size:11px;padding:3px 10px;border-radius:12px;">Gaming focus</span>
+          </div>
+        </div>
+
+        <!-- Polygon zkEVM -->
+        <div class="card" id="card-polygon" style="cursor:default;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+            <div style="background:rgba(162,89,255,0.15);border:1px solid rgba(162,89,255,0.3);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;">💜</div>
+            <div>
+              <h3 style="font-size:17px;margin-bottom:2px;">Polygon zkEVM</h3>
+              <span style="font-size:11px;color:var(--muted);">ZK Rollup</span>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:16px;">
+            Polygon's ZK Rollup solution offering full EVM equivalence — your existing Solidity tools and tests work with minimal changes. Part of Polygon's multi-chain strategy alongside Matic POS and Polygon's CDK (Chain Development Kit).
+          </p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val" id="stat-poly-tvl">$620M</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">~2,000</div>
+              <div class="lbl">TPS Cap</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">SNARK</div>
+              <div class="lbl">Proof</div>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:6px;">
+            <span style="background:rgba(162,89,255,0.1);border:1px solid rgba(162,89,255,0.2);color:#a227ff;font-size:11px;padding:3px 10px;border-radius:12px;">EVM Equivalent</span>
+            <span style="background:rgba(0,82,255,0.1);border:1px solid rgba(0,82,255,0.2);color:#0052ff;font-size:11px;padding:3px 10px;border-radius:12px;">Polygon Ecosystem</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BRIDGE SECTION -->
+    <section class="section container" id="bridge">
+      <div class="section-header">
+        <h2 class="section-title">Bridge to <span>Layer 2</span></h2>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center;margin-bottom:32px;">
+        <div>
+          <p style="color:var(--muted);font-size:15px;line-height:1.8;margin-bottom:20px;">
+            Bridging to L2 means depositing ETH or tokens from Ethereum mainnet onto the L2 network. The bridge locks your assets on L1 and mints an equivalent amount on L2. When you withdraw, the L2 tokens are burned and L1 assets are released after the challenge period (Optimistic) or proof verification (ZK).
+          </p>
+
+          <!-- Bridge Flow Diagram -->
+          <div class="flow-diagram" style="padding:24px;">
+            <div class="flow-row">
+              <div class="flow-node" style="min-width:80px;">
+                <div class="flow-label">Ethereum L1</div>
+                <div class="flow-value" style="color:#00ffc8;font-size:13px;">Your Wallet</div>
+              </div>
+              <span class="flow-arrow">→</span>
+              <div class="flow-node secondary" style="min-width:100px;">
+                <div class="flow-label">Bridge</div>
+                <div class="flow-value" style="font-size:12px;color:#a855f7;">Lock + Mint</div>
+              </div>
+              <span class="flow-arrow">→</span>
+              <div class="flow-node secondary" style="min-width:100px;">
+                <div class="flow-label">L2 Network</div>
+                <div class="flow-value" style="font-size:12px;color:#a855f7;">Receive Funds</div>
+              </div>
+            </div>
+          </div>
+
+          <p style="font-size:13px;color:var(--muted);line-height:1.7;">
+            <strong style="color:var(--text);">Optimistic Rollups:</strong> After bridging out, you must wait ~7 days for the fraud proof window to close before your L1 funds are available.<br>
+            <strong style="color:var(--text);">ZK Rollups:</strong> Withdrawals typically take minutes to hours — the validity proof ensures instant correctness.
+          </p>
+        </div>
+
+        <!-- Bridge options -->
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <a href="https://app.orbiter.finance" target="_blank" rel="noopener" class="card" style="display:flex;align-items:center;gap:16px;text-decoration:none;">
+            <div style="width:44px;height:44px;background:rgba(0,255,200,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🌀</div>
+            <div>
+              <div style="font-weight:700;font-size:15px;margin-bottom:2px;">Orbiter Finance</div>
+              <div style="font-size:12px;color:var(--muted);">Cross-L2 bridge. Transfer between Arbitrum, Optimism, zkSync, Starknet, Base and more. No 7-day wait for cross-L2 transfers.</div>
+            </div>
+            <span style="color:var(--primary);font-size:16px;margin-left:auto;">→</span>
+          </a>
+          <a href="https://across.to" target="_blank" rel="noopener" class="card" style="display:flex;align-items:center;gap:16px;text-decoration:none;">
+            <div style="width:44px;height:44px;background:rgba(168,85,247,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">⚡</div>
+            <div>
+              <div style="font-weight:700;font-size:15px;margin-bottom:2px;">Across Protocol</div>
+              <div style="font-size:12px;color:var(--muted);">Fast bridge using intent-based UX. Relayers front your L2 funds immediately — you pay back via a L1 transaction. Optimistic-based with HGP risk.</div>
+            </div>
+            <span style="color:var(--primary);font-size:16px;margin-left:auto;">→</span>
+          </a>
+          <a href="https://stargate.finance" target="_blank" rel="noopener" class="card" style="display:flex;align-items:center;gap:16px;text-decoration:none;">
+            <div style="width:44px;height:44px;background:rgba(245,158,11,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🌉</div>
+            <div>
+              <div style="font-weight:700;font-size:15px;margin-bottom:2px;">Stargate</div>
+              <div style="font-size:12px;color:var(--muted);">Native USDC bridge by LayerZero. Provides unified liquidity across chains. TVL-based stability for low slippage. Available on Base, Arbitrum, Optimism.</div>
+            </div>
+            <span style="color:var(--primary);font-size:16px;margin-left:auto;">→</span>
+          </a>
+          <a href="https://bridge.zora.co" target="_blank" rel="noopener" class="card" style="display:flex;align-items:center;gap:16px;text-decoration:none;">
+            <div style="width:44px;height:44px;background:rgba(162,39,255,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🖼</div>
+            <div>
+              <div style="font-weight:700;font-size:15px;margin-bottom:2px;">Official L2 Bridges</div>
+              <div style="font-size:12px;color:var(--muted);">Direct bridges for each L2: Arbitrum Bridge, Optimism Bridge, Base Bridge, zkSync Bridge. Best for large amounts (lowest risk).</div>
+            </div>
+            <span style="color:var(--primary);font-size:16px;margin-left:auto;">→</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEE COMPARISON -->
+    <section class="section container" id="fees">
+      <div class="section-header">
+        <h2 class="section-title">Gas Fee <span>Comparison</span></h2>
+      </div>
+
+      <div class="sandbox">
+        <div class="sandbox-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Approximate Transaction Costs (USD, moderate network conditions)
+        </div>
+        <div class="yield-chart" style="margin:0;">
+          <div class="chart-bar">
+            <div class="bar-label">Ethereum L1</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="fee-eth" style="width:0%;background:linear-gradient(90deg,#ef4444,#f59e0b);"></div>
+            </div>
+            <div class="bar-val" id="fee-eth-val">$2–200</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">Arbitrum</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="fee-arb" style="width:0%;background:linear-gradient(90deg,#a855f7,#00ffc8);"></div>
+            </div>
+            <div class="bar-val" id="fee-arb-val">$0.10–0.30</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">Optimism</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="fee-op" style="width:0%;background:linear-gradient(90deg,#a855f7,#00ffc8);"></div>
+            </div>
+            <div class="bar-val" id="fee-op-val">$0.10–0.40</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">Base</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="fee-base" style="width:0%;background:linear-gradient(90deg,#a855f7,#00ffc8);"></div>
+            </div>
+            <div class="bar-val" id="fee-base-val">$0.05–0.20</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">zkSync Era</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="fee-zk" style="width:0%;background:linear-gradient(90deg,#22c55e,#00ffc8);"></div>
+            </div>
+            <div class="bar-val" id="fee-zk-val">$0.10–0.50</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">Starknet</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="fee-stark" style="width:0%;background:linear-gradient(90deg,#22c55e,#00ffc8);"></div>
+            </div>
+            <div class="bar-val" id="fee-stark-val">$0.05–0.30</div>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:16px;">* Fees vary based on network congestion. L2 fees are typically 50–500x lower than L1. Data based on typical conditions as of early 2025.</p>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section container" id="faq">
+      <div class="section-header">
+        <h2 class="section-title">Frequently Asked <span>Questions</span></h2>
+      </div>
+
+      <div style="max-width:800px;">
+        <div class="faq-item" style="border-bottom:1px solid var(--border);padding:20px 0;cursor:pointer;" onclick="toggleFaq(this)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <div style="font-size:16px;font-weight:600;color:var(--text);">What is the difference between Optimistic and ZK Rollups?</div>
+            <span class="faq-icon" style="color:var(--primary);font-size:18px;transition:transform 0.2s;display:inline-block;">+</span>
+          </div>
+          <div class="faq-answer" style="display:none;padding-top:12px;font-size:14px;color:var(--muted);line-height:1.7;">
+            Optimistic Rollups assume transactions are valid by default and use fraud proofs to challenge invalid ones, with a ~7-day withdrawal delay. ZK Rollups generate cryptographic validity proofs (SNARKs or STARKs) for every batch, enabling near-instant withdrawals but currently higher computational/proving costs.
+          </div>
+        </div>
+        <div class="faq-item" style="border-bottom:1px solid var(--border);padding:20px 0;cursor:pointer;" onclick="toggleFaq(this)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <div style="font-size:16px;font-weight:600;color:var(--text);">Why do Optimistic rollups have a 7-day withdrawal delay?</div>
+            <span class="faq-icon" style="color:var(--primary);font-size:18px;transition:transform 0.2s;display:inline-block;">+</span>
+          </div>
+          <div class="faq-answer" style="display:none;padding-top:12px;font-size:14px;color:var(--muted);line-height:1.7;">
+            The 7-day challenge period exists because Optimistic Rollups don't verify transactions at submission time. Anyone — called validators or watch towers — can submit a fraud proof within 7 days if they spot an invalid transaction. This gives honest participants time to detect and correct malicious behavior. It's a trade-off between instant execution (optimistic) and the security of a challenge window.
+          </div>
+        </div>
+        <div class="faq-item" style="border-bottom:1px solid var(--border);padding:20px 0;cursor:pointer;" onclick="toggleFaq(this)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <div style="font-size:16px;font-weight:600;color:var(--text);">Are ZK Rollups faster than Optimistic Rollups?</div>
+            <span class="faq-icon" style="color:var(--primary);font-size:18px;transition:transform 0.2s;display:inline-block;">+</span>
+          </div>
+          <div class="faq-answer" style="display:none;padding-top:12px;font-size:14px;color:var(--muted);line-height:1.7;">
+            In terms of finality and withdrawal times, yes — ZK Rollups can complete withdrawals in minutes or hours vs the 7-day delay on Optimistic Rollups. However, ZK Rollups currently have higher computational costs for generating proofs (which can make individual transactions slightly more expensive during proof generation).
+          </div>
+        </div>
+        <div class="faq-item" style="border-bottom:1px solid var(--border);padding:20px 0;cursor:pointer;" onclick="toggleFaq(this)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <div style="font-size:16px;font-weight:600;color:var(--text);">Which L2 has the most DeFi activity?</div>
+            <span class="faq-icon" style="color:var(--primary);font-size:18px;transition:transform 0.2s;display:inline-block;">+</span>
+          </div>
+          <div class="faq-answer" style="display:none;padding-top:12px;font-size:14px;color:var(--muted);line-height:1.7;">
+            Arbitrum currently leads in TVL (total value locked) with over $10B, followed by Base and Optimism. Among ZK Rollups, zkSync Era and Starknet are growing rapidly. Activity levels shift monthly as new protocols launch and fees change.
+          </div>
+        </div>
+        <div class="faq-item" style="border-bottom:1px solid var(--border);padding:20px 0;cursor:pointer;" onclick="toggleFaq(this)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <div style="font-size:16px;font-weight:600;color:var(--text);">Is it safe to use Layer 2?</div>
+            <span class="faq-icon" style="color:var(--primary);font-size:18px;transition:transform 0.2s;display:inline-block;">+</span>
+          </div>
+          <div class="faq-answer" style="display:none;padding-top:12px;font-size:14px;color:var(--muted);line-height:1.7;">
+            Yes — Layer 2 networks inherit Ethereum's security model. Your funds on L2 are secured by Ethereum mainnet consensus. The L2's sequencer can be shut down and all transactions can be reconstructed from L1 data. However, each L2 has its own upgrade keyholders, centralization risks, and smart contract risks. Always use audited bridges (not cross-chain DEXs for large amounts) and understand the upgrade governance of each L2.
+          </div>
+        </div>
+        <div class="faq-item" style="border-bottom:1px solid var(--border);padding:20px 0;cursor:pointer;" onclick="toggleFaq(this)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <div style="font-size:16px;font-weight:600;color:var(--text);">What is the OP Stack?</div>
+            <span class="faq-icon" style="color:var(--primary);font-size:18px;transition:transform 0.2s;display:inline-block;">+</span>
+          </div>
+          <div class="faq-answer" style="display:none;padding-top:12px;font-size:14px;color:var(--muted);line-height:1.7;">
+            The OP Stack is an open-source development stack created by Optimism PBC. It standardizes the components needed to build L2 blockchains — execution client, consensus client, rollup driver, and more. Base, Metis, and many upcoming L2s use the OP Stack. It enables "fraud proof games" (Cannon) for permissionless validation.
+          </div>
+        </div>
+        <div class="faq-item" style="padding:20px 0;cursor:pointer;" onclick="toggleFaq(this)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+            <div style="font-size:16px;font-weight:600;color:var(--text);">What is Account Abstraction and why does it matter?</div>
+            <span class="faq-icon" style="color:var(--primary);font-size:18px;transition:transform 0.2s;display:inline-block;">+</span>
+          </div>
+          <div class="faq-answer" style="display:none;padding-top:12px;font-size:14px;color:var(--muted);line-height:1.7;">
+            Standard Ethereum wallets (EOAs) can't execute code — they can only send transactions. Account Abstraction (ERC-4337) makes smart contract wallets first-class citizens on L2s like zkSync and Starknet. This enables social recovery, gasless transactions (pay fees in any token), automatic bundling, and multi-sig security without hardware wallets. zkSync Era has account abstraction natively built in.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INTERNAL LINKS -->
+    <section class="section container">
+      <div class="section-header">
+        <h2 class="section-title">Continue <span>Learning</span></h2>
+      </div>
+      <div class="cards">
+        <a href="glossary.html" class="card" style="text-decoration:none;">
+          <div class="card-icon" style="background:rgba(0,255,200,0.1);">📖</div>
+          <h3>DeFi Glossary</h3>
+          <p>Learn key terms: rollup, gas, zk-SNARK, optimistic, fraud proof, validity proof, and more.</p>
+          <div style="color:var(--primary);font-size:13px;font-weight:600;margin-top:8px;">Explore glossary →</div>
+        </a>
+        <a href="bridges.html" class="card" style="text-decoration:none;">
+          <div class="card-icon" style="background:rgba(168,85,247,0.1);">🌉</div>
+          <h3>Bridge Guide</h3>
+          <p>Compare cross-chain bridges, understand bridge risk, and learn about liquidity protocols.</p>
+          <div style="color:var(--primary);font-size:13px;font-weight:600;margin-top:8px;">Compare bridges →</div>
+        </a>
+        <a href="mev.html" class="card" style="text-decoration:none;">
+          <div class="card-icon" style="background:rgba(245,158,11,0.1);">⚡</div>
+          <h3>MEV Explained</h3>
+          <p>Understand Maximal Extractable Value, block builder networks, and how it affects L2 sequencing.</p>
+          <div style="color:var(--primary);font-size:13px;font-weight:600;margin-top:8px;">Learn MEV →</div>
+        </a>
+        <a href="index.html" class="card" style="text-decoration:none;">
+          <div class="card-icon" style="background:rgba(34,197,94,0.1);">🏠</div>
+          <h3>DeFi Visualizer</h3>
+          <p>Explore interactive tools, protocol deep dives, and DeFi strategy calculators.</p>
+          <div style="color:var(--primary);font-size:13px;font-weight:600;margin-top:8px;">Go home →</div>
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="glossary.html">Glossary</a>
+      <a href="bridges.html">Bridges</a>
+      <a href="mev.html">MEV</a>
+      <a href="layer2.html">Layer 2</a>
+    </div>
+    <p>DeFi Visualizer — Educational content only. Not financial advice. DYOR.</p>
+  </footer>
+
+  <script>
+    // ── Animate TPS bars on scroll ──────────────────────────
+    const tpsObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          animateBars();
+          tpsObserver.disconnect();
+        }
+      });
+    }, { threshold: 0.3 });
+
+    const feeSection = document.getElementById('fees');
+    if (feeSection) tpsObserver.observe(feeSection);
+
+    function animateBars() {
+      // TPS bars
+      const tpsData = [
+        { id: 'tps-eth', pct: 1 },
+        { id: 'tps-op', pct: 26 },
+        { id: 'tps-arb', pct: 50 },
+        { id: 'tps-base', pct: 33 },
+        { id: 'tps-zk', pct: 66 },
+        { id: 'tps-stark', pct: 100 },
+      ];
+      tpsData.forEach((d, i) => {
+        setTimeout(() => {
+          const el = document.getElementById(d.id);
+          if (el) el.style.width = d.pct + '%';
+        }, i * 120);
+      });
+
+      // Fee bars (normalize: $200 = 100%)
+      const feeData = [
+        { id: 'fee-eth', pct: 100 },
+        { id: 'fee-arb', pct: 0.5 },
+        { id: 'fee-op', pct: 0.55 },
+        { id: 'fee-base', pct: 0.35 },
+        { id: 'fee-zk', pct: 0.7 },
+        { id: 'fee-stark', pct: 0.4 },
+      ];
+      feeData.forEach((d, i) => {
+        setTimeout(() => {
+          const el = document.getElementById(d.id);
+          if (el) el.style.width = d.pct + '%';
+        }, 300 + i * 100);
+      });
+    }
+
+    // ── Animate hero diagram ────────────────────────────────
+    const heroObs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const svg = document.getElementById('hero-diagram');
+          if (svg) {
+            svg.style.opacity = '1';
+            svg.style.transform = 'translateY(0)';
+          }
+          heroObs.disconnect();
+        }
+      });
+    }, { threshold: 0.2 });
+    const heroDiag = document.getElementById('hero-diagram');
+    if (heroDiag) {
+      heroDiag.style.opacity = '0';
+      heroDiag.style.transform = 'translateY(20px)';
+      heroDiag.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
+      heroObs.observe(heroDiag);
+    }
+
+    // ── Compare table row hover ─────────────────────────────
+    document.querySelectorAll('.compare-row').forEach(row => {
+      row.addEventListener('mouseenter', () => {
+        row.style.background = 'rgba(0,255,200,0.04)';
+        row.style.borderRadius = '8px';
+      });
+      row.addEventListener('mouseleave', () => {
+        row.style.background = '';
+        row.style.borderRadius = '';
+      });
+    });
+
+    // ── Project cards hover animation ─────────────────────
+    document.querySelectorAll('.card[id^="card-"]').forEach(card => {
+      card.addEventListener('mouseenter', () => {
+        card.style.borderColor = 'var(--primary)';
+        card.style.transform = 'translateY(-4px)';
+        card.style.boxShadow = '0 12px 32px rgba(0,0,0,0.4)';
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.borderColor = '';
+        card.style.transform = '';
+        card.style.boxShadow = '';
+      });
+    });
+
+    // ── FAQ toggle ─────────────────────────────────────────
+    function toggleFaq(el) {
+      const answer = el.querySelector('.faq-answer');
+      const icon = el.querySelector('.faq-icon');
+      const isOpen = answer.style.display === 'block';
+
+      // Close all
+      document.querySelectorAll('.faq-answer').forEach(a => a.style.display = 'none');
+      document.querySelectorAll('.faq-icon').forEach(i => {
+        i.textContent = '+';
+        i.style.transform = '';
+      });
+
+      if (!isOpen) {
+        answer.style.display = 'block';
+        icon.textContent = '−';
+        icon.style.transform = 'rotate(180deg)';
+      }
+    }
+
+    // ── Scroll-driven reveal for sections ───────────────────
+    const sectionObs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.section').forEach(sec => {
+      sec.style.opacity = '0';
+      sec.style.transform = 'translateY(30px)';
+      sec.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+      sectionObs.observe(sec);
+    });
+
+    // ── Table sort (simple toggle) ──────────────────────────
+    let sortAsc = true;
+    document.querySelectorAll('[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        const rows = Array.from(document.querySelectorAll('#compare-table tbody tr'));
+        sortAsc = !sortAsc;
+        // Re-append sorted
+        rows.sort((a, b) => {
+          const aVal = a.children[0].textContent.trim();
+          const bVal = b.children[0].textContent.trim();
+          return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        });
+        const tbody = document.querySelector('#compare-table tbody');
+        rows.forEach(r => tbody.appendChild(r));
+      });
+    });
+
+    // ── 7-day delay pulse animation ───────────────────────
+    function animateDelayDays() {
+      const days = document.querySelectorAll('.delay-day');
+      if (!days.length) return;
+      let activeIdx = 0;
+      setInterval(() => {
+        days.forEach((d, i) => {
+          if (i === activeIdx) {
+            d.style.background = 'rgba(245,158,11,0.2)';
+            d.style.boxShadow = '0 0 12px rgba(245,158,11,0.4)';
+          } else if (i === 6) {
+            d.style.background = 'rgba(34,197,94,0.15)';
+            d.style.boxShadow = '0 0 12px rgba(34,197,94,0.3)';
+          } else {
+            d.style.background = '';
+            d.style.boxShadow = '';
+          }
+        });
+        activeIdx = (activeIdx + 1) % 6;
+      }, 800);
+    }
+    animateDelayDays();
+  </script>
+</body>
+</html>

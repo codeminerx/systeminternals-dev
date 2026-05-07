@@ -1,0 +1,445 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A deep dive into database sharding—shard keys, consistent hashing, cross-shard queries, resharding, and the production patterns used by Instagram, YouTube, and Shopify to handle billions of rows."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>Database Sharding System Design: How to Scale Beyond a Single Database</title><meta property="og:title" content="Database Sharding System Design: How to Scale Beyond a Single Database"><meta property="og:description" content="A deep dive into database sharding—shard keys, consistent hashing, cross-shard queries, resharding, and the production patterns used by Instagram, YouTube, and Shopify to handle billions of rows."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/database-sharding-system-design"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Database Sharding System Design: How to Scale Beyond a Single Database"><meta name="twitter:description" content="A deep dive into database sharding—shard keys, consistent hashing, cross-shard queries, resharding, and the production patterns used by Instagram, YouTube, and Shopify to handle billions of rows."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/database-sharding-system-design"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">systeminternals.dev</a> <a href="/about">About</a> <a href="/defi/">DeFi</a> <a href="/affiliate">Affiliate</a> <a href="/newsletter">Newsletter</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>Database Sharding System Design: How to Scale Beyond a Single Database</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-07T00:00:00.000Z" data-astro-cid-gjtny2mx>May 6, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>11 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>system-design</span><span class="tag" data-astro-cid-gjtny2mx>distributed-systems</span><span class="tag" data-astro-cid-gjtny2mx>databases</span><span class="tag" data-astro-cid-gjtny2mx>sharding</span><span class="tag" data-astro-cid-gjtny2mx>scalability</span><span class="tag" data-astro-cid-gjtny2mx>mysql</span><span class="tag" data-astro-cid-gjtny2mx>postgresql</span><span class="tag" data-astro-cid-gjtny2mx>mongodb</span><span class="tag" data-astro-cid-gjtny2mx>clickhouse</span><span class="tag" data-astro-cid-gjtny2mx>consistent-hashing</span><span class="tag" data-astro-cid-gjtny2mx>interviews</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>Every large-scale system eventually hits the same wall: one database can’t handle the load. Your users table grows from millions to billions of rows. Your read latency creeps up. Backups take hours. Replication lag spreads. At some point, vertical scaling (bigger server) stops helping—and the only path forward is horizontal scaling: <strong>sharding</strong>.</p>
+<p>This post covers everything about database sharding: when to shard, how to pick a shard key, how consistent hashing solves the redistribution problem, cross-shard query patterns, hot spots, and the nightmare that is resharding in production.</p>
+<databaseshardingvisualizer client:load="">
+<h2 id="the-problem-why-single-databases-hit-limits">The Problem: Why Single Databases Hit Limits</h2>
+<p>A single PostgreSQL or MySQL instance handles roughly:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Metric</th><th>Single DB Limit</th></tr></thead><tbody><tr><td>Storage</td><td>2-4 TB (practical)</td></tr><tr><td>Writes/sec</td><td>10,000-50,000</td></tr><tr><td>Reads/sec</td><td>50,000-100,000</td></tr><tr><td>Connections</td><td>1,000-5,000</td></tr><tr><td>Replication lag</td><td>1ms - 100ms</td></tr></tbody></table>
+<p>Once you exceed these, you have three options:</p>
+<ol>
+<li><strong>Vertical scaling</strong> — bigger machine (expensive, finite)</li>
+<li><strong>Read replicas</strong> — scale reads only, writes still bottleneck</li>
+<li><strong>Sharding</strong> — distribute data across multiple database instances</li>
+</ol>
+<p>Sharding is the only path that scales <em>writes</em> horizontally. It also scales storage linearly: 10 shards × 2TB each = 20TB total.</p>
+<h2 id="sharding-vs-partitioning-not-the-same-thing">Sharding vs Partitioning: Not the Same Thing</h2>
+<p><strong>Partitioning</strong> splits a table’s data <em>within a single database instance</em>:</p>
+<ul>
+<li>PostgreSQL: <code>PARTITION BY RANGE (created_at)</code></li>
+<li>MySQL: <code>PARTITION BY LIST</code></li>
+<li>Oracle: <code>PARTITION BY HASH</code></li>
+</ul>
+<p>Partitions live on the same server. Sharding splits data across <em>different servers</em> (nodes). The key distinction: sharding requires the application layer to know which shard to query.</p>
+<h2 id="shard-key-selection-the-most-important-decision">Shard Key Selection: The Most Important Decision</h2>
+<p>The <strong>shard key</strong> is the column (or expression) that determines which shard owns a row. Pick wrong, and you create hot spots. Pick right, and queries are fast and balanced.</p>
+<h3 id="hash-based-sharding">Hash-Based Sharding</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> shard_id</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> num_shards</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> user_id </span><span style="color:#89DDFF">%</span><span style="color:#A9B1D6"> num_shards</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 4 shards: user_id=100 → shard 0 (100 % 4 = 0)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># 4 shards: user_id=101 → shard 1 (101 % 4 = 1)</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Pros</strong>: Evenly distributes data, simple to implement
+<strong>Cons</strong>: Range queries scatter across shards (no locality), adding shards requires full data migration</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Application routes to shard based on hash</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> orders </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> user_id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 10085</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- App computes: 10085 % 4 = 1 → queries shard_1 only</span></span>
+<span class="line"></span></code></pre>
+<h3 id="range-based-sharding">Range-Based Sharding</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> shard_id</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> user_id </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 1_000_000</span><span style="color:#89DDFF">:</span><span style="color:#BB9AF7"> return</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">shard_0</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#BB9AF7">    if</span><span style="color:#A9B1D6"> user_id </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#FF9E64"> 2_000_000</span><span style="color:#89DDFF">:</span><span style="color:#BB9AF7"> return</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">shard_1</span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">shard_2</span><span style="color:#89DDFF">"</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Pros</strong>: Range queries are local (users 1-1M are on the same shard), easy to understand
+<strong>Cons</strong>: Hot spots if new users cluster in one range (e.g., always growing at the “latest” shard)</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- All recent orders for shard_0 users → local JOIN</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> orders </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> user_id </span><span style="color:#89DDFF">BETWEEN</span><span style="color:#FF9E64"> 1</span><span style="color:#7DCFFF"> AND</span><span style="color:#FF9E64"> 1000000</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<h3 id="geographic-sharding">Geographic Sharding</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> shard_id</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">region</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#BB9AF7"> f</span><span style="color:#9ECE6A">"shard_</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">region</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#51597D;font-style:italic">  # us-east, eu-west, asia-pacific</span></span>
+<span class="line"></span></code></pre>
+<p>Used when data sovereignty matters (GDPR) or you want low-latency reads for regional users.</p>
+<h2 id="consistent-hashing-solving-the-resharding-problem">Consistent Hashing: Solving the Resharding Problem</h2>
+<p>The problem with <code>hash(key) % N</code>: when you add a shard, every key remaps. That means migrating terabytes of data.</p>
+<p><strong>Consistent hashing</strong> minimizes remapping on scale events:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>                         ┌─────────┐</span></span>
+<span class="line"><span>                    ┌───►│ Shard 0│ (responsible for 0-90°)</span></span>
+<span class="line"><span>                    │    └─────────┘</span></span>
+<span class="line"><span>                    │</span></span>
+<span class="line"><span>Hash Ring ──────────┼───►│ Shard 1│ (responsible for 90-210°)</span></span>
+<span class="line"><span>(0-360°)            │    └─────────┘</span></span>
+<span class="line"><span>                    │</span></span>
+<span class="line"><span>                    └───►│ Shard 2│ (responsible for 210-360°)</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Adding Shard 3 only remaps 1/4 of keys (90° arc) instead of all keys</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="virtual-nodes-solving-uneven-distribution">Virtual Nodes: Solving Uneven Distribution</h3>
+<p>With 3 physical shards, each covers 120°. But data isn’t perfectly uniform. <strong>Virtual nodes</strong> assign each physical shard multiple positions on the ring:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># 3 physical shards × 150 virtual nodes each = 450 positions</span></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> virtual_node</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> shard_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> vnode_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> float</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#A9B1D6">    hash_val </span><span style="color:#89DDFF">=</span><span style="color:#0DB9D7"> hash</span><span style="color:#9ABDF5">(</span><span style="color:#BB9AF7">f</span><span style="color:#9ECE6A">"</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">key</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:shard_</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">shard_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">:vnode_</span><span style="color:#BB9AF7">{</span><span style="color:#C0CAF5">vnode_id</span><span style="color:#BB9AF7">}</span><span style="color:#9ECE6A">"</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#A9B1D6"> hash_val </span><span style="color:#89DDFF">/</span><span style="color:#89DDFF"> (</span><span style="color:#FF9E64">2</span><span style="color:#89DDFF">**</span><span style="color:#FF9E64">64</span><span style="color:#89DDFF">)</span><span style="color:#51597D;font-style:italic">  # 0.0 to 1.0</span></span>
+<span class="line"></span></code></pre>
+<p>This smooths load distribution to within 5-10% even with small shard counts.</p>
+<h2 id="query-routing-how-the-app-finds-the-right-shard">Query Routing: How the App Finds the Right Shard</h2>
+<p>The application layer must route queries. There are three approaches:</p>
+<h3 id="1-application-layer-routing">1. Application-Layer Routing</h3>
+<p>Your app code knows the shard map and routes directly:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">class</span><span style="color:#C0CAF5"> ShardRouter</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#0DB9D7"> __init__</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> shards</span><span style="color:#89DDFF">:</span><span style="color:#A9B1D6"> list</span><span style="color:#9ABDF5">[</span><span style="color:#0DB9D7">str</span><span style="color:#9ABDF5">]):</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">shards </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> shards</span></span>
+<span class="line"><span style="color:#F7768E">        self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">ring </span><span style="color:#89DDFF">=</span><span style="color:#7AA2F7"> ConsistentHashRing</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">shards</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> vnodes</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">150</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> get_shard</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> key</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">ring</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get_node</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">key</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#BB9AF7">    def</span><span style="color:#7AA2F7"> query_user</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">self</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> user_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#A9B1D6"> User</span><span style="color:#9ABDF5">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        shard </span><span style="color:#89DDFF">=</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get_shard</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">user_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">        return</span><span style="color:#F7768E"> self</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">shard_connections</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">shard</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span></span>
+<span class="line"><span style="color:#89DDFF">            "</span><span style="color:#9ECE6A">SELECT * FROM users WHERE id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> user_id</span></span>
+<span class="line"><span style="color:#9ABDF5">        )</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Usage: router.query_user(10085)</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Routes to: shard_1 (hash ring lookup)</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Pros</strong>: No proxy overhead, full control
+<strong>Cons</strong>: Shard topology is baked into app code, complex migrations</p>
+<h3 id="2-proxy-layer-mysql-proxy-proxysql-vitess">2. Proxy Layer (MySQL Proxy, ProxySQL, Vitess)</h3>
+<p>A proxy sits between app and shards, routing SQL:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>App → ProxySQL → Shard_0 (range: users 1-2M)</span></span>
+<span class="line"><span>App → ProxySQL → Shard_1 (range: users 2M-4M)</span></span>
+<span class="line"><span>App → ProxySQL → Shard_2 (range: users 4M-6M)</span></span>
+<span class="line"><span></span></span></code></pre>
+<p>The app sends vanilla SQL to the proxy. The proxy parses it, extracts the shard key, and routes accordingly.</p>
+<p><strong>Pros</strong>: App stays database-agnostic, centralized routing logic
+<strong>Cons</strong>: Extra hop (proxy can be single point of contention), latency overhead</p>
+<h3 id="3-co-located-data-denormalization">3. Co-Located Data (Denormalization)</h3>
+<p>Instead of JOINs across shards, <strong>denormalize</strong> and keep related data on the same shard:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Instead of separate users and orders tables (cross-shard JOIN):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Denormalize: embed order_summary in users shard</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#89DDFF">CREATE</span><span style="color:#89DDFF"> TABLE</span><span style="color:#7AA2F7"> user_orders</span><span style="color:#A9B1D6"> (</span></span>
+<span class="line"><span style="color:#A9B1D6">    user_id </span><span style="color:#BB9AF7">INT</span><span style="color:#A9B1D6">,           </span><span style="color:#51597D;font-style:italic">-- shard key (co-located with users)</span></span>
+<span class="line"><span style="color:#A9B1D6">    order_id </span><span style="color:#BB9AF7">INT</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#A9B1D6">    total_cents </span><span style="color:#BB9AF7">BIGINT</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#A9B1D6">    created_at </span><span style="color:#BB9AF7">TIMESTAMP</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#9D7CD8;font-style:italic">    PRIMARY KEY</span><span style="color:#A9B1D6"> (user_id, order_id)  </span><span style="color:#51597D;font-style:italic">-- composite key, both on same shard</span></span>
+<span class="line"><span style="color:#A9B1D6">);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Now reads are local: no cross-shard JOIN needed</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> user_orders </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> user_id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 10085</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p>This is the approach Instagram used for their early sharding. It trades write complexity for read efficiency.</p>
+<h2 id="cross-shard-operations-the-hard-parts">Cross-Shard Operations: The Hard Parts</h2>
+<h3 id="cross-shard-joins">Cross-Shard JOINs</h3>
+<p>The classic JOIN problem: <code>SELECT * FROM orders JOIN users ON orders.user_id = users.id WHERE users.region = 'EU'</code></p>
+<p>If orders and users are sharded differently (orders by <code>user_id</code>, users by <code>region</code>), this query touches every shard:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Scatter-gather: query all shards, merge results</span></span>
+<span class="line"><span style="color:#BB9AF7">def</span><span style="color:#7AA2F7"> cross_shard_query</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">region</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> str</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF"> -></span><span style="color:#A9B1D6"> list</span><span style="color:#9ABDF5">[</span><span style="color:#A9B1D6">Order</span><span style="color:#9ABDF5">]:</span></span>
+<span class="line"><span style="color:#A9B1D6">    futures </span><span style="color:#89DDFF">=</span><span style="color:#89DDFF"> []</span></span>
+<span class="line"><span style="color:#BB9AF7">    for</span><span style="color:#A9B1D6"> shard </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> all_shards</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        futures</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">append</span><span style="color:#9ABDF5">(</span></span>
+<span class="line"><span style="color:#C0CAF5">            asyncio</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">to_thread</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">shard</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">query</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#89DDFF">                "</span><span style="color:#9ECE6A">SELECT o.* FROM orders o JOIN users u ON o.user_id = u.id </span><span style="color:#89DDFF">"</span></span>
+<span class="line"><span style="color:#89DDFF">                "</span><span style="color:#9ECE6A">WHERE u.region = %s AND u.shard_id = %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> region</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> shard</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">id</span></span>
+<span class="line"><span style="color:#9ABDF5">            )</span></span>
+<span class="line"><span style="color:#9ABDF5">        )</span></span>
+<span class="line"><span style="color:#A9B1D6">    results </span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7"> await</span><span style="color:#A9B1D6"> asyncio</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">gather</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">*</span><span style="color:#C0CAF5">futures</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#BB9AF7">    return</span><span style="color:#0DB9D7"> sorted</span><span style="color:#9ABDF5">(</span></span>
+<span class="line"><span style="color:#7AA2F7">        merge_results</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">*</span><span style="color:#C0CAF5">results</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#E0AF68">        key</span><span style="color:#89DDFF">=</span><span style="color:#BB9AF7">lambda</span><span style="color:#E0AF68"> r</span><span style="color:#9ABDF5">:</span><span style="color:#C0CAF5"> r</span><span style="color:#89DDFF">.</span><span style="color:#C0CAF5">created_at</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> reverse</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">True</span></span>
+<span class="line"><span style="color:#9ABDF5">    )</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Rule of thumb</strong>: Keep tables that JOIN frequently on the same shard key.</p>
+<h3 id="distributed-transactions">Distributed Transactions</h3>
+<p>Sharding breaks ACID transactions that span shards. Solutions:</p>
+<p><strong>1. Two-Phase Commit (2PC)</strong>:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> transfer_funds</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">from_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> to_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> amount</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Phase 1: Prepare (get locks on both shards)</span></span>
+<span class="line"><span style="color:#A9B1D6">    shard_from </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> router</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get_shard</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">from_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    shard_to </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> router</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">get_shard</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">to_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">    coordinator</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">begin</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#A9B1D6">    coordinator</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">prepare</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">shard_from</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">UPDATE accounts SET balance -= %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> amount</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#A9B1D6">    coordinator</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">prepare</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">shard_to</span><span style="color:#89DDFF">,</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">UPDATE accounts SET balance += %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> amount</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Phase 2: Commit (if all prepared)</span></span>
+<span class="line"><span style="color:#BB9AF7">    try</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        coordinator</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">commit</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#BB9AF7">    except</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        coordinator</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">rollback</span><span style="color:#9ABDF5">()</span><span style="color:#51597D;font-style:italic">  # All-or-nothing</span></span>
+<span class="line"><span style="color:#BB9AF7">        raise</span></span>
+<span class="line"></span></code></pre>
+<p><strong>2. Saga Pattern</strong> (eventual consistency):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> transfer_funds_saga</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">from_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> to_id</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> amount</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">    # Compensating transactions instead of ACID</span></span>
+<span class="line"><span style="color:#BB9AF7">    try</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        await</span><span style="color:#7AA2F7"> debit_account</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">from_id</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> amount</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">          # Step 1</span></span>
+<span class="line"><span style="color:#BB9AF7">        await</span><span style="color:#7AA2F7"> credit_account</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">to_id</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> amount</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">            # Step 2</span></span>
+<span class="line"><span style="color:#BB9AF7">        await</span><span style="color:#7AA2F7"> record_transfer</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">from_id</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> to_id</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> amount</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">  # Step 3</span></span>
+<span class="line"><span style="color:#BB9AF7">    except</span><span style="color:#A9B1D6"> CreditFailed</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">        await</span><span style="color:#7AA2F7"> credit_back_account</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">from_id</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> amount</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">    # Compensate step 1</span></span>
+<span class="line"><span style="color:#BB9AF7">        raise</span></span>
+<span class="line"></span></code></pre>
+<p><strong>3. Outbox Pattern</strong> (for write-heavy workloads):</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Write to local outbox table first (transactional)</span></span>
+<span class="line"><span style="color:#7DCFFF">INSERT INTO</span><span style="color:#A9B1D6"> transfers_outbox (from_id, to_id, amount, </span><span style="color:#89DDFF">status</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#7DCFFF">VALUES</span><span style="color:#A9B1D6"> (</span><span style="color:#FF9E64">1</span><span style="color:#A9B1D6">, </span><span style="color:#FF9E64">2</span><span style="color:#A9B1D6">, </span><span style="color:#FF9E64">100</span><span style="color:#A9B1D6">, </span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">pending</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Background relay reads outbox and applies to other shard</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Relay is idempotent: can run multiple times safely</span></span>
+<span class="line"></span></code></pre>
+<h2 id="hot-spots-when-one-shard-gets-clobbered">Hot Spots: When One Shard Gets Clobbered</h2>
+<p>Hot spots happen when your shard key creates uneven distribution:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Hot Spot Cause</th><th>Example</th><th>Solution</th></tr></thead><tbody><tr><td>Time-based keys</td><td>All writes hit current shard</td><td>Add random suffix, use hash key</td></tr><tr><td>Celebrity accounts</td><td>Influencer with 10M followers</td><td>Reverse denormalization, read replicas</td></tr><tr><td>Viral content</td><td>Trending post gets 1M reads/sec</td><td>Read replicas, edge caching</td></tr><tr><td>Monotonic keys</td><td>Always-growing ID ranges</td><td>Hash-based sharding instead of range</td></tr></tbody></table>
+<h3 id="reverse-index-table-fixing-the-celebrity-problem">Reverse Index Table: Fixing the Celebrity Problem</h3>
+<p>For the “user with 10M followers” problem:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Instead of sharding followers by user_id (celebrity on one shard):</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Create a reverse index: shard by follower_id</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF9E64">CREATE</span><span style="color:#FF9E64"> TABLE</span><span style="color:#7AA2F7"> follower_reverse </span><span style="color:#9ABDF5">(</span></span>
+<span class="line"><span style="color:#C0CAF5">    follower_id </span><span style="color:#FF9E64">BIGINT</span><span style="color:#89DDFF">,</span><span style="color:#FF5370">      --</span><span style="color:#C0CAF5"> shard key</span><span style="color:#89DDFF">:</span><span style="color:#C0CAF5"> the person following</span></span>
+<span class="line"><span style="color:#C0CAF5">    following_id </span><span style="color:#FF9E64">BIGINT</span><span style="color:#89DDFF">,</span><span style="color:#FF5370">     --</span><span style="color:#C0CAF5"> who they</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">re following</span></span>
+<span class="line"><span style="color:#C0CAF5">    created_at </span><span style="color:#FF9E64">TIMESTAMP</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#FF9E64">    PRIMARY</span><span style="color:#7AA2F7"> KEY </span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">follower_id</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> following_id</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"><span style="color:#9ABDF5">)</span><span style="color:#BB9AF7">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF5370">--</span><span style="color:#A9B1D6"> Reading </span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">who follows user 12345?</span><span style="color:#89DDFF">"</span><span style="color:#A9B1D6"> → scatter</span><span style="color:#89DDFF">-</span><span style="color:#A9B1D6">gather across </span><span style="color:#0DB9D7">all</span><span style="color:#A9B1D6"> shards</span></span>
+<span class="line"><span style="color:#FF5370">--</span><span style="color:#A9B1D6"> Reading </span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">who does user 999 follow?</span><span style="color:#89DDFF">"</span><span style="color:#A9B1D6"> → single </span><span style="color:#7AA2F7">shard </span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">follower_id</span><span style="color:#89DDFF"> =</span><span style="color:#FF9E64"> 999</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span></code></pre>
+<h2 id="resharding-the-nightmare">Resharding: The Nightmare</h2>
+<p>The hardest part of sharding isn’t getting there—it’s <em>changing</em> the shard count later.</p>
+<h3 id="why-its-hard">Why It’s Hard</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>Old: hash(user_id) % 4 shards = 0, 1, 2, 3</span></span>
+<span class="line"><span>New: hash(user_id) % 8 shards = 0-7</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>hash(user_id=5) % 4 = 1 → currently on shard_1</span></span>
+<span class="line"><span>hash(user_id=5) % 8 = 5 → should be on shard_5</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Every. Single. Key. Remaps.</span></span>
+<span class="line"><span></span></span></code></pre>
+<h3 id="strategy-online-resharding-with-dual-write">Strategy: Online Resharding with Dual-Write</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="python"><code><span class="line"><span style="color:#51597D;font-style:italic"># Phase 1: Backfill new shard from source of truth</span></span>
+<span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> backfill_shard</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">shard_from</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> shard_to</span><span style="color:#89DDFF">:</span><span style="color:#0DB9D7"> int</span><span style="color:#89DDFF">,</span><span style="color:#E0AF68"> batch_size</span><span style="color:#89DDFF">=</span><span style="color:#FF9E64">1000</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#A9B1D6">    cursor </span><span style="color:#89DDFF">=</span><span style="color:#FF9E64"> None</span></span>
+<span class="line"><span style="color:#BB9AF7">    while</span><span style="color:#FF9E64"> True</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">        rows </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> db</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">query</span><span style="color:#9ABDF5">(</span></span>
+<span class="line"><span style="color:#89DDFF">            "</span><span style="color:#9ECE6A">SELECT * FROM users WHERE id > %s ORDER BY id LIMIT %s</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span></span>
+<span class="line"><span style="color:#C0CAF5">            cursor</span><span style="color:#89DDFF">,</span><span style="color:#C0CAF5"> batch_size</span></span>
+<span class="line"><span style="color:#9ABDF5">        )</span></span>
+<span class="line"><span style="color:#BB9AF7">        if</span><span style="color:#BB9AF7"> not</span><span style="color:#A9B1D6"> rows</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#BB9AF7">            break</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">        # Write to new shard</span></span>
+<span class="line"><span style="color:#BB9AF7">        for</span><span style="color:#A9B1D6"> row </span><span style="color:#BB9AF7">in</span><span style="color:#A9B1D6"> rows</span><span style="color:#89DDFF">:</span></span>
+<span class="line"><span style="color:#A9B1D6">            new_shard</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">insert</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">row</span><span style="color:#9ABDF5">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#A9B1D6">        cursor </span><span style="color:#89DDFF">=</span><span style="color:#A9B1D6"> rows</span><span style="color:#9ABDF5">[</span><span style="color:#89DDFF">-</span><span style="color:#FF9E64">1</span><span style="color:#9ABDF5">]</span><span style="color:#89DDFF">.</span><span style="color:#A9B1D6">id</span></span>
+<span class="line"><span style="color:#BB9AF7">        await</span><span style="color:#A9B1D6"> asyncio</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">sleep</span><span style="color:#9ABDF5">(</span><span style="color:#FF9E64">0.1</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">  # Rate limit to avoid impacting production</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Phase 2: Dual-write during migration window</span></span>
+<span class="line"><span style="color:#BB9AF7">async</span><span style="color:#BB9AF7"> def</span><span style="color:#7AA2F7"> dual_write</span><span style="color:#9ABDF5">(</span><span style="color:#E0AF68">user</span><span style="color:#9ABDF5">):</span></span>
+<span class="line"><span style="color:#BB9AF7">    await</span><span style="color:#A9B1D6"> old_shard</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">insert</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">user</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">   # Keep old shard writable</span></span>
+<span class="line"><span style="color:#BB9AF7">    await</span><span style="color:#A9B1D6"> new_shard</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">insert</span><span style="color:#9ABDF5">(</span><span style="color:#C0CAF5">user</span><span style="color:#9ABDF5">)</span><span style="color:#51597D;font-style:italic">   # Write to new shard too</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Phase 3: Cutover when backfill is complete</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Switch reads to new shard, keep old shard as backup</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic"># Phase 4: Decommission old shard</span></span>
+<span class="line"></span></code></pre>
+<p>Tools like <strong>Vitess</strong> (YouTube’s MySQL sharding layer) and <strong>Citus</strong> (PostgreSQL extension) automate this with built-in resharding.</p>
+<h2 id="sharding-in-clickhouse-distributed-tables">Sharding in ClickHouse: Distributed Tables</h2>
+<p>ClickHouse is unique—it <em>is</em> a distributed database by default. Sharding is built in:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Create a distributed table that spans 3 shards</span></span>
+<span class="line"><span style="color:#89DDFF">CREATE</span><span style="color:#89DDFF"> TABLE</span><span style="color:#7AA2F7"> events_distributed</span></span>
+<span class="line"><span style="color:#A9B1D6">ENGINE </span><span style="color:#BB9AF7">=</span><span style="color:#89DDFF"> Distributed</span><span style="color:#A9B1D6">(</span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">cluster_name</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">, </span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">default</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">, </span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">events_local</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">, </span><span style="color:#0DB9D7">rand</span><span style="color:#A9B1D6">())</span></span>
+<span class="line"><span style="color:#89DDFF">AS</span><span style="color:#7DCFFF"> SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events_local;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Shard key on the local table</span></span>
+<span class="line"><span style="color:#89DDFF">CREATE</span><span style="color:#89DDFF"> TABLE</span><span style="color:#7AA2F7"> events_local</span><span style="color:#A9B1D6"> (</span></span>
+<span class="line"><span style="color:#A9B1D6">    event_id UUID,</span></span>
+<span class="line"><span style="color:#A9B1D6">    user_id  UInt64,</span></span>
+<span class="line"><span style="color:#A9B1D6">    event_type String,</span></span>
+<span class="line"><span style="color:#A9B1D6">    created_at </span><span style="color:#89DDFF">DateTime</span></span>
+<span class="line"><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#A9B1D6">ENGINE </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> MergeTree</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#7DCFFF">ORDER BY</span><span style="color:#A9B1D6"> (user_id, event_type);  </span><span style="color:#51597D;font-style:italic">-- Sort key: co-locates related events</span></span>
+<span class="line"></span></code></pre>
+<p>ClickHouse’s <strong>local tables</strong> are the shards. The <strong>Distributed</strong> engine acts as both router and aggregator—scattering queries and gathering results.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- ClickHouse scatter-gather aggregation (parallel on all shards)</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> user_id, </span><span style="color:#0DB9D7">count</span><span style="color:#A9B1D6">() </span><span style="color:#89DDFF">as</span><span style="color:#A9B1D6"> event_count</span></span>
+<span class="line"><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events_distributed</span></span>
+<span class="line"><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> event_type </span><span style="color:#BB9AF7">=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">purchase</span><span style="color:#89DDFF">'</span></span>
+<span class="line"><span style="color:#7DCFFF">GROUP BY</span><span style="color:#A9B1D6"> user_id</span></span>
+<span class="line"><span style="color:#7DCFFF">ORDER BY</span><span style="color:#A9B1D6"> event_count </span><span style="color:#89DDFF">DESC</span></span>
+<span class="line"><span style="color:#7DCFFF">LIMIT</span><span style="color:#FF9E64"> 10</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Each shard computes its top-10 locally</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Coordinator merges and returns global top-10</span></span>
+<span class="line"></span></code></pre>
+<h2 id="implementation-strategies-by-database">Implementation Strategies by Database</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Database</th><th>Sharding Approach</th></tr></thead><tbody><tr><td><strong>MySQL</strong></td><td>Vitess (YouTube), ProxySQL, or app-layer hash</td></tr><tr><td><strong>PostgreSQL</strong></td><td>Citus extension, or app-layer sharding</td></tr><tr><td><strong>MongoDB</strong></td><td>Native sharding via <code>shardCollection()</code></td></tr><tr><td><strong>ClickHouse</strong></td><td>Native distributed tables + MergeTree</td></tr><tr><td><strong>CockroachDB</strong></td><td>Automatic range-based sharding (like Spanner)</td></tr><tr><td><strong>TiDB</strong></td><td>TiKV based, automatic sharding</td></tr></tbody></table>
+<h3 id="mongodb-sharding-setup">MongoDB Sharding Setup</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="javascript"><code><span class="line"><span style="color:#51597D;font-style:italic">// Add shards to cluster</span></span>
+<span class="line"><span style="color:#C0CAF5">sh</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">addShard</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">shard_0/localhost:27017</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">sh</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">addShard</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">shard_1/localhost:27018</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"><span style="color:#C0CAF5">sh</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">addShard</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">shard_2/localhost:27019</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">// Enable sharding on database</span></span>
+<span class="line"><span style="color:#C0CAF5">sh</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">enableSharding</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">myapp</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5">)</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">// Shard collection by user_id (hashed for even distribution)</span></span>
+<span class="line"><span style="color:#C0CAF5">sh</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">shardCollection</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">myapp.orders</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#9ABDF5"> {</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">user_id</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">hashed</span><span style="color:#89DDFF">"</span><span style="color:#9ABDF5"> })</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">// Or by range (for time-series)</span></span>
+<span class="line"><span style="color:#C0CAF5">sh</span><span style="color:#89DDFF">.</span><span style="color:#7AA2F7">shardCollection</span><span style="color:#9ABDF5">(</span><span style="color:#89DDFF">"</span><span style="color:#9ECE6A">myapp.events</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">,</span><span style="color:#9ABDF5"> {</span><span style="color:#89DDFF"> "</span><span style="color:#9ECE6A">created_at</span><span style="color:#89DDFF">"</span><span style="color:#89DDFF">:</span><span style="color:#FF9E64"> 1</span><span style="color:#9ABDF5"> })</span><span style="color:#89DDFF">;</span></span>
+<span class="line"></span></code></pre>
+<h2 id="production-patterns-from-instagram-youtube-shopify">Production Patterns from Instagram, YouTube, Shopify</h2>
+<p><strong>Instagram</strong> (sharded by <code>user_id</code>):</p>
+<ul>
+<li>All data for a user lives on the same shard (denormalization)</li>
+<li><code>user_id</code> = <code>shard_id &#x3C;&#x3C; 32 | photo_id</code> (co-locates related content)</li>
+<li>Cross-shard queries are batched + async</li>
+</ul>
+<p><strong>YouTube</strong> (Vitess):</p>
+<ul>
+<li>Vitess proxy handles all sharding transparently</li>
+<li>Added shards without rewriting a single app query</li>
+<li>Supports both hash and range sharding</li>
+</ul>
+<p><strong>Shopify</strong> (sharded by <code>shop_id</code>):</p>
+<ul>
+<li>Each Shopify store is a “shop” with its own <code>shop_id</code></li>
+<li>All store data (products, orders, customers) co-located by <code>shop_id</code></li>
+<li>Resharding done via dual-write migration with automated cutover</li>
+</ul>
+<h2 id="when-not-to-shard">When NOT to Shard</h2>
+<p>Sharding adds immense complexity. Before sharding:</p>
+<ul class="contains-task-list">
+<li class="task-list-item"><input type="checkbox" disabled> Can I use read replicas to scale reads?</li>
+<li class="task-list-item"><input type="checkbox" disabled> Can I add caching (Redis) to reduce DB load?</li>
+<li class="task-list-item"><input type="checkbox" disabled> Can I upgrade to a bigger machine (r6i.8xlarge = 256GB RAM)?</li>
+<li class="task-list-item"><input type="checkbox" disabled> Can I optimize slow queries (missing indexes, N+1)?</li>
+<li class="task-list-item"><input type="checkbox" disabled> Can I archive old data to reduce table size?</li>
+</ul>
+<p>Sharding should be your <em>last</em> resort, not your first. Most “scale problems” are actually “index problems” or “cache problems” in disguise.</p>
+<h2 id="summary">Summary</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Decision</th><th>Recommendation</th></tr></thead><tbody><tr><td>Shard key</td><td>Hash-based if unsure; range if you do heavy sequential reads</td></tr><tr><td>Number of shards</td><td>Start with 4-8; add shards proactively before you hit 80% disk</td></tr><tr><td>Hot spots</td><td>Mitigate with read replicas + caching before resharding</td></tr><tr><td>Cross-shard JOINs</td><td>Denormalize to keep related data co-located</td></tr><tr><td>Resharding</td><td>Use consistent hashing from day one; avoid modulo-based routing</td></tr><tr><td>Tooling</td><td>Vitess (MySQL), Citus (PostgreSQL), MongoDB native sharding</td></tr></tbody></table>
+<p>Sharding is a one-way door. Design your shard key carefully, leave room for growth in your initial shard count, and make sure your application can tolerate the eventual consistency that sharding introduces.</p></databaseshardingvisualizer>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/distributed-cache-system-design" data-astro-cid-gjtny2mx>Distributed Cache System Design: Building a Memory Layer for High-Traffic Applications</a> <p data-astro-cid-gjtny2mx>Design distributed caches from LRU eviction to consistent hashing rings. Cover Redis, Memcached, cache-aside, write-through, thundering herd, and the architecture that keeps services fast at scale.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/chat-messaging-system-design" data-astro-cid-gjtny2mx>Chat System Design: How to Build a WhatsApp-Scale Messaging System</a> <p data-astro-cid-gjtny2mx>Design a real-time chat system like WhatsApp from first principles. Cover WebSockets, message storage with Cassandra, fan-out patterns, online/offline presence, and the architecture decisions that scale to billions of messages per day.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/rate-limiter-system-design" data-astro-cid-gjtny2mx>Rate Limiter System Design: How to Build a Distributed Defense Against API Abuse</a> <p data-astro-cid-gjtny2mx>Design a rate limiter from token buckets to distributed Redis clusters. Cover the algorithms, architecture, and trade-offs that protect APIs at scale from abuse and cost overruns.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Database Sharding System Design: How to Scale Beyond a Single Database","description":"A deep dive into database sharding—shard keys, consistent hashing, cross-shard queries, resharding, and the production patterns used by Instagram, YouTube, and Shopify to handle billions of rows.","datePublished":"2026-05-07T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/database-sharding-system-design"},"keywords":"system-design, distributed-systems, databases, sharding, scalability, mysql, postgresql, mongodb, clickhouse, consistent-hashing, interviews","articleSection":"system-design","about":[{"@type":"Thing","name":"system-design"},{"@type":"Thing","name":"distributed-systems"},{"@type":"Thing","name":"databases"},{"@type":"Thing","name":"sharding"},{"@type":"Thing","name":"scalability"},{"@type":"Thing","name":"mysql"},{"@type":"Thing","name":"postgresql"},{"@type":"Thing","name":"mongodb"},{"@type":"Thing","name":"clickhouse"},{"@type":"Thing","name":"consistent-hashing"},{"@type":"Thing","name":"interviews"}]}</script> 

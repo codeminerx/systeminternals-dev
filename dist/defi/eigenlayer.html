@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EigenLayer — Restaking Revolution | DeFi Visualizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "What is EigenLayer and how does restaking work?", "acceptedAnswer": {"@type": "Answer", "text": "EigenLayer is a restaking protocol that allows ETH stakers (via Liquid Staking Tokens like stETH, rETH, or cbETH) to opt into securing additional protocols by re-staking their collateral. Validators can now earn extra yield by validating for Actively Validated Services (AVSs) beyond just Ethereum consensus."}},
+      {"@type": "Question", "name": "What is the slashing risk in EigenLayer?", "acceptedAnswer": {"@type": "Answer", "text": "Unlike solo staking where slashing is rare, restaked assets in EigenLayer can be slashed for faults in any AVS you opt into validating. Risk varies by AVS: Ethereum consensus itself is extremely low risk (~1 in 1000 years for an average validator), while novel AVSs with unproven security models carry higher slashing risk. Users should carefully evaluate AVS risk before opting in."}},
+      {"@type": "Question", "name": "What are the main AVSs on EigenLayer?", "acceptedAnswer": {"@type": "Answer", "text": "Key AVSs include: EigenDA (data availability layer, live), Hyperlane (cross-chain messaging), Celo's proof-of-stake, Nouns DAO, and LayerZero. More AVSs are launching including intent-based networks, oracle services, and settlement layers. The EigenLayer team also unbundled ETH staking into separate modules."}},
+      {"@type": "Question", "name": "How does delegation work in EigenLayer?", "acceptedAnswer": {"@type": "Answer", "text": "Non-operator ETH holders can delegate to EigenLayer operators who manage the validation work. Operators run the actual AVS validation infrastructure while delegators put up the capital at stake. Rewards are split between operators (who take a commission) and delegators. This lets retail stakers earn restaking yields without running their own nodes."}},
+      {"@type": "Question", "name": "What is the difference between native staking and restaking in EigenLayer?", "acceptedAnswer": {"@type": "Answer", "text": "Native restaking requires running a full validator and depositing 32 ETH directly. Liquid restaking uses LSTs (Liquid Staking Tokens) like stETH or rETH, making it accessible to anyone with any amount of ETH. The tradeoff is that native restakers have more control over their keys and potentially lower counterparty risk."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+  <style>
+    /* ─── Hero ─── */
+    .hero-eigen {
+      padding: 80px 0 40px;
+      text-align: center;
+    }
+    .hero-eigen .protocol-icon {
+      width: 80px; height: 80px;
+      background: rgba(0,255,200,0.08);
+      border: 2px solid rgba(0,255,200,0.3);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px;
+      margin: 0 auto 24px;
+      animation: borderGlow 3s ease-in-out infinite;
+    }
+    .hero-eigen h1 {
+      font-size: 52px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      margin-bottom: 12px;
+    }
+    .hero-eigen .tagline {
+      font-size: 18px;
+      color: var(--muted);
+      margin-bottom: 36px;
+    }
+    @keyframes borderGlow {
+      0%, 100% { border-color: rgba(0,255,200,0.3); box-shadow: 0 0 20px rgba(0,255,200,0.05); }
+      50% { border-color: rgba(0,255,200,0.7); box-shadow: 0 0 40px rgba(0,255,200,0.15); }
+    }
+
+    /* ─── Restaking Flow Diagram ─── */
+    .restake-flow {
+      padding: 60px 0;
+    }
+    .restake-flow-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      overflow-x: auto;
+    }
+    .restake-row {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; flex-wrap: nowrap; min-width: 800px;
+    }
+    .restake-step {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 10px; padding: 0 8px;
+    }
+    .restake-box {
+      background: var(--surface-2);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 22px;
+      text-align: center;
+      min-width: 150px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .restake-box:hover { border-color: var(--primary); box-shadow: 0 0 20px rgba(0,255,200,0.15); }
+    .restake-box.eigenpod { border-color: rgba(168,85,247,0.5); }
+    .restake-box.eigenpod:hover { border-color: var(--secondary); box-shadow: 0 0 20px rgba(168,85,247,0.2); }
+    .restake-box.avs { border-color: rgba(245,158,11,0.4); }
+    .restake-box.avs:hover { border-color: var(--accent); box-shadow: 0 0 20px rgba(245,158,11,0.15); }
+    .restake-box .rb-icon { font-size: 28px; margin-bottom: 6px; }
+    .restake-box .rb-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .restake-box .rb-value { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--text); }
+    .restake-arrow-wrap {
+      display: flex; align-items: center; padding: 0 4px;
+    }
+    .restake-arrow-wrap svg { overflow: visible; }
+    .restake-path {
+      stroke: var(--primary);
+      stroke-width: 2;
+      fill: none;
+      stroke-dasharray: 8 4;
+      animation: flowDash 1.5s linear infinite;
+    }
+    .restake-path.delegation {
+      stroke: var(--secondary);
+      stroke-dasharray: 6 4;
+      animation-duration: 2s;
+    }
+    .restake-path.avs-path {
+      stroke: var(--accent);
+      stroke-dasharray: 6 4;
+      animation-duration: 1.8s;
+    }
+    @keyframes flowDash {
+      to { stroke-dashoffset: -24; }
+    }
+    .restake-legend {
+      display: flex; gap: 24px; justify-content: center; margin-top: 28px;
+      font-size: 13px; color: var(--muted); flex-wrap: wrap;
+    }
+    .restake-legend span { display: flex; align-items: center; gap: 8px; }
+    .restake-legend .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+
+    /* ─── Slashing Simulator ─── */
+    .slash-visual {
+      position: relative;
+      height: 120px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-top: 24px;
+      overflow: hidden;
+    }
+    .slash-bar-container {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      height: 40px;
+      background: var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .slash-bar-bg {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), #00d4aa);
+      border-radius: 8px;
+      transition: width 0.5s ease;
+    }
+    .slash-bar-slasher {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 4px;
+      background: var(--danger);
+      box-shadow: 0 0 16px var(--danger);
+      transition: left 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    }
+    .slash-bar-slasher.animating {
+      animation: slashFlash 0.3s ease;
+    }
+    @keyframes slashFlash {
+      0%, 100% { box-shadow: 0 0 16px var(--danger); }
+      50% { box-shadow: 0 0 40px var(--danger), 0 0 80px var(--danger); }
+    }
+    .slash-label-row {
+      position: absolute;
+      bottom: 8px; left: 0; right: 0;
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: var(--muted);
+      padding: 0 5%;
+    }
+    .slash-label-row .slash-loss-label {
+      color: var(--danger);
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    /* ─── AVS Economics ─── */
+    .avs-chart-container {
+      margin-top: 24px;
+    }
+    .yield-curve-wrap {
+      position: relative;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    #avsCurveSvg { width: 100%; height: auto; display: block; }
+
+    /* ─── Yield Comparison Bars ─── */
+    .yield-bar-chart {
+      background: var(--surface-2);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 24px 0;
+    }
+    .yield-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .yield-bar-row .ybr-label {
+      font-size: 13px;
+      color: var(--muted);
+      width: 110px;
+      flex-shrink: 0;
+    }
+    .yield-bar-row .ybr-track {
+      flex: 1;
+      height: 28px;
+      background: var(--surface);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .yield-bar-row .ybr-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.6s ease;
+    }
+    .yield-bar-row .ybr-val {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      width: 60px;
+      text-align: right;
+    }
+
+    /* ─── Glossary ─── */
+    .glossary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .glossary-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .glossary-item .term {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 6px;
+    }
+    .glossary-item .def {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ─── Risk Cards ─── */
+    .risk-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .risk-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .risk-card .risk-icon { font-size: 32px; margin-bottom: 12px; }
+    .risk-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: var(--danger); }
+    .risk-card p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .risk-meter { margin-top: 16px; }
+    .risk-meter-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+    .risk-meter-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+    .risk-meter.low .risk-meter-fill { background: var(--success); }
+    .risk-meter.medium .risk-meter-fill { background: var(--accent); }
+    .risk-meter.high .risk-meter-fill { background: var(--danger); }
+
+    /* ─── Stat cards ─── */
+    .stat-cards-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    .stat-card .sc-icon { font-size: 28px; margin-bottom: 8px; }
+    .stat-card .sc-val {
+      font-family: var(--mono); font-size: 28px; font-weight: 700;
+      color: var(--primary); margin-bottom: 4px;
+    }
+    .stat-card .sc-lbl { font-size: 13px; color: var(--muted); }
+
+    /* ─── Affiliate ─── */
+    .affiliate-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .affiliate-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s;
+    }
+    .affiliate-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    }
+    .affiliate-card .af-logo {
+      font-size: 36px;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .affiliate-card .af-name {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .affiliate-card .af-desc {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .affiliate-card .af-btn {
+      display: inline-block;
+      background: rgba(0,255,200,0.1);
+      border: 1px solid rgba(0,255,200,0.3);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 6px;
+    }
+
+    /* ─── Back link ─── */
+    .back-link {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--muted); text-decoration: none;
+      font-size: 14px; font-weight: 500;
+      padding: 8px 0;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--primary); }
+
+    /* ─── Number tween ─── */
+    .tween-num { transition: all 0.3s ease; }
+
+    /* ─── Particle flow canvas ─── */
+    .particle-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    /* ─── Glow card ─── */
+    @keyframes borderGlow {
+      0%, 100% { border-color: rgba(0,255,200,0.3); }
+      50% { border-color: rgba(0,255,200,0.7); }
+    }
+    .glow-card {
+      animation: borderGlow 3s ease-in-out infinite;
+    }
+
+    @media (max-width: 640px) {
+      .stat-cards-row { grid-template-columns: 1fr; }
+      .restake-row { min-width: 1000px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">DeFi<span>Viz</span></a>
+    <div class="nav-links">
+      <a href="aave.html">Aave</a>
+      <a href="curve.html">Curve</a>
+      <a href="makerdao.html">MakerDAO</a>
+      <a href="compound.html">Compound</a>
+      <a href="lido.html">Lido</a>
+      <a href="pendle.html">Pendle</a>
+      <a href="eigenlayer.html" class="active">EigenLayer</a>
+    </div>
+  </nav>
+
+  <section class="page">
+    <div class="container">
+      <a href="index.html" class="back-link">← Back to protocols</a>
+    </div>
+
+    <!-- Hero -->
+    <div class="container hero-eigen">
+      <div class="protocol-icon">⭘</div>
+      <h1>EigenLayer</h1>
+      <p class="tagline">Restaking Revolution — Reuse Your ETH to Secure Multiple Networks</p>
+      <div class="protocol-meta" style="justify-content: center;">
+        <div class="meta-item">
+          <div class="label">Total Value Restaked</div>
+          <div class="value">~$14.8B</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">AVSs Launched</div>
+          <div class="value">15+</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">EigenPods</div>
+          <div class="value">50K+</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Restakers</div>
+          <div class="value">180K+</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- What is EigenLayer -->
+    <section class="section">
+      <div class="container">
+        <h2 class="section-title">What is <span>EigenLayer</span>?</h2>
+        <div style="margin-top: 24px; font-size: 16px; color: var(--muted); line-height: 1.8; max-width: 800px;">
+          <p style="margin-bottom: 20px;">
+            EigenLayer is a middleware protocol built on Ethereum that introduces <strong style="color: var(--text);">restaking</strong> — a groundbreaking mechanism that allows ETH stakers to reuse their staked ETH to secure additional networks and protocols, called Actively Validated Services (AVSs), without any additional capital outlay. In essence, your staked ETH becomes the security backbone for an entire ecosystem of decentralized services.
+          </p>
+          <p style="margin-bottom: 20px;">
+            When you stake ETH natively on Ethereum or deposit Lido stETH or Rocket Pool rETH into EigenLayer, you opt into securing AVSs. In return, you earn <strong style="color: var(--text);">additional restaking rewards</strong> on top of your existing staking yield. This creates a "security as a service" marketplace where AVS teams can rent security from ETH stakers rather than spending years bootstrapping their own validator networks — a process that would cost millions and take significant time.
+          </p>
+          <p style="margin-bottom: 20px;">
+            The genius of restaking lies in its permissionless, shared security model. Unlike traditional validator businesses that operate in silos, restakers contribute to a <strong style="color: var(--text);">pooled security primitive</strong>. An AVS like a data availability layer, a cross-chain bridge, an oracle network, or a rollup sequencer can plug into this pool and benefit from Ethereum's massive ETH security overnight. For stakers, this means your ETH works harder — earning yields from multiple sources simultaneously.
+          </p>
+          <p style="margin-bottom: 20px;">
+            Every restaker runs an <strong style="color: var(--text);">EigenPod</strong> — a smart contract on Ethereum that monitors and proves validator behavior. If an operator assigned to your delegated stake misbehaves or an AVS you support experiences a slashing event, a portion of your restaked ETH can be "slashed" as a penalty. This is the critical tradeoff: <strong style="color: var(--text);">higher yield comes with higher risk</strong>, because you're now exposed to slashing from multiple AVSs, not just Ethereum consensus.
+          </p>
+          <p style="margin-bottom: 20px;">
+            EigenLayer's architecture separates concerns into three roles: <strong style="color: var(--text);">stakers</strong> (ETH holders who deposit and delegate), <strong style="color: var(--text);">operators</strong> (entities that run the infrastructure for AVSs), and <strong style="color: var(--text);">AVS developers</strong> (teams building services that need decentralized security). Stakers can choose to directly operate nodes or delegate to professional operators. The protocol supports both native restaking (for node operators) and liquid restaking (depositing LSTs like stETH/rETH), making restaking accessible to anyone with ETH.
+          </p>
+          <p style="margin-bottom: 20px;">
+            The EigenLayer <strong style="color: var(--text);">governance token (EIGEN)</strong> was introduced to align incentives between the protocol and restakers. EIGEN serves as a "slashing担保" — when insufficient ETH is available to cover slashing penalties, EIGEN tokens can be auctioned to replenish the slashing pool. This creates a secondary layer of security beyond pure ETH collateral.
+          </p>
+          <p>
+            With over <strong style="color: var(--text);">$14.8 billion in TVL</strong> and growing, EigenLayer has become one of the most influential DeFi primitives since its mainnet launch. It powers security for protocols including EigenDA (data availability), Hyperlane (bridging), Celo's Mento oracles, and many more. The restaking model is reshaping how decentralized networks acquire security — turning Ethereum's staked capital into a programmable, composable security layer for the entire crypto ecosystem.
+          </p>
+        </div>
+
+        <div class="stat-cards-row" style="margin-top: 40px;">
+          <div class="stat-card glow-card">
+            <div class="sc-icon">⭘</div>
+            <div class="sc-val">$14.8B</div>
+            <div class="sc-lbl">Total Value Restaked</div>
+          </div>
+          <div class="stat-card glow-card" style="animation-delay: 1s;">
+            <div class="sc-icon">🔗</div>
+            <div class="sc-val">15+</div>
+            <div class="sc-lbl">AVSs Launched</div>
+          </div>
+          <div class="stat-card glow-card" style="animation-delay: 2s;">
+            <div class="sc-icon">💎</div>
+            <div class="sc-val">50K+</div>
+            <div class="sc-lbl">EigenPods Deployed</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How Restaking Works -->
+    <section class="restake-flow" style="padding: 40px 0 60px;">
+      <div class="container">
+        <h2 class="section-title">How <span>Restaking</span> Works</h2>
+        <div class="restake-flow-container" style="margin-top: 24px; position: relative;">
+          <canvas class="particle-canvas" id="particleCanvas"></canvas>
+          <div class="restake-row" id="restakeFlow">
+            <div class="restake-step">
+              <div class="restake-box">
+                <div class="rb-icon">⟠</div>
+                <div class="rb-label">ETH Holder</div>
+                <div class="rb-value">1-32 ETH</div>
+              </div>
+              <div class="rb-label">Step 1</div>
+            </div>
+
+            <div class="restake-arrow-wrap">
+              <svg width="70" height="40" viewBox="0 0 70 40">
+                <path class="restake-path" d="M 0 20 Q 35 5 70 20" marker-end="url(#arrowhead2)"/>
+                <defs>
+                  <marker id="arrowhead2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                    <polygon points="0 0, 8 4, 0 8" fill="var(--primary)"/>
+                  </marker>
+                </defs>
+              </svg>
+            </div>
+
+            <div class="restake-step">
+              <div class="restake-box eigenpod">
+                <div class="rb-icon">⭘</div>
+                <div class="rb-label">EigenPod</div>
+                <div class="rb-value">Validator Proof</div>
+              </div>
+              <div class="rb-label">Step 2</div>
+            </div>
+
+            <div class="restake-arrow-wrap">
+              <svg width="70" height="40" viewBox="0 0 70 40">
+                <path class="restake-path" d="M 0 20 Q 35 35 70 20"/>
+              </svg>
+            </div>
+
+            <div class="restake-step">
+              <div class="restake-box" style="border-color: rgba(0,255,200,0.4);">
+                <div class="rb-icon">👥</div>
+                <div class="rb-label">Delegate</div>
+                <div class="rb-value">to Operator</div>
+              </div>
+              <div class="rb-label">Step 3</div>
+            </div>
+
+            <div class="restake-arrow-wrap">
+              <svg width="70" height="40" viewBox="0 0 70 40">
+                <path class="restake-path delegation" d="M 0 20 Q 35 5 70 20"/>
+              </svg>
+            </div>
+
+            <div class="restake-step">
+              <div class="restake-box avs">
+                <div class="rb-icon">🛡️</div>
+                <div class="rb-label">AVS Operator</div>
+                <div class="rb-value">Runs Service</div>
+              </div>
+              <div class="rb-label">Step 4</div>
+            </div>
+
+            <div class="restake-arrow-wrap">
+              <svg width="70" height="40" viewBox="0 0 70 40">
+                <path class="restake-path avs-path" d="M 0 20 Q 35 35 70 20"/>
+              </svg>
+            </div>
+
+            <div class="restake-step">
+              <div class="restake-box" style="border-color: var(--success);">
+                <div class="rb-icon">💰</div>
+                <div class="rb-label">Earn Rewards</div>
+                <div class="rb-value">ETH + AVS Fees</div>
+              </div>
+              <div class="rb-label">Step 5</div>
+            </div>
+          </div>
+
+          <div class="restake-legend">
+            <span><span class="dot" style="background: var(--primary);"></span> ETH → EigenPod</span>
+            <span><span class="dot" style="background: var(--secondary);"></span> Delegation flow</span>
+            <span><span class="dot" style="background: var(--accent);"></span> AVS validation</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slashing Simulator -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Slashing <span>Simulator</span></h2>
+        <div class="sandbox" style="margin-top: 24px;">
+          <div class="sandbox-title">
+            <span class="num">1</span> What Happens When AVS Validation Fails?
+          </div>
+          <p style="font-size: 14px; color: var(--muted); margin-bottom: 24px;">
+            Restaking把你的ETH暴露于AVS slashing风险中。当AVS验证失败时，运营者的委托人和委托人都会被slash。以下模拟器展示在不同的抵押品数量和slash百分比下你的潜在损失。
+          </p>
+
+          <div class="slider-group">
+            <label>
+              Collateral Amount (ETH)
+              <span id="slashCollatDisplay">10 ETH</span>
+            </label>
+            <input type="range" id="slashCollat" min="1" max="100" step="1" value="10">
+          </div>
+
+          <div class="slider-group">
+            <label>
+              ETH Price (USD)
+              <span id="slashPriceDisplay">$3,500</span>
+            </label>
+            <input type="range" id="slashPrice" min="500" max="10000" step="50" value="3500">
+          </div>
+
+          <div class="slider-group">
+            <label>
+              AVS Performance Score (0-100%)
+              <span id="slashPerfDisplay">100%</span>
+            </label>
+            <input type="range" id="slashPerf" min="0" max="100" step="1" value="100">
+          </div>
+
+          <div class="slider-group">
+            <label>
+              Slash Percentage
+              <span id="slashPctDisplay">1.0%</span>
+            </label>
+            <input type="range" id="slashPct" min="0.1" max="10" step="0.1" value="1">
+          </div>
+
+          <div class="result-box">
+            <div class="result-row">
+              <span class="label">Total Collateral Value</span>
+              <span class="value" id="slashTotalVal">$35,000</span>
+            </div>
+            <div class="result-row">
+              <span class="label">AVS Performance Multiplier</span>
+              <span class="value" id="slashMult">1.00×</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Effective Slash Amount</span>
+              <span class="value" id="slashEffAmt">0.10 ETH</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Dollar Value Lost</span>
+              <span class="value danger tween-num" id="slashDollarLoss">$350</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Remaining After Slash</span>
+              <span class="value tween-num" id="slashRemaining">$34,650</span>
+            </div>
+          </div>
+
+          <div class="slash-visual" id="slashVisual">
+            <div class="slash-bar-container">
+              <div class="slash-bar-bg" id="slashBarBg" style="width: 100%;"></div>
+            </div>
+            <div class="slash-bar-slasher" id="slashBarSlasher" style="left: calc(100% - 4px);"></div>
+            <div class="slash-label-row">
+              <span>$0</span>
+              <span class="slash-loss-label" id="slashLossLabel">−$350</span>
+              <span id="slashTotalLabel">$35,000</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AVS Economics Calculator -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">AVS Economics <span>Calculator</span></h2>
+        <div class="sandbox" style="margin-top: 24px;">
+          <div class="sandbox-title">
+            <span class="num">2</span> Calculate Your Restaking Yield
+          </div>
+
+          <div class="slider-group">
+            <label>
+              Delegated ETH
+              <span id="avsDelegatedDisplay">10 ETH</span>
+            </label>
+            <input type="range" id="avsDelegated" min="1" max="500" step="1" value="10">
+          </div>
+
+          <div class="slider-group">
+            <label>
+              Operator Commission
+              <span id="avsCommissionDisplay">5.0%</span>
+            </label>
+            <input type="range" id="avsCommission" min="1" max="30" step="0.5" value="5">
+          </div>
+
+          <div class="slider-group">
+            <label>
+              AVS Reward Rate (APR)
+              <span id="avsRewardRateDisplay">4.0%</span>
+            </label>
+            <input type="range" id="avsRewardRate" min="0.5" max="25" step="0.5" value="4">
+          </div>
+
+          <div class="result-box">
+            <div class="result-row">
+              <span class="label">Gross AVS Annual Rewards</span>
+              <span class="value" id="avsGrossReward">0.40 ETH</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Operator Commission (ETH)</span>
+              <span class="value" id="avsOperatorCut">0.02 ETH</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Net Restaker Rewards</span>
+              <span class="value" id="avsNetReward">0.38 ETH</span>
+            </div>
+            <div class="result-row">
+              <span class="label">ETH at $3,500 — Dollar Value</span>
+              <span class="value" id="avsDollarValue">$1,330</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Net APY (on staked amount)</span>
+              <span class="value" id="avsNetAPY">3.80%</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Combined APY (ETH staking + AVS rewards)</span>
+              <span class="value" id="avsCombinedAPY">~6.10%</span>
+            </div>
+          </div>
+
+          <div class="avs-chart-container">
+            <div class="yield-curve-wrap">
+              <svg id="avsCurveSvg" viewBox="0 0 700 260" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="avsGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#00ffc8;stop-opacity:0"/>
+                    <stop offset="100%" style="stop-color:#00ffc8;stop-opacity:0.3"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- Grid -->
+                <line class="curve-grid-line" x1="60" y1="210" x2="660" y2="210" stroke="var(--border)" stroke-width="1"/>
+                <line class="curve-grid-line" x1="60" y1="160" x2="660" y2="160" stroke="var(--border)" stroke-width="1"/>
+                <line class="curve-grid-line" x1="60" y1="110" x2="660" y2="110" stroke="var(--border)" stroke-width="1"/>
+                <line class="curve-grid-line" x1="60" y1="60" x2="660" y2="60" stroke="var(--border)" stroke-width="1"/>
+                <line stroke="var(--muted)" stroke-width="1.5" x1="60" y1="210" x2="60" y2="30" fill="none"/>
+
+                <!-- Y-axis labels -->
+                <text class="curve-label" x="50" y="214" text-anchor="middle" style="font-family:var(--mono);font-size:11px;fill:var(--muted);">0%</text>
+                <text class="curve-label" x="50" y="164" text-anchor="middle" style="font-family:var(--mono);font-size:11px;fill:var(--muted);">5%</text>
+                <text class="curve-label" x="50" y="114" text-anchor="middle" style="font-family:var(--mono);font-size:11px;fill:var(--muted);">10%</text>
+                <text class="curve-label" x="50" y="64" text-anchor="middle" style="font-family:var(--mono);font-size:11px;fill:var(--muted);">15%</text>
+
+     <!-- Baseline: native ETH staking (~4.5%) -->
+                <line x1="60" y1="174" x2="660" y2="174" stroke="var(--muted)" stroke-width="1" stroke-dasharray="6 4" opacity="0.5"/>
+                <text x="665" y="178" style="font-size:11px;fill:var(--muted);font-family:var(--mono);">Native ETH staking</text>
+
+                <!-- Net APY curve (line) -->
+                <path class="rate-line" id="avsRateLine" fill="none" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/>
+
+                <!-- Area under curve -->
+                <path id="avsAreaPath" fill="url(#avsGrad)"/>
+
+                <!-- X-axis labels -->
+                <text x="60" y="232" text-anchor="middle" style="font-size:11px;fill:var(--muted);font-family:var(--mono);">1 ETH</text>
+                <text x="210" y="232" text-anchor="middle" style="font-size:11px;fill:var(--muted);font-family:var(--mono);">125 ETH</text>
+                <text x="360" y="232" text-anchor="middle" style="font-size:11px;fill:var(--muted);font-family:var(--mono);">250 ETH</text>
+                <text x="510" y="232" text-anchor="middle" style="font-size:11px;fill:var(--muted);font-family:var(--mono);">375 ETH</text>
+                <text x="660" y="232" text-anchor="middle" style="font-size:11px;fill:var(--muted);font-family:var(--mono);">500 ETH</text>
+                <text x="360" y="252" text-anchor="middle" style="font-size:13px;fill:var(--muted);font-family:var(--mono);">Delegated ETH Amount</text>
+
+                <!-- Y-axis label -->
+                <text x="15" y="130" text-anchor="middle" style="font-size:12px;fill:var(--muted);font-family:var(--mono);" transform="rotate(-90,15,130)">Net APY (%)</text>
+
+                <!-- Interactive dot -->
+                <circle id="avsDot" r="7" fill="var(--primary)" filter="drop-shadow(0 0 8px var(--primary))" cx="0" cy="0" style="display:none;"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Yield Comparison -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Restaking <span>Yield Comparison</span></h2>
+        <div class="sandbox" style="margin-top: 24px;">
+          <div class="sandbox-title">
+            <span class="num">3</span> Where Does Restaking Stack Up?
+          </div>
+
+          <div class="yield-bar-chart">
+            <div class="yield-bar-row">
+              <div class="ybr-label" style="color: var(--muted); font-size: 13px;">EigenLayer + AVS</div>
+              <div class="ybr-track">
+                <div class="ybr-fill" id="barEigen" style="width: 60%; background: linear-gradient(90deg, var(--primary), #00d4aa);"></div>
+              </div>
+              <div class="ybr-val" style="color: var(--primary);" id="barEigenVal">~6%</div>
+            </div>
+            <div class="yield-bar-row">
+              <div class="ybr-label" style="color: var(--muted); font-size: 13px;">Lido stETH</div>
+              <div class="ybr-track">
+                <div class="ybr-fill" id="barLido" style="width: 38%; background: linear-gradient(90deg, #627eea, #8fa3e0);"></div>
+              </div>
+              <div class="ybr-val" style="color: #627eea;" id="barLidoVal">~3.8%</div>
+            </div>
+            <div class="yield-bar-row">
+              <div class="ybr-label" style="color: var(--muted); font-size: 13px;">Native ETH Staking</div>
+              <div class="ybr-track">
+                <div class="ybr-fill" id="barNative" style="width: 36%; background: linear-gradient(90deg, var(--secondary), #7c3aed);"></div>
+              </div>
+              <div class="ybr-val" style="color: var(--secondary);" id="barNativeVal">~3.6%</div>
+            </div>
+            <div class="yield-bar-row">
+              <div class="ybr-label" style="color: var(--muted); font-size: 13px;">Solo Staking</div>
+              <div class="ybr-track">
+                <div class="ybr-fill" id="barSolo" style="width: 34%; background: linear-gradient(90deg, var(--accent), #d97706);"></div>
+              </div>
+              <div class="ybr-val" style="color: var(--accent);" id="barSoloVal">~3.4%</div>
+            </div>
+            <div class="yield-bar-row">
+              <div class="ybr-label" style="color: var(--muted); font-size: 13px;">CeFi Savings</div>
+              <div class="ybr-track">
+                <div class="ybr-fill" id="barCeFi" style="width: 8%; background: linear-gradient(90deg, var(--muted), #475569);"></div>
+              </div>
+              <div class="ybr-val" style="color: var(--muted);" id="barCeFiVal">~0.8%</div>
+            </div>
+          </div>
+
+          <p style="margin-top: 16px; font-size: 13px; color: var(--muted);">
+            * DeFi yields are variable. Native staking and EigenLayer returns are approximate based on recent network conditions. Always DYOR.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Risk Section -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Risk <span>Considerations</span></h2>
+        <div class="risk-cards" style="margin-top: 24px;">
+          <div class="risk-card">
+            <div class="risk-icon">⚠️</div>
+            <h3>Slashing Risk</h3>
+            <p>Unlike simple ETH staking, restaking exposes your collateral to slashing events from multiple AVSs simultaneously. If an AVS experiences a consensus failure or oracle manipulation, operators and their delegators can be slashed. Use the simulator above to stress-test your positions and always maintain a buffer.</p>
+            <div class="risk-meter high">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+                <span>Low</span><span>Medium</span><span>High</span>
+              </div>
+              <div class="risk-meter-bar">
+                <div class="risk-meter-fill" style="width: 75%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="risk-card">
+            <div class="risk-icon">🔐</div>
+            <h3>Smart Contract Risk</h3>
+            <p>EigenLayer's contracts are relatively new compared to battle-tested protocols like Aave. The upgradeable proxy pattern used by EigenLayer contracts carries risk of governance attacks or upgrade key compromise. Audits reduce but don't eliminate this risk. The EIGEN token adds an additional smart contract attack surface.</p>
+            <div class="risk-meter medium">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+                <span>Low</span><span>Medium</span><span>High</span>
+              </div>
+              <div class="risk-meter-bar">
+                <div class="risk-meter-fill" style="width: 50%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="risk-card">
+            <div class="risk-icon">👥</div>
+            <h3>Operator Risk</h3>
+            <p>When you delegate to an operator, you're trusting them to run honest, performant infrastructure. A incompetent or malicious operator can trigger slashing events that affect all their delegators. Research operator history, uptime, and slashing track record before delegating — and spread delegation across multiple operators.</p>
+            <div class="risk-meter medium">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+                <span>Low</span><span>Medium</span><span>High</span>
+              </div>
+              <div class="risk-meter-bar">
+                <div class="risk-meter-fill" style="width: 55%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="risk-card">
+            <div class="risk-icon">📉</div>
+            <h3>TVL &amp; Correlation Risk</h3>
+            <p>When a significant portion of ETH is restaked through EigenLayer, a mass slashing event could trigger cascading liquidations and network instability. Additionally, restaked assets have a shared risk correlation — one AVS hack could trigger slashing across many restakers simultaneously, unlike isolated DeFi positions.</p>
+            <div class="risk-meter high">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+                <span>Low</span><span>Medium</span><span>High</span>
+              </div>
+              <div class="risk-meter-bar">
+                <div class="risk-meter-fill" style="width: 65%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Glossary -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Glossary of <span>Terms</span></h2>
+        <div class="glossary-grid" style="margin-top: 24px;">
+          <div class="glossary-item">
+            <div class="term">Restaking</div>
+            <div class="def">Reusing staked ETH to secure additional networks (AVSs) without additional capital. You continue earning Ethereum staking rewards while also earning AVS validation rewards.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">AVS (Actively Validated Service)</div>
+            <div class="def">Any decentralized service that needs its own consensus or validation layer — oracles, bridges, data availability layers, rollup provers, etc. AVSs plug into EigenLayer's shared security pool.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">EigenPod</div>
+            <div class="def">A smart contract on Ethereum that serves as proof-of-stake validator for restaking. When you restake natively, you deploy an EigenPod that monitors your validator's behavior and handles slashing proofs.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Slashing</div>
+            <div class="def">A penalty mechanism where a portion of a validator's or restaker's staked ETH is destroyed for equivocation, downtime, or AVS validation failures. Unlike simple staking slashing, restaking multiplies exposure to slashing events.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Delegation</div>
+            <div class="def">When restakers don't want to run their own nodes, they delegate their stake to professional operators who run the AVS infrastructure on their behalf. Operators charge a commission fee on earned rewards.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Operator</div>
+            <div class="def">An entity that runs the technical infrastructure (nodes, validators) required to secure AVSs. Operators accept delegations from restakers and earn a commission on the rewards generated.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Native Restaking</div>
+            <div class="def">Directly staking ETH by running an Ethereum validator and registering an EigenPod. Requires 32 ETH minimum and node operation expertise. Offers the highest level of decentralization.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Liquid Restaking</div>
+            <div class="def">Depositing liquid staking tokens (LSTs) like stETH or rETH into EigenLayer to earn restaking rewards. More accessible than native restaking — anyone with LSTs can participate without running a node.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">EIGEN Token</div>
+            <div class="def">The governance and slashing insurance token of EigenLayer. Used as secondary collateral when ETH is insufficient to cover slashing events. EIGEN holders participate in protocol governance decisions.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Slashing Attack Surface</div>
+            <div class="def">The total amount of ETH exposed to potential slashing across all AVSs you're supporting. More AVSs supported = higher attack surface = higher potential loss from slashing events.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Affiliate Links -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Start <span>Restaking</span></h2>
+        <p style="margin-top: 16px; color: var(--muted); font-size: 15px; max-width: 600px;">
+          Ready to participate in the restaking revolution? You'll need ETH and access to a supported liquid staking provider. Here are trusted platforms to get started:
+        </p>
+        <div class="affiliate-grid" style="margin-top: 32px;">
+          <a href="#" class="affiliate-card" rel="noopener">
+            <span class="af-logo">🏦</span>
+            <div class="af-name">Coinbase</div>
+            <div class="af-desc">Buy ETH, then stake with cbETH. Easy onboarding for beginners.</div>
+            <span class="af-btn">Get Started ↗</span>
+          </a>
+          <a href="#" class="affiliate-card" rel="noopener">
+            <span class="af-logo">🦠</span>
+            <div class="af-name">Kraken</div>
+            <div class="af-desc">ETH staking with Kraken. Simple interface and competitive rates.</div>
+            <span class="af-btn">Get Started ↗</span>
+          </a>
+          <a href="#" class="affiliate-card" rel="noopener">
+            <span class="af-logo">💧</span>
+            <div class="af-name">Lido</div>
+            <div class="af-desc">Stake ETH → get stETH → deposit into EigenLayer for restaking rewards.</div>
+            <span class="af-btn">Stake stETH ↗</span>
+          </a>
+          <a href="#" class="affiliate-card" rel="noopener">
+            <span class="af-logo">🛠️</span>
+            <div class="af-name">EigenLayer (Official)</div>
+            <div class="af-desc">Direct restaking via the official EigenLayer app for maximum control.</div>
+            <span class="af-btn">Restake Direct ↗</span>
+          </a>
+        </div>
+        <p style="margin-top: 20px; font-size: 12px; color: var(--muted);">
+          Affiliate links help support DeFi Visualizer at no extra cost to you. Always DYOR before using any DeFi platform.
+        </p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-links">
+          <a href="index.html">All Protocols</a>
+          <a href="https://eigenlayer.io" target="_blank" rel="noopener">Official Site ↗</a>
+          <a href="https://docs.eigenlayer.xyz" target="_blank" rel="noopener">Docs ↗</a>
+        </div>
+        <p style="color: var(--muted); font-size: 13px;">
+          DeFi Visualizer — Educational content only. Not financial advice.<br>
+          Built for learning purposes. Always DYOR.
+        </p>
+      </div>
+    </footer>
+  </section>
+
+  <script>
+    // ─── Particle flow animation on canvas ───
+    (function initParticles() {
+      const canvas = document.getElementById('particleCanvas');
+      const ctx = canvas.getContext('2d');
+      const container = canvas.parentElement;
+
+      function resize() {
+        canvas.width = container.offsetWidth;
+        canvas.height = container.offsetHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      const particles = [];
+      const STEP_LANES = [
+        { startX: 0, startY: 0.5, endX: 0.17, endY: 0.5 },
+        { startX: 0.22, startY: 0.5, endX: 0.36, endY: 0.5 },
+        { startX: 0.41, startY: 0.5, endX: 0.54, endY: 0.5 },
+        { startX: 0.59, startY: 0.5, endX: 0.72, endY: 0.5 },
+        { startX: 0.77, startY: 0.5, endX: 0.89, endY: 0.5 },
+      ];
+      const COLORS = ['#00ffc8', '#a855f7', '#f59e0b', '#00ffc8', '#f59e0b'];
+      const SPEEDS = [1.2, 1.0, 0.8, 1.1, 0.9];
+      const DIRS = [1, -1, 1, 1, -1]; // some flow back and forth
+
+      function spawnParticle() {
+        const laneIdx = Math.floor(Math.random() * STEP_LANES.length);
+        const lane = STEP_LANES[laneIdx];
+        const progress = Math.random();
+        const p = {
+          lane: laneIdx,
+          progress: progress,
+          speed: SPEEDS[laneIdx] * 0.003 * (0.8 + Math.random() * 0.4),
+          dir: DIRS[laneIdx],
+          color: COLORS[laneIdx],
+          size: 2 + Math.random() * 2,
+          alpha: 0.4 + Math.random() * 0.5,
+        };
+        particles.push(p);
+      }
+
+      function getPos(lane, progress) {
+        const l = STEP_LANES[lane];
+        const x = (l.startX + (l.endX - l.startX) * progress) * canvas.width;
+        const y = (l.startY + (l.endY - l.startY) * progress) * canvas.height;
+        return { x, y };
+      }
+
+      let raf;
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (Math.random() < 0.03) spawnParticle();
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.progress += p.speed * p.dir;
+          if (p.progress > 1 || p.progress < 0) {
+            particles.splice(i, 1);
+            continue;
+          }
+          const pos = getPos(p.lane, p.progress);
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.alpha;
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        raf = requestAnimationFrame(animate);
+      }
+      animate();
+
+      window._eigenParticles = { pause: () => cancelAnimationFrame(raf), resume: animate };
+    })();
+
+    // ─── Slashing Simulator ───
+    (function initSlash() {
+      const collatSlider = document.getElementById('slashCollat');
+      const priceSlider = document.getElementById('slashPrice');
+      const perfSlider = document.getElementById('slashPerf');
+      const pctSlider = document.getElementById('slashPct');
+
+      function update() {
+        const collatAmt = parseFloat(collatSlider.value);
+        const price = parseFloat(priceSlider.value);
+        const perf = parseFloat(perfSlider.value);
+        const pct = parseFloat(pctSlider.value);
+
+        const totalVal = collatAmt * price;
+        const mult = perf / 100;
+        const slashAmt = collatAmt * pct / 100 * mult;
+        const slashDollar = slashAmt * price;
+        const remaining = totalVal - slashDollar;
+
+        document.getElementById('slashCollatDisplay').textContent = collatAmt + ' ETH';
+        document.getElementById('slashPriceDisplay').textContent = '$' + price.toLocaleString();
+        document.getElementById('slashPerfDisplay').textContent = perf + '%';
+        document.getElementById('slashPctDisplay').textContent = pct.toFixed(1) + '%';
+
+        document.getElementById('slashTotalVal').textContent = '$' + totalVal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        document.getElementById('slashMult').textContent = mult.toFixed(2) + '×';
+        document.getElementById('slashEffAmt').textContent = slashAmt.toFixed(4) + ' ETH';
+        document.getElementById('slashDollarLoss').textContent = '-$' + slashDollar.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        document.getElementById('slashRemaining').textContent = '$' + remaining.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        document.getElementById('slashLossLabel').textContent = '−$' + slashDollar.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        document.getElementById('slashTotalLabel').textContent = '$' + totalVal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+        // Bar animation
+        const remainingPct = (remaining / totalVal) * 100;
+        document.getElementById('slashBarBg').style.width = remainingPct + '%';
+
+        // Slashing indicator on bar
+        const slasherPos = remainingPct + '%';
+        const slasher = document.getElementById('slashBarSlasher');
+        slasher.style.left = slasherPos;
+        slasher.classList.add('animating');
+        setTimeout(() => slasher.classList.remove('animating'), 300);
+      }
+
+      collatSlider.addEventListener('input', update);
+      priceSlider.addEventListener('input', update);
+      perfSlider.addEventListener('input', update);
+      pctSlider.addEventListener('input', update);
+      update();
+    })();
+
+    // ─── AVS Economics Calculator ───
+    (function initAVS() {
+      const delegatedSlider = document.getElementById('avsDelegated');
+      const commissionSlider = document.getElementById('avsCommission');
+      const rewardRateSlider = document.getElementById('avsRewardRate');
+
+      const ETH_PRICE = 3500;
+      const NATIVE_APY = 0.045; // ~4.5% native staking
+
+      function buildCurve() {
+        const pts = [];
+        for (let d = 1; d <= 500; d += 5) {
+          const gross = d * (parseFloat(rewardRateSlider.value) / 100);
+          const net = gross * (1 - parseFloat(commissionSlider.value) / 100);
+          const netAPY = (net / d) * 100; // percent
+          const x = 60 + ((d - 1) / 499) * 600;
+          const y = 210 - (netAPY / 15) * 180;
+          pts.push([x, Math.max(30, y)]);
+        }
+        return pts;
+      }
+
+      function pointsToPath(pts) {
+        if (pts.length === 0) return '';
+        let d = 'M ' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+        for (let i = 1; i < pts.length; i++) {
+          d += ' L ' + pts[i][0].toFixed(1) + ' ' + pts[i][1].toFixed(1);
+        }
+        return d;
+      }
+
+      function buildAreaPath(pts) {
+        if (pts.length === 0) return '';
+        return pointsToPath(pts) + ' L ' + pts[pts.length - 1][0].toFixed(1) + ' 210 L ' + pts[0][0].toFixed(1) + ' 210 Z';
+      }
+
+      function update() {
+        const delegated = parseFloat(delegatedSlider.value);
+        const commission = parseFloat(commissionSlider.value);
+        const rewardRate = parseFloat(rewardRateSlider.value);
+
+        const grossReward = delegated * (rewardRate / 100);
+        const operatorCut = grossReward * (commission / 100);
+        const netReward = grossReward - operatorCut;
+        const netAPY = (netReward / delegated) * 100;
+        const combinedAPY = (NATIVE_APY + rewardRate * (1 - commission / 100) / 100) * 100;
+
+        document.getElementById('avsDelegatedDisplay').textContent = delegated + ' ETH';
+        document.getElementById('avsCommissionDisplay').textContent = commission.toFixed(1) + '%';
+        document.getElementById('avsRewardRateDisplay').textContent = rewardRate.toFixed(1) + '%';
+
+        document.getElementById('avsGrossReward').textContent = grossReward.toFixed(4) + ' ETH';
+        document.getElementById('avsOperatorCut').textContent = operatorCut.toFixed(4) + ' ETH';
+        document.getElementById('avsNetReward').textContent = netReward.toFixed(4) + ' ETH';
+        document.getElementById('avsDollarValue').textContent = '$' + (netReward * ETH_PRICE).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        document.getElementById('avsNetAPY').textContent = netAPY.toFixed(2) + '%';
+        document.getElementById('avsCombinedAPY').textContent = '~' + combinedAPY.toFixed(2) + '%';
+
+        // Update curve
+        const pts = buildCurve();
+        document.getElementById('avsRateLine').setAttribute('d', pointsToPath(pts));
+        document.getElementById('avsAreaPath').setAttribute('d', buildAreaPath(pts));
+
+        // Dot on curve for current value
+        const x = 60 + ((delegated - 1) / 499) * 600;
+        const y = 210 - (netAPY / 15) * 180;
+        const dot = document.getElementById('avsDot');
+        dot.style.display = 'block';
+        dot.setAttribute('cx', x);
+        dot.setAttribute('cy', Math.max(30, y));
+      }
+
+      delegatedSlider.addEventListener('input', update);
+      commissionSlider.addEventListener('input', update);
+      rewardRateSlider.addEventListener('input', update);
+      update();
+    })();
+
+    // ─── Yield comparison bars ───
+    (function initYieldBars() {
+      const NATIVE_STAKING_APY = 3.6;
+      const LIDOSTETH_APY = 3.8;
+      const EIGEN_AVG_APY = 6.0;
+      const SOLO_APY = 3.4;
+      const CEFI_APY = 0.8;
+
+      const max = EIGEN_AVG_APY;
+      const scale = (v) => (v / max) * 100;
+
+      document.getElementById('barEigen').style.width = scale(EIGEN_AVG_APY) + '%';
+      document.getElementById('barLido').style.width = scale(LIDOSTETH_APY) + '%';
+      document.getElementById('barNative').style.width = scale(NATIVE_STAKING_APY) + '%';
+      document.getElementById('barSolo').style.width = scale(SOLO_APY) + '%';
+      document.getElementById('barCeFi').style.width = scale(CEFI_APY) + '%';
+    })();
+  </script>
+  <!-- Tools & Links -->
+  <section class="tools-section">
+    <div class="container">
+      <div class="tools-header">🔗 Tools &amp; Links</div>
+      <div class="tools-grid">
+        <a href="https://coinbase.com/join/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🟣</span>
+          <span class="tool-name">Coinbase</span>
+          <span class="tool-desc">Buy &amp; trade crypto</span>
+        </a>
+        <a href="https://defillama.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">📊</span>
+          <span class="tool-name">DeFiLlama</span>
+          <span class="tool-desc">TVL &amp; yield data</span>
+        </a>
+        <a href="https://debank.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">💼</span>
+          <span class="tool-name">DeBank</span>
+          <span class="tool-desc">Portfolio tracker</span>
+        </a>
+        <a href="https://zapper.xyz/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🟢</span>
+          <span class="tool-name">Zapper</span>
+          <span class="tool-desc">DeFi dashboard</span>
+        </a>
+      </div>
+    </div>
+  </section>
+  <style>
+  .tools-section { padding: 40px 0 20px; }
+  .tools-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+  .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .tool-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; text-decoration: none; color: inherit; transition: all 0.2s; }
+  .tool-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  .tool-icon { font-size: 20px; flex-shrink: 0; }
+  .tool-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .tool-desc { font-size: 11px; color: var(--muted); margin-left: auto; }
+  </style>
+
+</body>
+</html>

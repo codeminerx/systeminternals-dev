@@ -162,6 +162,13 @@ declare module 'astro:content' {
   collection: "posts";
   data: InferEntrySchema<"posts">
 } & { render(): Render[".md"] };
+"database-sharding-system-design.md": {
+	id: "database-sharding-system-design.md";
+  slug: "database-sharding-system-design";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
 "database-transactions-isolation-levels.md": {
 	id: "database-transactions-isolation-levels.md";
   slug: "database-transactions-isolation-levels";

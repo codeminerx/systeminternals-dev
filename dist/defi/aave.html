@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aave — DeFi Lending & Borrowing | DeFi Visualizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "What is Aave and how does it work?", "acceptedAnswer": {"@type": "Answer", "text": "Aave is a decentralized non-custodial liquidity market protocol where users can earn interest by depositing assets into liquidity pools, or borrow assets against collateral. Borrowers pay interest rates that are algorithmically set based on supply and demand."}},
+      {"@type": "Question", "name": "What is the difference between Aave V2 and Aave V3?", "acceptedAnswer": {"@type": "Answer", "text": "Aave V3 introduced High Efficiency Mode (allowing users to supply an asset as collateral and borrow the same asset), improved gas efficiency (~25% less gas), cross-chain asset transfers via LayerZero, and a more modular architecture with risk parameters per asset."}},
+      {"@type": "Question", "name": "What is a Health Factor in Aave?", "acceptedAnswer": {"@type": "Answer", "text": "The Health Factor (HF) is the ratio of total collateral multiplied by its liquidation threshold, divided by total borrowed value. If HF drops below 1.0, the position becomes eligible for liquidation. A higher HF means a safer position; most protocols recommend keeping HF above 1.5."}},
+      {"@type": "Question", "name": "What are flash loans on Aave?", "acceptedAnswer": {"@type": "Answer", "text": "Flash loans are uncollateralized loans executed within a single transaction. You can borrow any amount (up to available liquidity) as long as you repay it plus fees before the transaction ends. If you don't repay, the entire transaction reverts. They're used for arbitrage, collateral swapping, and complex DeFi strategies."}},
+      {"@type": "Question", "name": "Is Aave safe to use?", "acceptedAnswer": {"@type": "Answer", "text": "Aave has undergone extensive audits by multiple firms and has a robust risk management framework. However, like all DeFi protocols, it carries smart contract risk, liquidation risk, and oracle risk. Users should understand health factors, liquidation thresholds, and not borrow at max leverage."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+  <style>
+    /* ─── Page-specific overrides ─── */
+    .hero-aave {
+      padding: 80px 0 40px;
+      text-align: center;
+    }
+    .hero-aave .protocol-icon {
+      width: 80px; height: 80px;
+      background: rgba(0,255,200,0.08);
+      border: 2px solid rgba(0,255,200,0.3);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px;
+      margin: 0 auto 24px;
+    }
+    .hero-aave h1 {
+      font-size: 52px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      margin-bottom: 12px;
+    }
+    .hero-aave .tagline {
+      font-size: 18px;
+      color: var(--muted);
+      margin-bottom: 36px;
+    }
+    .protocol-meta {
+      display: flex; gap: 40px; justify-content: center; flex-wrap: wrap;
+      margin-bottom: 36px;
+    }
+    .meta-item { text-align: center; }
+    .meta-item .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .meta-item .value { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--primary); }
+
+    /* ─── Flow Diagram ─── */
+    .flow-section { padding: 60px 0; }
+    .flow-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      overflow-x: auto;
+    }
+    .flow-row {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; flex-wrap: nowrap; min-width: 700px;
+    }
+    .flow-step {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 10px; padding: 0 8px;
+    }
+    .flow-box {
+      background: var(--surface-2);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 22px;
+      text-align: center;
+      min-width: 140px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .flow-box:hover { border-color: var(--primary); box-shadow: 0 0 20px rgba(0,255,200,0.15); }
+    .flow-box .fb-icon { font-size: 28px; margin-bottom: 6px; }
+    .flow-box .fb-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .flow-box .fb-value { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--text); }
+    .flow-arrow-wrap {
+      display: flex; align-items: center; padding: 0 4px;
+      position: relative;
+    }
+    .flow-arrow-wrap svg {
+      overflow: visible;
+    }
+    .flow-path {
+      stroke: var(--primary);
+      stroke-width: 2;
+      fill: none;
+      stroke-dasharray: 8 4;
+      animation: flowDash 1.5s linear infinite;
+    }
+    .flow-path.rate-path {
+      stroke: var(--accent);
+      stroke-dasharray: 4 4;
+      animation-duration: 2s;
+    }
+    @keyframes flowDash {
+      to { stroke-dashoffset: -24; }
+    }
+    .flow-legend {
+      display: flex; gap: 24px; justify-content: center; margin-top: 28px;
+      font-size: 13px; color: var(--muted);
+    }
+    .flow-legend span { display: flex; align-items: center; gap: 8px; }
+    .flow-legend .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+
+    /* ─── Interest Rate Curve ─── */
+    .curve-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+    }
+    .curve-svg-wrap { position: relative; }
+    #rateCurve { width: 100%; height: auto; display: block; }
+    .curve-grid-line { stroke: var(--border); stroke-width: 1; }
+    .curve-axis-line { stroke: var(--muted); stroke-width: 1.5; }
+    .rate-area-fill {
+      fill: url(#rateGradient);
+      opacity: 0.2;
+    }
+    .rate-line {
+      fill: none;
+      stroke: var(--primary);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .optimal-zone { fill: rgba(0,255,200,0.06); }
+    .optimal-line { stroke: var(--primary); stroke-width: 1; stroke-dasharray: 6 4; opacity: 0.7; }
+    .curve-label { font-family: var(--mono); font-size: 12px; fill: var(--muted); }
+    .curve-label-value { font-family: var(--mono); font-size: 13px; fill: var(--primary); font-weight: 600; }
+    .curve-annotation {
+      font-size: 11px; fill: var(--muted);
+    }
+    .curve-annotation-value {
+      font-family: var(--mono); font-size: 12px; fill: var(--accent); font-weight: 600;
+    }
+    .curve-hover-dot {
+      fill: var(--primary);
+      filter: drop-shadow(0 0 6px var(--primary));
+      cursor: crosshair;
+    }
+    .curve-hover-line {
+      stroke: rgba(0,255,200,0.3);
+      stroke-width: 1;
+      stroke-dasharray: 4 4;
+    }
+    .curve-labels-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 16px; gap: 16px; flex-wrap: wrap;
+    }
+    .curve-util-slider { flex: 1; min-width: 200px; }
+    .curve-util-display {
+      text-align: center;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 20px;
+    }
+    .curve-util-display .val {
+      font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--primary);
+    }
+    .curve-util-display .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .curve-rate-display {
+      text-align: center;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 20px;
+    }
+    .curve-rate-display .val {
+      font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--accent);
+    }
+    .curve-rate-display .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ─── Health Factor ─── */
+    .hf-result {
+      display: flex; gap: 16px; justify-content: center;
+      margin-top: 24px;
+    }
+    .hf-gauge {
+      position: relative; width: 180px; height: 100px;
+    }
+    .hf-gauge svg { overflow: visible; }
+    .hf-arc-bg {
+      fill: none; stroke: var(--border); stroke-width: 14;
+      stroke-linecap: round;
+    }
+    .hf-arc-fill {
+      fill: none; stroke-width: 14;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.5s ease, stroke 0.5s ease;
+    }
+    .hf-center-text {
+      text-anchor: middle;
+    }
+    .hf-gauge-label { font-size: 11px; fill: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .hf-gauge-value { font-family: var(--mono); font-size: 28px; font-weight: 700; }
+    .hf-status-badge {
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 14px; font-weight: 600;
+      align-self: center;
+    }
+    .hf-status-badge.safe { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+    .hf-status-badge.warning { background: rgba(245,158,11,0.15); color: var(--accent); border: 1px solid rgba(245,158,11,0.3); }
+    .hf-status-badge.danger { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+
+    /* ─── Glossary ─── */
+    .glossary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .glossary-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .glossary-item .term {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 6px;
+    }
+    .glossary-item .def {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ─── Risk Cards ─── */
+    .risk-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .risk-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .risk-card .risk-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+    .risk-card h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--danger);
+    }
+    .risk-card p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ─── Risk meter ─── */
+    .risk-meter {
+      margin-top: 16px;
+    }
+    .risk-meter-bar {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .risk-meter-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+    .risk-meter.low .risk-meter-fill { background: var(--success); }
+    .risk-meter.medium .risk-meter-fill { background: var(--accent); }
+    .risk-meter.high .risk-meter-fill { background: var(--danger); }
+
+    /* ─── Asset badge ─── */
+    .asset-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 13px; font-weight: 600;
+    }
+    .asset-badge.eth { color: #627eea; }
+    .asset-badge.usdc { color: #2775ca; }
+    .asset-badge.usdt { color: #26a17b; }
+    .asset-badge.wbtc { color: #f7931a; }
+
+    /* ─── Number transitions ─── */
+    .tween-num {
+      transition: all 0.3s ease;
+    }
+
+    /* ─── Back link ─── */
+    .back-link {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--muted); text-decoration: none;
+      font-size: 14px; font-weight: 500;
+      padding: 8px 0;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--primary); }
+
+    /* ─── Animated gradient border ─── */
+    @keyframes borderGlow {
+      0%, 100% { border-color: rgba(0,255,200,0.3); }
+      50% { border-color: rgba(0,255,200,0.7); }
+    }
+    .glow-card {
+      animation: borderGlow 3s ease-in-out infinite;
+    }
+
+    /* ─── Stat cards row ─── */
+    .stat-cards-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    .stat-card .sc-icon { font-size: 28px; margin-bottom: 8px; }
+    .stat-card .sc-val {
+      font-family: var(--mono); font-size: 28px; font-weight: 700;
+      color: var(--primary); margin-bottom: 4px;
+    }
+    .stat-card .sc-lbl { font-size: 13px; color: var(--muted); }
+
+    @media (max-width: 640px) {
+      .stat-cards-row { grid-template-columns: 1fr; }
+      .flow-row { min-width: 900px; }
+      .curve-labels-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">DeFi<span>Viz</span></a>
+    <div class="nav-links">
+      <a href="aave.html" class="active">Aave</a>
+      <a href="curve.html">Curve</a>
+      <a href="makerdao.html">MakerDAO</a>
+      <a href="compound.html">Compound</a>
+      <a href="lido.html">Lido</a>
+      <a href="pendle.html">Pendle</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="page">
+    <div class="container">
+      <a href="index.html" class="back-link">← Back to protocols</a>
+    </div>
+    <div class="container hero-aave">
+      <div class="protocol-icon">💰</div>
+      <h1>Aave</h1>
+      <p class="tagline">Decentralized Lending &amp; Borrowing</p>
+      <div class="protocol-meta">
+        <div class="meta-item">
+          <div class="label">Total Value Locked</div>
+          <div class="value">~$8.2B</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Markets</div>
+          <div class="value">20+</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">AAVE Staked</div>
+          <div class="value">169M</div>
+        </div>
+        <div class="meta-item">
+          <div class="label">Users</div>
+          <div class="value">220K+</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- What is Aave -->
+    <section class="section">
+      <div class="container">
+        <h2 class="section-title">What is <span>Aave</span>?</h2>
+        <div style="margin-top: 24px; font-size: 16px; color: var(--muted); line-height: 1.8; max-width: 800px;">
+          <p style="margin-bottom: 20px;">
+            Aave is a decentralized non-custodial liquidity market protocol where users can participate as depositors or borrowers. Depositors provide liquidity to the market to earn a passive income, while borrowers can borrow in an overcollateralized (or, in certain cases, undercollateralized) manner. The protocol is governed by AAVE token holders who vote on risk parameters, new asset listings, and protocol upgrades.
+          </p>
+          <p style="margin-bottom: 20px;">
+            Unlike traditional banks where your deposits fund loans you never see, Aave lets you see exactly where your money goes. When you deposit assets into an Aave market, you receive <strong style="color: var(--text);">aTokens</strong> — these are yield-bearing tokens that represent your deposit and accrue interest in real-time. Your aToken balance increases every block as interest accrues from borrowers.
+          </p>
+          <p style="margin-bottom: 20px;">
+            The <strong style="color: var(--text);">Health Factor (HF)</strong> is the cornerstone of Aave's safety model. It's a number that represents the health of your borrowed position: HF &gt; 1 means your collateral is worth more than what you've borrowed. If your HF drops below 1.0, your position becomes eligible for <strong style="color: var(--text);">liquidation</strong> — meaning other users (called liquidators) can repay your debt and claim a portion of your collateral as a reward. This mechanism keeps the protocol solvent and ensures all depositors can withdraw their funds.
+          </p>
+          <p style="margin-bottom: 20px;">
+            Aave uses a <strong style="color: var(--text);">Variable interest rate model</strong> for most assets, where the rate scales dynamically based on how much of the pool's capital is currently borrowed (the utilization rate). When a lot of money is borrowed, rates rise to incentivize repayment and attract more depositors. Aave v3 also introduced <strong style="color: var(--text);">isolated assets</strong>, <strong style="color: var(--text);">collateral switching</strong>, and <strong style="color: var(--text);">isolation mode</strong> for improved capital efficiency and risk management.
+          </p>
+          <p>
+            The protocol has over <strong style="color: var(--text);">$8 billion in TVL</strong> and powers lending across dozens of blockchains including Ethereum, Avalanche, Polygon, and Arbitrum. Aave V3 improved gas efficiency by ~25% and introduced portaling — the ability for assets to cross-chain using cross-chain messaging bridges. The protocol is maintained by <strong style="color: var(--text);">Aave Companies</strong> but governed entirely by the AAVE/AAVEa token holders through on-chain voting.
+          </p>
+        </div>
+
+        <div class="stat-cards-row" style="margin-top: 40px;">
+          <div class="stat-card glow-card">
+            <div class="sc-icon">📈</div>
+            <div class="sc-val">$8.2B</div>
+            <div class="sc-lbl">Total Value Locked</div>
+          </div>
+          <div class="stat-card glow-card" style="animation-delay: 1s;">
+            <div class="sc-icon">🌍</div>
+            <div class="sc-val">6</div>
+            <div class="sc-lbl">Blockchains Supported</div>
+          </div>
+          <div class="stat-card glow-card" style="animation-delay: 2s;">
+            <div class="sc-icon">🛡️</div>
+            <div class="sc-val">169M</div>
+            <div class="sc-lbl">AAVE Staked in Safety Module</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="flow-section" style="padding: 40px 0 60px;">
+      <div class="container">
+        <h2 class="section-title">How It <span>Works</span></h2>
+        <div class="flow-container" style="margin-top: 24px;">
+          <div class="flow-row">
+            <div class="flow-step">
+              <div class="flow-box primary">
+                <div class="fb-icon">💎</div>
+                <div class="fb-label">User deposits</div>
+                <div class="fb-value">ETH, USDC, etc.</div>
+              </div>
+              <div class="fb-label">Step 1</div>
+            </div>
+
+            <div class="flow-arrow-wrap">
+              <svg width="60" height="40" viewBox="0 0 60 40">
+                <path class="flow-path" d="M 0 20 Q 30 5 60 20" marker-end="url(#arrowhead)"/>
+                <defs>
+                  <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                    <polygon points="0 0, 8 4, 0 8" fill="var(--primary)"/>
+                  </marker>
+                </defs>
+              </svg>
+            </div>
+
+            <div class="flow-step">
+              <div class="flow-box primary">
+                <div class="fb-icon">🪙</div>
+                <div class="fb-label">Receives</div>
+                <div class="fb-value">aTokens</div>
+              </div>
+              <div class="fb-label">Step 2</div>
+            </div>
+
+            <div class="flow-arrow-wrap">
+              <svg width="60" height="40" viewBox="0 0 60 40">
+                <path class="flow-path" d="M 0 20 Q 30 35 60 20"/>
+              </svg>
+            </div>
+
+            <div class="flow-step">
+              <div class="flow-box secondary">
+                <div class="fb-icon">📊</div>
+                <div class="fb-label">Interest accrues</div>
+                <div class="fb-value">Every block</div>
+              </div>
+              <div class="fb-label">Step 3</div>
+            </div>
+
+            <div class="flow-arrow-wrap">
+              <svg width="60" height="40" viewBox="0 0 60 40">
+                <path class="flow-path" d="M 0 20 Q 30 5 60 20"/>
+              </svg>
+            </div>
+
+            <div class="flow-step">
+              <div class="flow-box accent">
+                <div class="fb-icon">🔄</div>
+                <div class="fb-label">Borrower uses</div>
+                <div class="fb-value">Deposited collateral</div>
+              </div>
+              <div class="fb-label">Step 4</div>
+            </div>
+
+            <div class="flow-arrow-wrap">
+              <svg width="60" height="40" viewBox="0 0 60 40">
+                <path class="flow-path rate-path" d="M 0 20 Q 30 35 60 20"/>
+              </svg>
+            </div>
+
+            <div class="flow-step">
+              <div class="flow-box accent">
+                <div class="fb-icon">💸</div>
+                <div class="fb-label">Repays with</div>
+                <div class="fb-value">Interest added</div>
+              </div>
+              <div class="fb-label">Step 5</div>
+            </div>
+
+            <div class="flow-arrow-wrap">
+              <svg width="60" height="40" viewBox="0 0 60 40">
+                <path class="flow-path rate-path" d="M 0 20 Q 30 5 60 20"/>
+              </svg>
+            </div>
+
+            <div class="flow-step">
+              <div class="flow-box" style="border-color: var(--success);">
+                <div class="fb-icon">✅</div>
+                <div class="fb-label">Depositor earns</div>
+                <div class="fb-value">Yield</div>
+              </div>
+              <div class="fb-label">Step 6</div>
+            </div>
+          </div>
+
+          <div class="flow-legend">
+            <span><span class="dot" style="background: var(--primary);"></span> Deposit flow</span>
+            <span><span class="dot" style="background: var(--accent);"></span> Borrow/repay flow</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Lending Simulator -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Lending <span>Simulator</span></h2>
+        <div class="sandbox" style="margin-top: 24px;">
+          <div class="sandbox-title">
+            <span class="num">1</span> Supply Assets &amp; Earn Interest
+          </div>
+
+          <div class="slider-group">
+            <label>
+              Asset
+              <span id="lendAssetDisplay" class="asset-badge eth">⟠ ETH</span>
+            </label>
+            <select id="lendAsset" style="width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-family:var(--mono); font-size:15px; padding:10px 14px; border-radius:8px; outline:none; margin-top:8px;">
+              <option value="eth">ETH — ~2.3% APY</option>
+              <option value="usdc">USDC — ~4.5% APY</option>
+              <option value="usdt">USDT — ~4.2% APY</option>
+              <option value="wbtc">WBTC — ~0.8% APY</option>
+            </select>
+          </div>
+
+          <div class="slider-group">
+            <label>
+              Deposit Amount
+              <span id="lendAmountDisplay">$1,000</span>
+            </label>
+            <input type="range" id="lendAmount" min="100" max="100000" step="100" value="1000">
+          </div>
+
+          <div class="result-box">
+            <div class="result-row">
+              <span class="label">Current APY</span>
+              <span class="value" id="lendAPY">2.30%</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Daily Earnings</span>
+              <span class="value tween-num" id="lendDaily">$0.06</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Monthly Earnings</span>
+              <span class="value tween-num" id="lendMonthly">$1.92</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Yearly Earnings</span>
+              <span class="value tween-num" id="lendYearly">$23.00</span>
+            </div>
+            <div class="result-row">
+              <span class="label">aToken Balance (after 1 yr)</span>
+              <span class="value tween-num" id="lendBalance">$1,023.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Borrowing Simulator -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Borrowing <span>Simulator</span></h2>
+        <div class="sandbox" style="margin-top: 24px;">
+          <div class="sandbox-title">
+            <span class="num">2</span> Borrow Against Collateral
+          </div>
+
+          <div class="slider-group">
+            <label>
+              Borrow Asset
+              <span id="borrowAssetDisplay" class="asset-badge usdc">💲 USDC</span>
+            </label>
+            <select id="borrowAsset" style="width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-family:var(--mono); font-size:15px; padding:10px 14px; border-radius:8px; outline:none; margin-top:8px;">
+              <option value="usdc">USDC — ~5.8% APY</option>
+              <option value="usdt">USDT — ~5.5% APY</option>
+              <option value="eth">ETH — ~3.2% APY</option>
+              <option value="wbtc">WBTC — ~4.1% APY</option>
+            </select>
+          </div>
+
+          <div class="slider-group">
+            <label>
+              Collateral Amount (ETH)
+              <span id="collatAmountDisplay">2.0 ETH</span>
+            </label>
+            <input type="range" id="collatAmount" min="0.1" max="50" step="0.1" value="2">
+          </div>
+
+          <div class="slider-group">
+            <label>
+              ETH Price (USD)
+              <span id="ethPriceDisplay">$3,500</span>
+            </label>
+            <input type="range" id="ethPrice" min="1000" max="10000" step="50" value="3500">
+          </div>
+
+          <div class="slider-group">
+            <label>
+              Borrow Amount (USD)
+              <span id="borrowAmountDisplay">$1,000</span>
+            </label>
+            <input type="range" id="borrowAmount" min="100" max="50000" step="100" value="1000">
+          </div>
+
+          <div class="result-box" id="borrowResultBox">
+            <div class="result-row">
+              <span class="label">Collateral Value</span>
+              <span class="value" id="borrowCollatVal">$7,000</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Max Borrow (LTV 80%)</span>
+              <span class="value" id="borrowMax">$5,600</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Current LTV</span>
+              <span class="value" id="borrowLTV">14.3%</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Borrow APY</span>
+              <span class="value" id="borrowAPY">5.80%</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Health Factor</span>
+              <span class="value tween-num" id="borrowHF">7.00</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Liquidation Price</span>
+              <span class="value tween-num" id="borrowLiqPrice">$1,750</span>
+            </div>
+            <div class="result-row" id="borrowWarning" style="display:none;">
+              <span class="label">⚠️ Warning</span>
+              <span class="value danger" id="borrowWarningText">Health factor too low!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interest Rate Curve -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Interest Rate <span>Curve</span></h2>
+        <div class="curve-container" style="margin-top: 24px;">
+          <div class="sandbox-title" style="margin-bottom: 20px;">
+            <span class="num">3</span> How Rates Scale with Utilization
+          </div>
+
+          <div class="curve-svg-wrap">
+            <svg id="rateCurve" viewBox="0 0 700 300" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="rateGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" style="stop-color:#00ffc8;stop-opacity:0"/>
+                  <stop offset="100%" style="stop-color:#00ffc8;stop-opacity:0.4"/>
+                </linearGradient>
+              </defs>
+
+              <!-- Grid lines -->
+              <line class="curve-grid-line" x1="70" y1="240" x2="670" y2="240"/>
+              <line class="curve-grid-line" x1="70" y1="180" x2="670" y2="180"/>
+              <line class="curve-grid-line" x1="70" y1="120" x2="670" y2="120"/>
+              <line class="curve-grid-line" x1="70" y1="60" x2="670" y2="60"/>
+              <line class="curve-axis-line" x1="70" y1="240" x2="70" y2="40"/>
+
+              <!-- Y-axis labels -->
+              <text class="curve-label" x="60" y="244" text-anchor="middle">0%</text>
+              <text class="curve-label" x="60" y="184" text-anchor="middle">10%</text>
+              <text class="curve-label" x="60" y="124" text-anchor="middle">20%</text>
+              <text class="curve-label" x="60" y="64" text-anchor="middle">30%</text>
+
+              <!-- Optimal zone (80%) -->
+              <rect class="optimal-zone" x="550" y="40" width="120" height="200" rx="4"/>
+              <line class="optimal-line" x1="550" y1="40" x2="550" y2="240"/>
+              <text class="curve-annotation" x="610" y="55" text-anchor="middle">Optimal</text>
+              <text class="curve-annotation-value" x="610" y="68" text-anchor="middle">~80%</text>
+
+              <!-- Area under curve -->
+              <path class="rate-area-fill" id="rateAreaPath"/>
+
+              <!-- Rate curve path (variable rate) -->
+              <path class="rate-line" id="rateLinePath"/>
+
+              <!-- X-axis labels -->
+              <text class="curve-label" x="70" y="260" text-anchor="middle">0%</text>
+              <text class="curve-label" x="190" y="260" text-anchor="middle">25%</text>
+              <text class="curve-label" x="310" y="260" text-anchor="middle">50%</text>
+              <text class="curve-label" x="430" y="260" text-anchor="middle">75%</text>
+              <text class="curve-label" x="550" y="260" text-anchor="middle">85%</text>
+              <text class="curve-label" x="640" y="260" text-anchor="middle">100%</text>
+              <text class="curve-label" x="370" y="280" text-anchor="middle" style="font-size:13px;">Utilization Rate</text>
+
+              <!-- Y-axis label -->
+              <text class="curve-label" x="18" y="145" text-anchor="middle" style="font-size:12px;" transform="rotate(-90,18,145)">APY (%)</text>
+
+              <!-- Hover elements (initially hidden) -->
+              <line id="curveHoverLine" class="curve-hover-line" x1="0" y1="40" x2="0" y2="240" style="display:none;"/>
+              <circle id="curveHoverDot" class="curve-hover-dot" r="6" cx="0" cy="0" style="display:none;"/>
+              <rect id="curveHoverRect" rx="6" ry="6" style="fill:var(--surface); stroke:var(--border); stroke-width:1px; display:none;"/>
+              <text id="curveHoverText1" class="curve-label-value" style="font-size:12px;" style="display:none;"></text>
+              <text id="curveHoverText2" class="curve-annotation-value" style="display:none;"></text>
+            </svg>
+          </div>
+
+          <div class="curve-labels-row">
+            <div class="curve-util-slider">
+              <div class="slider-group" style="margin-bottom:0;">
+                <label>
+                  Utilization Rate
+                  <span id="curveUtilDisplay">50%</span>
+                </label>
+                <input type="range" id="curveUtil" min="0" max="100" step="1" value="50">
+              </div>
+            </div>
+            <div class="curve-util-display">
+              <div class="val" id="curveUtilVal">50%</div>
+              <div class="lbl">Utilization</div>
+            </div>
+            <div class="curve-rate-display">
+              <div class="val" id="curveRateVal">4.2%</div>
+              <div class="lbl">Borrow APY</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Health Factor Calculator -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Health Factor <span>Calculator</span></h2>
+        <div class="sandbox" style="margin-top: 24px;">
+          <div class="sandbox-title">
+            <span class="num">4</span> Is Your Position Safe?
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+            <div class="input-group">
+              <label>Collateral Amount</label>
+              <input type="number" id="hfCollatAmt" value="10" min="0.01" step="0.1">
+            </div>
+            <div class="input-group">
+              <label>Collateral Asset</label>
+              <select id="hfCollatAsset" style="width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-family:var(--mono); font-size:15px; padding:10px 14px; border-radius:8px; outline:none;">
+                <option value="eth">ETH ($3,500)</option>
+                <option value="wbtc">WBTC ($65,000)</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>Borrow Amount</label>
+              <input type="number" id="hfBorrowAmt" value="15000" min="1" step="100">
+            </div>
+            <div class="input-group">
+              <label>Borrow Asset</label>
+              <select id="hfBorrowAsset" style="width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-family:var(--mono); font-size:15px; padding:10px 14px; border-radius:8px; outline:none;">
+                <option value="usdc">USDC</option>
+                <option value="usdt">USDT</option>
+                <option value="eth">ETH</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="result-box" id="hfResultBox">
+            <div class="result-row">
+              <span class="label">Collateral Value</span>
+              <span class="value" id="hfCollatVal">$35,000</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Max Borrow (at 80% LTV)</span>
+              <span class="value" id="hfMaxBorrow">$28,000</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Current LTV</span>
+              <span class="value" id="hfLTV">42.9%</span>
+            </div>
+            <div class="result-row">
+              <span class="label">Liquidation Threshold</span>
+              <span class="value" id="hfLiqThreshold">85%</span>
+            </div>
+          </div>
+
+          <div class="hf-result">
+            <div class="hf-gauge">
+              <svg viewBox="0 0 180 100" xmlns="http://www.w3.org/2000/svg">
+                <path class="hf-arc-bg" d="M 20 90 A 70 70 0 0 1 160 90" id="hfArcBg"/>
+                <path class="hf-arc-fill" d="M 20 90 A 70 70 0 0 1 160 90"
+                      id="hfArcFill"
+                      stroke="var(--success)"
+                      style="stroke-dasharray: 220; stroke-dashoffset: 220;"/>
+                <text x="90" y="82" class="hf-center-text">
+                  <tspan class="hf-gauge-label">Health Factor</tspan><br>
+                  <tspan class="hf-gauge-value" id="hfGaugeVal" style="fill: var(--success); font-size:28px;">2.33</tspan>
+                </text>
+              </svg>
+            </div>
+            <div class="hf-status-badge safe" id="hfStatusBadge">
+              <span>✅</span>
+              <span id="hfStatusText">Healthy Position</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Yield Comparison -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Yield <span>Comparison</span></h2>
+        <div class="sandbox" style="margin-top: 24px;">
+          <div class="sandbox-title">
+            <span class="num">5</span> Aave vs Traditional Finance
+          </div>
+
+          <div class="yield-chart">
+            <div class="chart-bar">
+              <div class="bar-label">Aave USDC</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: 90%; background: linear-gradient(90deg, var(--primary), #00d4aa);"></div>
+              </div>
+              <div class="bar-val">4.5%</div>
+            </div>
+            <div class="chart-bar">
+              <div class="bar-label">Aave ETH</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: 46%; background: linear-gradient(90deg, var(--secondary), #7c3aed);"></div>
+              </div>
+              <div class="bar-val">2.3%</div>
+            </div>
+            <div class="chart-bar">
+              <div class="bar-label">Bank Savings</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: 10%; background: linear-gradient(90deg, var(--muted), #475569);"></div>
+              </div>
+              <div class="bar-val">0.5%</div>
+            </div>
+            <div class="chart-bar">
+              <div class="bar-label">S&amp;P 500 (avg)</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: 30%; background: linear-gradient(90deg, var(--accent), #d97706);"></div>
+              </div>
+              <div class="bar-val">~10%</div>
+            </div>
+            <div class="chart-bar">
+              <div class="bar-label">Compound USDC</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: 84%; background: linear-gradient(90deg, #00d395, #00a86b);"></div>
+              </div>
+              <div class="bar-val">4.2%</div>
+            </div>
+          </div>
+
+          <p style="margin-top: 16px; font-size: 13px; color: var(--muted);">
+            * S&amp;P 500 return is historical average, not guaranteed. DeFi returns are variable and depend on market utilization.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Glossary -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Glossary of <span>Terms</span></h2>
+        <div class="glossary-grid" style="margin-top: 24px;">
+          <div class="glossary-item">
+            <div class="term">aToken</div>
+            <div class="def">Yield-bearing tokens issued when you deposit assets into Aave. 1 aToken = 1 underlying asset + accrued interest. They accrue value automatically every block.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Health Factor (HF)</div>
+            <div class="def">A ratio = (Collateral × Liquidation Threshold) / Total Borrow Value. HF &gt; 1 means safe; HF ≤ 1 triggers liquidation. Higher HF = safer position.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Liquidation</div>
+            <div class="def">When a borrower's health factor drops below 1.0, liquidators can repay the debt and claim a portion of the collateral (typically with a 5-10% bonus). This protects depositors.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">LTV (Loan-to-Value)</div>
+            <div class="def">The maximum amount you can borrow against your collateral, expressed as a percentage. ETH on Aave has ~80% LTV, meaning $1,000 ETH can secure $800 in loans.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Variable Rate</div>
+            <div class="def">Interest rate that fluctuates in real-time based on pool utilization. Lower when utilization is low, higher when the pool is near full capacity. Most assets use variable rates.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Stable Rate</div>
+            <div class="def">A fixed-rate option available for certain assets. Rates are more predictable but can be higher than variable rates and have rate rebalancing mechanics.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Reserve Factor</div>
+            <div class="def">A percentage of borrower interest that goes to the Aave treasury (or Safety Module stakers). Typically 10-20%. This provides a sustainable revenue stream for protocol development.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Utilization Rate</div>
+            <div class="def">The percentage of a pool's capital that is currently lent out. Calculated as: (Total Borrows / Total Supply). Higher utilization → higher variable interest rates for borrowers.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">Isolation Mode</div>
+            <div class="def">Aave V3 feature allowing assets to be listed as isolated — meaning users can only borrow isolated assets without crossing contamination risk from other collateral types.</div>
+          </div>
+          <div class="glossary-item">
+            <div class="term">AAVE Token</div>
+            <div class="def">The governance token of the Aave protocol. Holders vote on risk parameters, upgrades, and fee structures. A portion of fees flow to Safety Module stakers who provide insurance.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Risk Section -->
+    <section class="section" style="padding-top: 20px;">
+      <div class="container">
+        <h2 class="section-title">Risk <span>Considerations</span></h2>
+        <div class="risk-cards" style="margin-top: 24px;">
+          <div class="risk-card">
+            <div class="risk-icon">⚠️</div>
+            <h3>Liquidation Risk</h3>
+            <p>If your health factor drops below 1.0 due to price volatility, your collateral can be liquidated. Always maintain a healthy buffer above the liquidation threshold — a general rule of thumb is keeping HF above 2.0. Use the Health Factor Calculator above to stress-test your position.</p>
+            <div class="risk-meter medium">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+                <span>Low</span><span>Medium</span><span>High</span>
+              </div>
+              <div class="risk-meter-bar">
+                <div class="risk-meter-fill" style="width: 55%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="risk-card">
+            <div class="risk-icon">🔐</div>
+            <h3>Smart Contract Risk</h3>
+            <p>Like all DeFi protocols, Aave's contracts have been audited by multiple firms and have a ~$0 hack record (notable for its age and TVL), but audits don't guarantee safety. Aave has a ~$50M+ Safety Module (staked AAVE) as insurance against treasury shortfalls from bad debt events.</p>
+            <div class="risk-meter low">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+                <span>Low</span><span>Medium</span><span>High</span>
+              </div>
+              <div class="risk-meter-bar">
+                <div class="risk-meter-fill" style="width: 25%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="risk-card">
+            <div class="risk-icon">📊</div>
+            <h3>Rate Volatility Risk</h3>
+            <p>Variable interest rates can swing dramatically during periods of high demand. During peak DeFi summer, borrow rates on stablecoins briefly spiked above 30% APY. If you need predictable payments, consider stable-rate options where available, and always monitor your position.</p>
+            <div class="risk-meter medium">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+                <span>Low</span><span>Medium</span><span>High</span>
+              </div>
+              <div class="risk-meter-bar">
+                <div class="risk-meter-fill" style="width: 45%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-links">
+          <a href="index.html">All Protocols</a>
+          <a href="https://aave.com" target="_blank" rel="noopener">Official Site ↗</a>
+          <a href="https://docs.aave.com" target="_blank" rel="noopener">Docs ↗</a>
+        </div>
+        <p style="color: var(--muted); font-size: 13px;">
+          DeFi Visualizer — Educational content only. Not financial advice.<br>
+          Built for learning purposes. Always DYOR.
+        </p>
+      </div>
+    </footer>
+  </section>
+
+  <script>
+    // ─── Asset Config ───
+    const LEND_CONFIG = {
+      eth:  { apy: 0.023, label: '⟠ ETH',  cssClass: 'eth'  },
+      usdc: { apy: 0.045, label: '💲 USDC', cssClass: 'usdc' },
+      usdt: { apy: 0.042, label: '💲 USDT', cssClass: 'usdt' },
+      wbtc: { apy: 0.008, label: '₿ WBTC',  cssClass: 'wbtc' },
+    };
+
+    const BORROW_CONFIG = {
+      usdc: { apy: 0.058, label: '💲 USDC', cssClass: 'usdc' },
+      usdt: { apy: 0.055, label: '💲 USDT', cssClass: 'usdt' },
+      eth:  { apy: 0.032, label: '⟠ ETH',   cssClass: 'eth'  },
+      wbtc: { apy: 0.041, label: '₿ WBTC',  cssClass: 'wbtc'  },
+    };
+
+    const COLLATERAL_LTV = 0.80;
+    const LIQUIDATION_THRESHOLD = 0.85; // HF threshold for liquidation
+
+    // ─── Formatters ───
+    function fmt$(n) { return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}); }
+    function fmtEth(n) { return parseFloat(n).toFixed(2) + ' ETH'; }
+    function fmtPct(n, d=2) { return (n * 100).toFixed(d) + '%'; }
+    function fmtAPY(n) { return (n * 100).toFixed(2) + '%'; }
+
+    // ─── Lending Simulator ───
+    (function initLending() {
+      const assetSel = document.getElementById('lendAsset');
+      const amountSlider = document.getElementById('lendAmount');
+
+      function update() {
+        const asset = assetSel.value;
+        const amount = parseFloat(amountSlider.value);
+        const cfg = LEND_CONFIG[asset];
+        const apy = cfg.apy;
+
+        const badge = document.getElementById('lendAssetDisplay');
+        badge.textContent = cfg.label;
+        badge.className = 'asset-badge ' + cfg.cssClass;
+
+        document.getElementById('lendAmountDisplay').textContent = fmt$(amount);
+
+        const daily = amount * apy / 365;
+        const monthly = amount * apy / 12;
+        const yearly = amount * apy;
+        const balance = amount + yearly;
+
+        document.getElementById('lendAPY').textContent = fmtAPY(apy);
+        document.getElementById('lendDaily').textContent = '$' + daily.toFixed(4);
+        document.getElementById('lendMonthly').textContent = '$' + monthly.toFixed(2);
+        document.getElementById('lendYearly').textContent = '$' + yearly.toFixed(2);
+        document.getElementById('lendBalance').textContent = '$' + balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      }
+
+      assetSel.addEventListener('change', update);
+      amountSlider.addEventListener('input', update);
+      update();
+    })();
+
+    // ─── Borrowing Simulator ───
+    (function initBorrowing() {
+      const assetSel = document.getElementById('borrowAsset');
+      const collatSlider = document.getElementById('collatAmount');
+      const priceSlider = document.getElementById('ethPrice');
+      const borrowSlider = document.getElementById('borrowAmount');
+
+      function update() {
+        const asset = assetSel.value;
+        const collatAmt = parseFloat(collatSlider.value);
+        const ethPrice = parseFloat(priceSlider.value);
+        const borrowAmt = parseFloat(borrowSlider.value);
+        const cfg = BORROW_CONFIG[asset];
+
+        const badge = document.getElementById('borrowAssetDisplay');
+        badge.textContent = cfg.label;
+        badge.className = 'asset-badge ' + cfg.cssClass;
+
+        document.getElementById('collatAmountDisplay').textContent = fmtEth(collatAmt);
+        document.getElementById('ethPriceDisplay').textContent = fmt$(ethPrice);
+        document.getElementById('borrowAmountDisplay').textContent = fmt$(borrowAmt);
+
+        const collatVal = collatAmt * ethPrice;
+        const maxBorrow = collatVal * COLLATERAL_LTV;
+        const currentLTV = borrowAmt / collatVal;
+        const apy = cfg.apy;
+
+        // Health factor: (collatVal * liqThreshold) / borrowAmt
+        const HF = borrowAmt > 0 ? (collatVal * LIQUIDATION_THRESHOLD) / borrowAmt : 999;
+        // Liquidation price: when HF = 1.0 => collatAmt * price * 0.85 = borrowAmt => price = borrowAmt / (collatAmt * 0.85)
+        const liqPrice = borrowAmt / (collatAmt * LIQUIDATION_THRESHOLD);
+
+        document.getElementById('borrowCollatVal').textContent = fmt$(Math.round(collatVal));
+        document.getElementById('borrowMax').textContent = fmt$(Math.round(maxBorrow));
+        document.getElementById('borrowLTV').textContent = fmtPct(currentLTV);
+        document.getElementById('borrowAPY').textContent = fmtAPY(apy);
+
+        const hfEl = document.getElementById('borrowHF');
+        hfEl.textContent = HF > 99 ? '∞' : HF.toFixed(2);
+        hfEl.className = 'value ' + (HF < 1.2 ? 'danger' : HF < 1.5 ? '' : 'success');
+
+        const liqEl = document.getElementById('borrowLiqPrice');
+        liqEl.textContent = '$' + Math.round(liqPrice).toLocaleString();
+        liqEl.className = 'value ' + (liqPrice < ethPrice * 0.6 ? 'danger' : '');
+
+        const warning = document.getElementById('borrowWarning');
+        const warningText = document.getElementById('borrowWarningText');
+        if (HF < 1.2) {
+          warning.style.display = '';
+          warningText.textContent = HF < 1.0 ? 'LIQUIDATION IMMINENT!' : 'Critical — HF below 1.2!';
+        } else if (HF < 1.5) {
+          warning.style.display = '';
+          warningText.textContent = 'Warning — HF below 1.5, buffer low';
+          warningText.className = 'value';
+          warningText.style.color = 'var(--accent)';
+        } else {
+          warning.style.display = 'none';
+        }
+      }
+
+      assetSel.addEventListener('change', update);
+      collatSlider.addEventListener('input', update);
+      priceSlider.addEventListener('input', update);
+      borrowSlider.addEventListener('input', update);
+      update();
+    })();
+
+    // ─── Interest Rate Curve ───
+    (function initCurve() {
+      // Aave-style interest rate model (simplified)
+      // Variable borrow rate: base + slope * utilization / optimal
+      const BASE_RATE = 0.001;    // 0.1%
+      const RATE_AT_OPTIMAL = 0.035;  // 3.5% at 80%
+      const RATE_AT_MAX = 0.80;   // 80% APY at 100% utilization
+
+      function getRate(u) {
+        const util = u / 100;
+        if (util <= 0.45) {
+          return BASE_RATE + (RATE_AT_OPTIMAL - BASE_RATE) * (util / 0.45) * 0.2;
+        } else if (util <= 0.80) {
+          const t = (util - 0.45) / 0.35;
+          return RATE_AT_OPTIMAL * 0.2 + (RATE_AT_OPTIMAL - RATE_AT_OPTIMAL * 0.2) * t;
+        } else {
+          const t = (util - 0.80) / 0.20;
+          return RATE_AT_OPTIMAL + (RATE_AT_MAX - RATE_AT_OPTIMAL) * Math.pow(t, 0.7);
+        }
+      }
+
+      function utilToX(u) {
+        return 70 + (u / 100) * 600;
+      }
+
+      function rateToY(r) {
+        // APY 0% = y 240, 80% APY = y 40
+        return 240 - (r / 0.80) * 200;
+      }
+
+      function buildCurve() {
+        const points = [];
+        for (let u = 0; u <= 100; u += 1) {
+          const r = getRate(u);
+          points.push([utilToX(u), rateToY(r)]);
+        }
+        return points;
+      }
+
+      function pointsToPath(pts) {
+        if (pts.length === 0) return '';
+        let d = 'M ' + pts[0][0] + ' ' + pts[0][1];
+        for (let i = 1; i < pts.length; i++) {
+          const [x0, y0] = pts[i - 1];
+          const [x1, y1] = pts[i];
+          const cpx = (x0 + x1) / 2;
+          d += ' Q ' + x0 + ' ' + y0 + ' ' + cpx + ' ' + ((y0 + y1) / 2).toFixed(2);
+        }
+        return d;
+      }
+
+      function buildAreaPath(pts) {
+        if (pts.length === 0) return '';
+        const linePath = pointsToPath(pts);
+        const last = pts[pts.length - 1];
+        const first = pts[0];
+        return linePath + ' L ' + last[0] + ' 240 L ' + first[0] + ' 240 Z';
+      }
+
+      const allPoints = buildCurve();
+      document.getElementById('rateLinePath').setAttribute('d', pointsToPath(allPoints));
+      document.getElementById('rateAreaPath').setAttribute('d', buildAreaPath(allPoints));
+
+      // Slider interaction
+      const slider = document.getElementById('curveUtil');
+      const utilDisplay = document.getElementById('curveUtilDisplay');
+      const utilVal = document.getElementById('curveUtilVal');
+      const rateVal = document.getElementById('curveRateVal');
+      const curveLine = document.getElementById('rateLinePath');
+
+      // Animated dot on curve
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('r', '7');
+      dot.setAttribute('fill', 'var(--accent)');
+      dot.setAttribute('filter', 'drop-shadow(0 0 6px var(--accent))');
+      document.getElementById('rateCurve').appendChild(dot);
+
+      function moveDot(u) {
+        const idx = Math.round(u);
+        const pt = allPoints[idx] || allPoints[allPoints.length - 1];
+        dot.setAttribute('cx', pt[0]);
+        dot.setAttribute('cy', pt[1]);
+      }
+
+      function updateCurve(u) {
+        const rate = getRate(u);
+        utilDisplay.textContent = u + '%';
+        utilVal.textContent = u + '%';
+        rateVal.textContent = (rate * 100).toFixed(1) + '%';
+        moveDot(u);
+      }
+
+      slider.addEventListener('input', function() {
+        updateCurve(parseInt(this.value));
+      });
+
+      // Initial
+      updateCurve(50);
+
+      // Hover interaction on SVG
+      const svg = document.getElementById('rateCurve');
+      const hoverLine = document.getElementById('curveHoverLine');
+      const hoverDot = document.getElementById('curveHoverDot');
+      const hoverRect = document.getElementById('curveHoverRect');
+      const hoverText1 = document.getElementById('curveHoverText1');
+      const hoverText2 = document.getElementById('curveHoverText2');
+
+      svg.addEventListener('mousemove', function(e) {
+        const rect = svg.getBoundingClientRect();
+        const scaleX = 700 / rect.width;
+        const mx = (e.clientX - rect.left) * scaleX;
+
+        if (mx < 70 || mx > 670) return;
+
+        const u = Math.round(((mx - 70) / 600) * 100);
+        const clampedU = Math.max(0, Math.min(100, u));
+        const rate = getRate(clampedU);
+        const pt = allPoints[clampedU] || [mx, 240];
+
+        hoverLine.style.display = 'block';
+        hoverLine.setAttribute('x1', pt[0]);
+        hoverLine.setAttribute('x2', pt[0]);
+
+        hoverDot.style.display = 'block';
+        hoverDot.setAttribute('cx', pt[0]);
+        hoverDot.setAttribute('cy', pt[1]);
+      });
+
+      svg.addEventListener('mouseleave', function() {
+        hoverLine.style.display = 'none';
+        hoverDot.style.display = 'none';
+      });
+    })();
+
+    // ─── Health Factor Calculator ───
+    (function initHF() {
+      const collatAmt = document.getElementById('hfCollatAmt');
+      const collatAsset = document.getElementById('hfCollatAsset');
+      const borrowAmt = document.getElementById('hfBorrowAmt');
+      const borrowAsset = document.getElementById('hfBorrowAsset');
+
+      const ETH_PRICE = 3500;
+      const WBTC_PRICE = 65000;
+
+      function getPrice(asset) {
+        return asset === 'wbtc' ? WBTC_PRICE : ETH_PRICE;
+      }
+
+      function update() {
+        const cAmt = parseFloat(collatAmt.value) || 0;
+        const cAsset = collatAsset.value;
+        const bAmt = parseFloat(borrowAmt.value) || 0;
+
+        const cPrice = getPrice(cAsset);
+        const cVal = cAmt * cPrice;
+        const maxBorrow = cVal * COLLATERAL_LTV;
+        const currentLTV = bAmt / cVal;
+
+        // Health Factor = (Collateral Value × Liquidation Threshold) / Borrow Amount
+        const HF = bAmt > 0 ? (cVal * LIQUIDATION_THRESHOLD) / bAmt : 999;
+
+        document.getElementById('hfCollatVal').textContent = fmt$(Math.round(cVal));
+        document.getElementById('hfMaxBorrow').textContent = fmt$(Math.round(maxBorrow));
+        document.getElementById('hfLTV').textContent = fmtPct(currentLTV);
+        document.getElementById('hfLiqThreshold').textContent = fmtPct(LIQUIDATION_THRESHOLD);
+
+        // Gauge: full arc is 220 units of dasharray
+        // Map HF: 0->full, 1->220offset, 5->0offset
+        const clampedHF = Math.min(5, Math.max(0.1, HF));
+        const offset = 220 - (clampedHF / 5) * 220;
+
+        const arcFill = document.getElementById('hfArcFill');
+        arcFill.style.strokeDashoffset = offset;
+
+        let color, statusText, badgeClass;
+        if (HF >= 2.0) {
+          color = 'var(--success)';
+          statusText = 'Healthy Position';
+          badgeClass = 'safe';
+        } else if (HF >= 1.2) {
+          color = 'var(--accent)';
+          statusText = 'Caution — Low Buffer';
+          badgeClass = 'warning';
+        } else {
+          color = 'var(--danger)';
+          statusText = HF < 1.0 ? 'LIQUIDATION RISK!' : 'Danger — Near Liquidation';
+          badgeClass = 'danger';
+        }
+
+        arcFill.style.stroke = color;
+        document.getElementById('hfGaugeVal').textContent = HF > 99 ? '∞' : HF.toFixed(2);
+        document.getElementById('hfGaugeVal').style.fill = color;
+        document.getElementById('hfStatusText').textContent = statusText;
+        document.getElementById('hfStatusBadge').className = 'hf-status-badge ' + badgeClass;
+      }
+
+      collatAmt.addEventListener('input', update);
+      collatAsset.addEventListener('change', update);
+      borrowAmt.addEventListener('input', update);
+      borrowAsset.addEventListener('change', update);
+      update();
+    })();
+  </script>
+  <!-- Tools & Links -->
+  <section class="tools-section">
+    <div class="container">
+      <div class="tools-header">🔗 Tools &amp; Links</div>
+      <div class="tools-grid">
+        <a href="https://coinbase.com/join/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🟣</span>
+          <span class="tool-name">Coinbase</span>
+          <span class="tool-desc">Buy &amp; trade crypto</span>
+        </a>
+        <a href="https://app.1inch.io/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🔀</span>
+          <span class="tool-name">1inch</span>
+          <span class="tool-desc">DEX aggregator</span>
+        </a>
+        <a href="https://defillama.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">📊</span>
+          <span class="tool-name">DeFiLlama</span>
+          <span class="tool-desc">TVL &amp; yield data</span>
+        </a>
+        <a href="https://debank.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">💼</span>
+          <span class="tool-name">DeBank</span>
+          <span class="tool-desc">Portfolio tracker</span>
+        </a>
+      </div>
+    </div>
+  </section>
+  <style>
+  .tools-section { padding: 40px 0 20px; }
+  .tools-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+  .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .tool-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; text-decoration: none; color: inherit; transition: all 0.2s; }
+  .tool-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  .tool-icon { font-size: 20px; flex-shrink: 0; }
+  .tool-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .tool-desc { font-size: 11px; color: var(--muted); margin-left: auto; }
+  </style>
+
+</body>
+</html>
