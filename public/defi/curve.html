@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Curve Finance — DeFi Visualizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "What makes Curve Finance different from other DEXs?", "acceptedAnswer": {"@type": "Answer", "text": "Curve uses the StableSwap invariant (a hybrid between constant product and constant sum) optimized for assets that should trade near parity (stablecoins, wrapped assets of the same asset on different chains). This gives near-zero slippage for same-asset pairs while still maintaining liquidity for larger trades."}},
+      {"@type": "Question", "name": "What is Curve's veCRV model?", "acceptedAnswer": {"@type": "Answer", "text": "veCRV (vote-escrowed CRV) locks CRV tokens for up to 4 years to receive voting power and boosted yields. The longer you lock and more CRV you stake, the higher your boost (up to 2.5x). This aligns liquidity providers' incentives with protocol governance and concentrates voting power with long-term participants."}},
+      {"@type": "Question", "name": "What happened with Curve's crvUSD stablecoin?", "acceptedAnswer": {"@type": "Answer", "text": "crvUSD is Curve's own stablecoin using a novel LLAMMA (Lending-Liquidation AMM Algorithm) which continuously converts between collateral and stablecoin as prices move, rather than having discrete liquidation events. This aims to reduce sudden liquidation cascades that affect other lending protocols."}},
+      {"@type": "Question", "name": "What is impermanent loss on Curve pools?", "acceptedAnswer": {"@type": "Answer", "text": "Curve pools with correlated assets (like stablecoin pairs or wETH/wstETH) have very low impermanent loss compared to volatile token pairs. The stablecoin pools have essentially zero IL. For volatile pairs (like CRV/ETH), IL is similar to standard AMMs but Curve's low fee structure means you need high volume to be profitable."}},
+      {"@type": "Question", "name": "How does Curve DAO governance work?", "acceptedAnswer": {"@type": "Answer", "text": "Curve DAO governs the protocol through proposals voted on by veCRV holders. Voting power is proportional to CRV locked and lock duration. The DAO controls pool parameters, gauge weights (determining CRV rewards per pool), fee tiers, and emergency pause mechanisms. Gauge weights directly influence where liquidity flows by allocating CRV incentive rewards."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <a href="index.html" class="nav-logo">DeFi<span>Vis</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="aave.html">Aave</a>
+    <a href="curve.html" class="active">Curve</a>
+    <a href="makerdao.html">MakerDAO</a>
+    <a href="compound.html">Compound</a>
+    <a href="lido.html">Lido</a>
+  </div>
+</nav>
+
+<div class="page">
+<div class="container">
+
+<!-- Protocol Hero -->
+<div class="protocol-hero">
+  <div class="protocol-icon">💱</div>
+  <h1>Curve Finance</h1>
+  <p class="tagline">Low-slippage Stablecoin Trading</p>
+  <div class="protocol-meta">
+    <div class="meta-item">
+      <div class="label">TVL</div>
+      <div class="value">~$2.0B</div>
+    </div>
+    <div class="meta-item">
+      <div class="label">Daily Volume</div>
+      <div class="value">~$300M</div>
+    </div>
+    <div class="meta-item">
+      <div class="label">Pools</div>
+      <div class="value">180+</div>
+    </div>
+    <div class="meta-item">
+      <div class="label">Native Token</div>
+      <div class="value">CRV</div>
+    </div>
+  </div>
+</div>
+
+<!-- What is Curve -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">What is <span>Curve Finance</span>?</h2>
+  </div>
+  <div class="sandbox">
+    <p style="font-size:16px; line-height:1.8; color:var(--text);">
+      Curve Finance is a decentralized exchange purpose-built for <strong style="color:var(--primary)">stablecoins and pegged assets</strong>. Unlike a typical AMM like Uniswap — where any two tokens can be traded along the familiar x·y=k bonding curve — Curve uses a specialized formula called <strong style="color:var(--secondary)">StableSwap</strong> that dramatically reduces slippage when the two assets are meant to be worth the same ($1 = $1, USDC ≈ USDT).
+    </p>
+    <p style="font-size:16px; line-height:1.8; color:var(--text); margin-top:16px;">
+      In a regular AMM, trading $1M of USDC for USDT would move you way down the hyperbola — you'd receive significantly less than $1M worth due to slippage. That's fine for arbitrary token pairs (who cares if your JPEG is worth a little less mid-trade?) but catastrophic for stablecoins where you expect penny-perfect execution. Stablecoins are supposed to stay at $1.00. Curve exploits that invariant.
+    </p>
+    <p style="font-size:16px; line-height:1.8; color:var(--text); margin-top:16px;">
+      The StableSwap formula combines the standard x·y=k hyperbola with a linear component (x + y = constant). The result: as long as the pool stays balanced near its peg, slippage is nearly flat — almost like a traditional order book. The curve only steepens sharply when the pool becomes extremely one-sided, which protects LPs from impermanent loss in normal conditions.
+    </p>
+    <p style="font-size:16px; line-height:1.8; color:var(--text); margin-top:16px;">
+      Curve also pioneered <strong style="color:var(--accent)">veCRV</strong> governance — a system where CRV token holders lock their tokens to gain voting power and boost their yield. The longer you lock, the more boost you receive (up to 2.5× for a 4-year lock). veCRV holders direct CRV emissions to pools they want to incentivize, effectively doing protocol-level governance of liquidity allocation. This makes Curve as much a financial infrastructure layer as a trading venue.
+    </p>
+    <p style="font-size:16px; line-height:1.8; color:var(--text); margin-top:16px;">
+      The protocol has expanded beyond simple stablecoin swaps into <strong style="color:var(--primary)">BasePools</strong> (multi-asset stablecoin pools like 3pool: USDC/USDT/DAI) and <strong style="color:var(--primary)">MetaPools</strong> (wrapping a non-stablecoin asset like ETH or stETH into a stablecoin pool for low-slippage trading against stables). This extensibility — keeping the same stablecoin math but layering new assets on top — is what makes Curve's TVL dominant in DeFi.
+    </p>
+  </div>
+</section>
+
+<!-- How StableSwap Works -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">How <span>StableSwap</span> Works</h2>
+  </div>
+  <div class="sandbox">
+    <p style="font-size:15px; color:var(--muted); margin-bottom:24px;">
+      Compare the bonding curves below. The <strong style="color:var(--primary)">Regular AMM</strong> (x·y=k) creates steep slippage for similar-value assets. The <strong style="color:var(--secondary)">StableSwap</strong> stays flat until extreme imbalance.
+    </p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:32px;">
+      <!-- Regular AMM -->
+      <div>
+        <h3 style="font-size:16px; font-weight:700; margin-bottom:12px; color:var(--danger);">Regular AMM — x·y = k</h3>
+        <svg viewBox="0 0 320 220" style="width:100%; max-width:320px;">
+          <defs>
+            <marker id="arr-red" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6" fill="#ef4444"/>
+            </marker>
+          </defs>
+          <!-- Grid lines -->
+          <line x1="30" y1="190" x2="310" y2="190" stroke="#1e1e2e" stroke-width="1"/>
+          <line x1="30" y1="10" x2="30" y2="190" stroke="#1e1e2e" stroke-width="1"/>
+          <text x="310" y="205" fill="#64748b" font-size="11" font-family="JetBrains Mono,monospace">Token B</text>
+          <text x="10" y="15" fill="#64748b" font-size="11" font-family="JetBrains Mono,monospace">Token A</text>
+          <!-- Regular AMM curve: hyperbola -->
+          <path class="stableswap-curve"
+            d="M 35,185 C 50,140 80,80 120,50 C 160,30 200,25 230,22 C 255,20 275,19 290,18.5"
+            fill="none" stroke="#ef4444" stroke-width="2.5"
+            stroke-dasharray="300"
+            stroke-dashoffset="300"
+          />
+          <text x="235" y="16" fill="#ef4444" font-size="11" font-family="JetBrains Mono,monospace">slippage!</text>
+          <!-- Animation -->
+          <style>
+            .stableswap-curve {
+              animation: drawCurve 2s ease-out 0.3s forwards;
+            }
+            @keyframes drawCurve {
+              to { stroke-dashoffset: 0; }
+            }
+          </style>
+        </svg>
+        <p style="font-size:13px; color:var(--muted); margin-top:8px; text-align:center;">High slippage — similar assets suffer</p>
+      </div>
+
+      <!-- StableSwap -->
+      <div>
+        <h3 style="font-size:16px; font-weight:700; margin-bottom:12px; color:var(--success);">StableSwap — Combined Formula</h3>
+        <svg viewBox="0 0 320 220" style="width:100%; max-width:320px;">
+          <!-- Grid lines -->
+          <line x1="30" y1="190" x2="310" y2="190" stroke="#1e1e2e" stroke-width="1"/>
+          <line x1="30" y1="10" x2="30" y2="190" stroke="#1e1e2e" stroke-width="1"/>
+          <text x="310" y="205" fill="#64748b" font-size="11" font-family="JetBrains Mono,monospace">Token B</text>
+          <text x="10" y="15" fill="#64748b" font-size="11" font-family="JetBrains Mono,monospace">Token A</text>
+          <!-- StableSwap curve: flat then steep -->
+          <path class="stableswap-curve-2"
+            d="M 35,185 C 55,180 80,170 110,150 C 140,130 170,100 195,70 C 215,45 235,28 255,20 C 270,15 282,13 292,11.5"
+            fill="none" stroke="#22c55e" stroke-width="2.5"
+            stroke-dasharray="300"
+            stroke-dashoffset="300"
+          />
+          <!-- Flat zone highlight -->
+          <rect x="35" y="185" width="260" height="1" fill="rgba(34,197,94,0.3)" opacity="0.7"/>
+          <text x="130" y="200" fill="#22c55e" font-size="10" font-family="JetBrains Mono,monospace" opacity="0.8">flat zone ✓</text>
+          <style>
+            .stableswap-curve-2 {
+              animation: drawCurve2 2s ease-out 0.8s forwards;
+            }
+            @keyframes drawCurve2 {
+              to { stroke-dashoffset: 0; }
+            }
+          </style>
+        </svg>
+        <p style="font-size:13px; color:var(--muted); margin-top:8px; text-align:center;">Near-zero slippage until extreme imbalance</p>
+      </div>
+    </div>
+
+    <div class="result-box" style="margin-top:8px;">
+      <div class="result-row">
+        <span class="label">Same $1M trade, 50/50 pool:</span>
+        <span class="value" style="color:var(--danger);">Regular AMM: ~$0.993M (−0.7%)</span>
+      </div>
+      <div class="result-row">
+        <span class="label">Same $1M trade, 50/50 pool:</span>
+        <span class="value" style="color:var(--success);">StableSwap: ~$0.9997M (−0.03%)</span>
+      </div>
+      <div class="result-row">
+        <span class="label">Difference in you receive:</span>
+        <span class="value">~<strong>23× less slippage</strong> with StableSwap</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Trade Simulator -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Trade <span>Simulator</span></h2>
+  </div>
+  <div class="sandbox">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px;">
+      <div>
+        <div class="slider-group">
+          <label>Input Amount <span id="trade-amount-val">$100,000</span></label>
+          <input type="range" id="trade-amount" min="1000" max="10000000" value="100000" step="1000">
+        </div>
+        <div class="slider-group">
+          <label>Pool Selection</label>
+          <div style="margin-top:8px;">
+            <select id="trade-pool" style="width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-family:var(--mono); font-size:14px; padding:10px 14px; border-radius:8px; outline:none;">
+              <option value="usdct-usdt">USDC/USDT (3pool)</option>
+              <option value="dai-usdc-usdt">DAI/USDC/USDT (3pool)</option>
+              <option value="eth-steth">ETH/stETH</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="result-box" id="trade-result">
+          <div class="result-row">
+            <span class="label">You Receive</span>
+            <span class="value" id="trade-receive">$99,970</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Price Impact</span>
+            <span class="value success" id="trade-impact">−0.03%</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Fee Paid</span>
+            <span class="value" id="trade-fee">$3.00</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Spot Price</span>
+            <span class="value" id="trade-spot">$0.9997</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Slippage Risk</span>
+            <span class="value" id="trade-risk" style="color:var(--success);">● LOW</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Pool Liquidity Visualizer -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Pool <span>Liquidity</span> Visualizer</h2>
+  </div>
+  <div class="sandbox">
+    <p style="font-size:14px; color:var(--muted); margin-bottom:24px;">
+      Watch what happens when a pool becomes imbalanced. A healthy pool has roughly equal halves. Push it too far and the price diverges from peg.
+    </p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center;">
+      <div>
+        <div class="slider-group">
+          <label>Token B Share <span id="liq-b-val">50%</span></label>
+          <input type="range" id="liq-imbalance" min="1" max="99" value="50" step="1">
+        </div>
+        <div class="result-box" style="margin-top:16px;">
+          <div class="result-row">
+            <span class="label">Pool Balance</span>
+            <span class="value" id="liq-balance">50% / 50%</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Price Divergence</span>
+            <span class="value" id="liq-divergence">$1.000</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Status</span>
+            <span class="value success" id="liq-status">● Healthy</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:16px;">
+        <div id="liq-donut-container" style="position:relative; width:200px; height:200px;">
+          <svg viewBox="0 0 200 200" style="transform:rotate(-90deg);">
+            <circle cx="100" cy="100" r="80" fill="none" stroke="var(--surface-2)" stroke-width="30"/>
+            <circle id="liq-arc-a" cx="100" cy="100" r="80" fill="none" stroke="var(--primary)" stroke-width="30"
+              stroke-dasharray="0 502.65" stroke-dashoffset="0" stroke-linecap="round"
+              style="transition:stroke-dasharray 0.4s ease;"/>
+            <circle id="liq-arc-b" cx="100" cy="100" r="80" fill="none" stroke="var(--secondary)" stroke-width="30"
+              stroke-dasharray="0 502.65" stroke-dashoffset="0" stroke-linecap="round"
+              style="transition:stroke-dasharray 0.4s ease;"/>
+          </svg>
+          <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center;">
+            <div id="liq-center-label" style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--primary);">50%</div>
+            <div style="font-size:11px; color:var(--muted);">Token A</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:16px; font-size:12px;">
+          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;background:var(--primary);border-radius:2px;"></span> Token A</span>
+          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;background:var(--secondary);border-radius:2px;"></span> Token B</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Yield Farming Simulator -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Yield <span>Farming</span> Simulator</h2>
+  </div>
+  <div class="sandbox">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px;">
+      <div>
+        <div class="slider-group">
+          <label>LP Token Amount <span id="yield-lp-val">10,000</span></label>
+          <input type="range" id="yield-lp" min="100" max="1000000" value="10000" step="100">
+        </div>
+        <div class="slider-group">
+          <label>CRV Daily Rewards Allocation <span id="yield-crv-val">$500</span></label>
+          <input type="range" id="yield-crv" min="100" max="50000" value="500" step="100">
+        </div>
+        <div class="slider-group">
+          <label>veCRV Boost Multiplier <span id="yield-boost-val">1.0×</span></label>
+          <input type="range" id="yield-boost" min="10" max="25" value="10" step="1">
+        </div>
+      </div>
+      <div>
+        <div class="result-box">
+          <div class="result-row">
+            <span class="label">Daily CRV Earned</span>
+            <span class="value" id="yield-daily-crv">$500.00</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Weekly Value</span>
+            <span class="value" id="yield-weekly">$3,500.00</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Trading Fees APY</span>
+            <span class="value" id="yield-fees">~4.2%</span>
+          </div>
+          <div class="result-row">
+            <span class="label">CRV Rewards APY</span>
+            <span class="value" id="yield-crv-apy">~2.8%</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Total Boosted APY</span>
+            <span class="value" id="yield-total" style="color:var(--accent);">~7.0%</span>
+          </div>
+        </div>
+        <div class="yield-chart" style="margin-top:16px;">
+          <div class="chart-bar">
+            <div class="bar-label">Base APY</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="bar-base" style="width:0%; background:linear-gradient(90deg,var(--primary),var(--secondary));"></div>
+            </div>
+            <div class="bar-val" id="bar-base-val">0%</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">CRV Boost</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="bar-crv" style="width:0%; background:linear-gradient(90deg,var(--accent),var(--danger));"></div>
+            </div>
+            <div class="bar-val" id="bar-crv-val">0%</div>
+          </div>
+          <div class="chart-bar">
+            <div class="bar-label">Total APY</div>
+            <div class="bar-track">
+              <div class="bar-fill" id="bar-total" style="width:0%; background:linear-gradient(90deg,var(--success),var(--primary));"></div>
+            </div>
+            <div class="bar-val" id="bar-total-val">0%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Bonding Curve Explorer -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Bonding <span>Curve</span> Explorer</h2>
+  </div>
+  <div class="sandbox">
+    <p style="font-size:14px; color:var(--muted); margin-bottom:24px;">
+      Drag the marker to see how the StableSwap curve behaves at different pool states. Stay in the safe zone!
+    </p>
+    <div style="position:relative; background:var(--surface-2); border-radius:12px; padding:24px; text-align:center;">
+      <svg id="bonding-svg" viewBox="0 0 600 300" style="width:100%; max-width:600px; cursor:crosshair;">
+        <!-- Safe zone background -->
+        <rect id="safe-zone" x="30" y="20" width="420" height="260" fill="rgba(34,197,94,0.05)" stroke="rgba(34,197,94,0.2)" stroke-width="1" rx="6"/>
+        <text x="240" y="14" fill="rgba(34,197,94,0.6)" font-size="11" font-family="JetBrains Mono,monospace">SAFE ZONE</text>
+        <!-- Danger zone -->
+        <rect id="danger-zone" x="450" y="20" width="120" height="260" fill="rgba(239,68,68,0.05)" stroke="rgba(239,68,68,0.2)" stroke-width="1" rx="6"/>
+        <text x="510" y="14" fill="rgba(239,68,68,0.6)" font-size="10" font-family="JetBrains Mono,monospace">DANGER</text>
+        <!-- Grid -->
+        <line x1="30" y1="280" x2="570" y2="280" stroke="#1e1e2e" stroke-width="1"/>
+        <line x1="30" y1="20" x2="30" y2="280" stroke="#1e1e2e" stroke-width="1"/>
+        <text x="575" y="295" fill="#64748b" font-size="11" font-family="JetBrains Mono,monospace">x →</text>
+        <text x="10" y="16" fill="#64748b" font-size="11" font-family="JetBrains Mono,monospace">y →</text>
+        <!-- StableSwap curve -->
+        <path id="bonding-curve-path"
+          d="M 35,275 C 60,260 100,200 150,130 C 200,70 260,35 320,22 C 380,14 430,11 470,10.5 C 500,10.2 520,10.1 540,10"
+          fill="none" stroke="#00ffc8" stroke-width="2.5"
+          stroke-dasharray="600"
+          stroke-dashoffset="0"/>
+        <!-- Interactive handle -->
+        <circle id="bonding-handle" cx="35" cy="275" r="10" fill="var(--primary)" style="cursor:grab;"/>
+        <line id="bonding-handle-line" x1="30" y1="280" x2="0" y2="310" stroke="transparent" stroke-width="0"/>
+        <!-- Labels -->
+        <text id="bonding-label-x" x="35" y="295" fill="#64748b" font-size="12" font-family="JetBrains Mono,monospace">x=50</text>
+        <text id="bonding-label-y" x="10" y="275" fill="#64748b" font-size="12" font-family="JetBrains Mono,monospace">y=50</text>
+        <!-- Info box -->
+        <rect id="bonding-info" x="440" y="100" width="130" height="80" rx="8" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+        <text id="bonding-info-x" x="505" y="122" fill="#e2e8f0" font-size="12" font-family="JetBrains Mono,monospace" text-anchor="middle">Token A: 50</text>
+        <text id="bonding-info-y" x="505" y="142" fill="#e2e8f0" font-size="12" font-family="JetBrains Mono,monospace" text-anchor="middle">Token B: 50</text>
+        <text id="bonding-info-status" x="505" y="165" fill="#22c55e" font-size="11" font-family="JetBrains Mono,monospace" text-anchor="middle">● Safe</text>
+      </svg>
+      <p style="font-size:13px; color:var(--muted); margin-top:12px;">Drag the <strong style="color:var(--primary)">cyan handle</strong> along the curve to explore pool states</p>
+    </div>
+  </div>
+</section>
+
+<!-- veCRV Governance Explainer -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">veCRV <span>Governance</span> Explainer</h2>
+  </div>
+  <div class="sandbox">
+    <p style="font-size:14px; color:var(--muted); margin-bottom:24px;">
+      Lock CRV tokens to earn veCRV (vote-escrowed CRV). Your lock duration determines your boost multiplier.
+    </p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center;">
+      <div>
+        <div class="slider-group">
+          <label>Lock Duration <span id="vecrv-lock-val">1 year</span></label>
+          <input type="range" id="vecrv-lock" min="1" max="208" value="52" step="1">
+        </div>
+        <div class="result-box" style="margin-top:16px;">
+          <div class="result-row">
+            <span class="label">Lock Duration</span>
+            <span class="value" id="vecrv-duration-display">1 year</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Boost Multiplier</span>
+            <span class="value" id="vecrv-boost-display">1.0×</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Vote Weight</span>
+            <span class="value" id="vecrv-vote">25 veCRV per 100 CRV</span>
+          </div>
+          <div class="result-row">
+            <span class="label">Weekly Emmissions Share</span>
+            <span class="value" id="vecrv-share">~0.5%</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <!-- Timeline visualization -->
+        <div style="position:relative; padding:20px 0;">
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; font-size:12px; color:var(--muted); text-align:right;">1 week</div>
+              <div style="flex:1; height:8px; background:var(--surface-2); border-radius:4px; overflow:hidden;">
+                <div style="width:0.1%; height:100%; background:var(--primary); border-radius:4px;"></div>
+              </div>
+              <div style="width:50px; font-size:12px; color:var(--muted);">1.0×</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; font-size:12px; color:var(--muted); text-align:right;">6 months</div>
+              <div style="flex:1; height:8px; background:var(--surface-2); border-radius:4px; overflow:hidden;">
+                <div style="width:25%; height:100%; background:var(--primary); border-radius:4px;"></div>
+              </div>
+              <div style="width:50px; font-size:12px; color:var(--primary);">1.5×</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; font-size:12px; color:var(--muted); text-align:right;">1 year</div>
+              <div style="flex:1; height:8px; background:var(--surface-2); border-radius:4px; overflow:hidden;">
+                <div style="width:50%; height:100%; background:var(--primary); border-radius:4px;"></div>
+              </div>
+              <div style="width:50px; font-size:12px; color:var(--primary);">1.0×</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; font-size:12px; color:var(--muted); text-align:right;">2 years</div>
+              <div style="flex:1; height:8px; background:var(--surface-2); border-radius:4px; overflow:hidden;">
+                <div style="width:75%; height:100%; background:var(--secondary); border-radius:4px;"></div>
+              </div>
+              <div style="width:50px; font-size:12px; color:var(--secondary);">1.75×</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; font-size:12px; color:var(--muted); text-align:right;">4 years</div>
+              <div style="flex:1; height:8px; background:var(--surface-2); border-radius:4px; overflow:hidden;">
+                <div style="width:100%; height:100%; background:linear-gradient(90deg,var(--primary),var(--accent)); border-radius:4px;"></div>
+              </div>
+              <div style="width:50px; font-size:12px; color:var(--accent); font-weight:700;">2.5×</div>
+            </div>
+          </div>
+          <!-- Current marker -->
+          <div id="vecrv-timeline-marker" style="position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--accent); transition:left 0.3s ease; pointer-events:none;"></div>
+        </div>
+        <p style="font-size:13px; color:var(--muted); text-align:center;">Your selected lock duration is marked on the timeline</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TVL by Pool -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">TVL by <span>Pool</span></h2>
+  </div>
+  <div class="sandbox">
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div class="chart-bar">
+        <div class="bar-label">3pool (USDC/USDT/DAI)</div>
+        <div class="bar-track">
+          <div class="bar-fill" id="tvl-bar-1" style="width:0%; background:linear-gradient(90deg,var(--primary),var(--secondary));"></div>
+        </div>
+        <div class="bar-val" id="tvl-val-1">$1.2B</div>
+      </div>
+      <div class="chart-bar">
+        <div class="bar-label">ETH/stETH</div>
+        <div class="bar-track">
+          <div class="bar-fill" id="tvl-bar-2" style="width:0%; background:linear-gradient(90deg,var(--secondary),var(--accent));"></div>
+        </div>
+        <div class="bar-val" id="tvl-val-2">$380M</div>
+      </div>
+      <div class="chart-bar">
+        <div class="bar-label">USDt/USDC</div>
+        <div class="bar-track">
+          <div class="bar-fill" id="tvl-bar-3" style="width:0%; background:linear-gradient(90deg,var(--primary),var(--secondary));"></div>
+        </div>
+        <div class="bar-val" id="tvl-val-3">$220M</div>
+      </div>
+      <div class="chart-bar">
+        <div class="bar-label">FRAX/USDC</div>
+        <div class="bar-track">
+          <div class="bar-fill" id="tvl-bar-4" style="width:0%; background:linear-gradient(90deg,var(--secondary),var(--accent));"></div>
+        </div>
+        <div class="bar-val" id="tvl-val-4">$150M</div>
+      </div>
+      <div class="chart-bar">
+        <div class="bar-label">WBTC/WETH</div>
+        <div class="bar-track">
+          <div class="bar-fill" id="tvl-bar-5" style="width:0%; background:linear-gradient(90deg,var(--primary),var(--secondary));"></div>
+        </div>
+        <div class="bar-val" id="tvl-val-5">$95M</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Glossary -->
+<section class="section">
+  <div class="section-header">
+    <h2 class="section-title">Glossary</h2>
+  </div>
+  <div class="sandbox">
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:16px;">
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:16px;">
+        <h4 style="color:var(--primary); font-size:15px; margin-bottom:6px;">StableSwap</h4>
+        <p style="font-size:13px; color:var(--muted); line-height:1.6;">Curve's specialized AMM formula combining x·y=k with a linear x+y=constant term, optimized for pegged assets that should trade near 1:1.</p>
+      </div>
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:16px;">
+        <h4 style="color:var(--primary); font-size:15px; margin-bottom:6px;">LP Token</h4>
+        <p style="font-size:13px; color:var(--muted); line-height:1.6;">A liquidity provider receipt token. When you deposit assets into a Curve pool, you receive LP tokens representing your share of the pool.</p>
+      </div>
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:16px;">
+        <h4 style="color:var(--primary); font-size:15px; margin-bottom:6px;">veCRV</h4>
+        <p style="font-size:13px; color:var(--muted); line-height:1.6;">Vote-escrowed CRV. Lock CRV to receive veCRV. Longer locks = more veCRV = higher yield boost and stronger voting power in protocol governance.</p>
+      </div>
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:16px;">
+        <h4 style="color:var(--primary); font-size:15px; margin-bottom:6px;">BasePool</h4>
+        <p style="font-size:13px; color:var(--muted); line-height:1.6;">A stablecoin pool containing 3 or more pegged assets (e.g., USDC, USDT, DAI in the 3pool). Minimizes slippage for multi-stablecoin swaps.</p>
+      </div>
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:16px;">
+        <h4 style="color:var(--primary); font-size:15px; margin-bottom:6px;">MetaPool</h4>
+        <p style="font-size:13px; color:var(--muted); line-height:1.6;">A pool that pairs a new asset (like ETH or a Frax variant) against an existing BasePool's LP token, enabling low-slippage trading without diluting the base pool.</p>
+      </div>
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:16px;">
+        <h4 style="color:var(--primary); font-size:15px; margin-bottom:6px;">Amplification Coefficient (A)</h4>
+        <p style="font-size:13px; color:var(--muted); line-height:1.6;">The "A parameter" controls how aggressively the StableSwap curve transitions from flat to steep. Higher A = tighter peg maintenance but more gas cost.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div><!-- /container -->
+</div><!-- /page -->
+
+<!-- Footer -->
+<div class="footer">
+  <div class="footer-links">
+    <a href="index.html">Home</a>
+    <a href="https://curve.fi" target="_blank">Curve Finance ↗</a>
+    <a href="https://curve.fi/docs" target="_blank">Docs</a>
+  </div>
+  <p>DeFi Visualizer — Learn DeFi through interactive exploration. Not financial advice.</p>
+</div>
+
+<script>
+// ─────────────────────────────────────────
+// Trade Simulator
+// ─────────────────────────────────────────
+(function() {
+  const amountSlider = document.getElementById('trade-amount');
+  const poolSelect = document.getElementById('trade-pool');
+  const receiveEl = document.getElementById('trade-receive');
+  const impactEl = document.getElementById('trade-impact');
+  const feeEl = document.getElementById('trade-fee');
+  const spotEl = document.getElementById('trade-spot');
+  const riskEl = document.getElementById('trade-risk');
+
+  function formatUSD(n) {
+    if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+    return '$' + n.toLocaleString('en-US', {maximumFractionDigits:0});
+  }
+
+  function calcTrade() {
+    const amount = +amountSlider.value;
+    const pool = poolSelect.value;
+    document.getElementById('trade-amount-val').textContent = formatUSD(amount);
+
+    // Fee: 0.04% for stable pools, 0.2% for ETH/stETH
+    const feeRates = { 'usdct-usdt': 0.0004, 'dai-usdc-usdt': 0.0004, 'eth-steth': 0.002 };
+    const feeRate = feeRates[pool] || 0.0004;
+    const fee = amount * feeRate;
+    const receive = amount - fee;
+
+    // Slippage model: for stables, slippage is near zero until large
+    // For ETH/stETH, slightly more
+    const slippageRates = { 'usdct-usdt': 0.00003, 'dai-usdc-usdt': 0.00004, 'eth-steth': 0.001 };
+    const slipRate = slippageRates[pool] || 0.00003;
+    const impact = (amount / 1e6) * slipRate * 100;
+    const youReceive = receive * (1 - (amount / 1e6) * slipRate);
+
+    const spotPrice = 1 - impact / 100;
+    const riskLevel = impact < 0.1 ? 'LOW' : impact < 1 ? 'MEDIUM' : 'HIGH';
+    const riskColor = impact < 0.1 ? 'var(--success)' : impact < 1 ? 'var(--accent)' : 'var(--danger)';
+
+    receiveEl.textContent = formatUSD(youReceive);
+    impactEl.textContent = '−' + impact.toFixed(2) + '%';
+    impactEl.className = 'value ' + (impact < 0.1 ? 'success' : impact < 1 ? '' : 'danger');
+    feeEl.textContent = '$' + fee.toFixed(2);
+    spotEl.textContent = '$' + spotPrice.toFixed(4);
+    riskEl.textContent = '● ' + riskLevel;
+    riskEl.style.color = riskColor;
+  }
+
+  amountSlider.addEventListener('input', calcTrade);
+  poolSelect.addEventListener('change', calcTrade);
+  calcTrade();
+})();
+
+// ─────────────────────────────────────────
+// Pool Liquidity Visualizer (Donut Chart)
+// ─────────────────────────────────────────
+(function() {
+  const slider = document.getElementById('liq-imbalance');
+  const bVal = document.getElementById('liq-b-val');
+  const arcA = document.getElementById('liq-arc-a');
+  const arcB = document.getElementById('liq-arc-b');
+  const centerLabel = document.getElementById('liq-center-label');
+  const balanceEl = document.getElementById('liq-balance');
+  const divergenceEl = document.getElementById('liq-divergence');
+  const statusEl = document.getElementById('liq-status');
+
+  const circumference = 2 * Math.PI * 80; // ~502.65
+
+  function updateDonut() {
+    const bPct = +slider.value;
+    const aPct = 100 - bPct;
+    bVal.textContent = bPct + '%';
+    centerLabel.textContent = aPct + '%';
+    centerLabel.style.color = aPct < 30 ? 'var(--danger)' : aPct > 70 ? 'var(--accent)' : 'var(--primary)';
+
+    arcA.setAttribute('stroke-dasharray', (aPct / 100 * circumference) + ' ' + circumference);
+    arcB.setAttribute('stroke-dasharray', (bPct / 100 * circumference) + ' ' + circumference);
+    arcB.setAttribute('stroke-dashoffset', -(aPct / 100 * circumference));
+
+    balanceEl.textContent = aPct + '% / ' + bPct + '%';
+
+    // Price divergence: simplified linear model from peg
+    // At 50/50: $1.00. At extremes: diverges
+    const divergence = 1 + (bPct - 50) * 0.004; // $0.004 per % imbalance
+    divergenceEl.textContent = '$' + divergence.toFixed(3);
+
+    let status, statusColor;
+    if (Math.abs(bPct - 50) < 10) {
+      status = '● Healthy'; statusColor = 'var(--success)';
+    } else if (Math.abs(bPct - 50) < 25) {
+      status = '● Caution'; statusColor = 'var(--accent)';
+    } else {
+      status = '● Danger'; statusColor = 'var(--danger)';
+    }
+    statusEl.textContent = status;
+    statusEl.style.color = statusColor;
+  }
+
+  slider.addEventListener('input', updateDonut);
+  updateDonut();
+
+  // Animate bars on load
+  setTimeout(() => {
+    document.getElementById('tvl-bar-1').style.width = '100%';
+    document.getElementById('tvl-bar-2').style.width = '31.7%';
+    document.getElementById('tvl-bar-3').style.width = '18.3%';
+    document.getElementById('tvl-bar-4').style.width = '12.5%';
+    document.getElementById('tvl-bar-5').style.width = '7.9%';
+  }, 300);
+})();
+
+// ─────────────────────────────────────────
+// Yield Farming Simulator
+// ─────────────────────────────────────────
+(function() {
+  const lpSlider = document.getElementById('yield-lp');
+  const crvSlider = document.getElementById('yield-crv');
+  const boostSlider = document.getElementById('yield-boost');
+
+  const dailyCrvEl = document.getElementById('yield-daily-crv');
+  const weeklyEl = document.getElementById('yield-weekly');
+  const feesEl = document.getElementById('yield-fees');
+  const crvApyEl = document.getElementById('yield-crv-apy');
+  const totalEl = document.getElementById('yield-total');
+  const lpValEl = document.getElementById('yield-lp-val');
+  const crvValEl = document.getElementById('yield-crv-val');
+  const boostValEl = document.getElementById('yield-boost-val');
+  const barBase = document.getElementById('bar-base');
+  const barCrv = document.getElementById('bar-crv');
+  const barTotal = document.getElementById('bar-total');
+  const barBaseVal = document.getElementById('bar-base-val');
+  const barCrvVal = document.getElementById('bar-crv-val');
+  const barTotalVal = document.getElementById('bar-total-val');
+
+  function formatUSD(n) {
+    if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+    return '$' + n.toLocaleString('en-US', {maximumFractionDigits:0});
+  }
+
+  function calcYield() {
+    const lp = +lpSlider.value;
+    const crvDaily = +crvSlider.value;
+    const boost = +boostSlider.value / 10;
+    lpValEl.textContent = lp.toLocaleString();
+    crvValEl.textContent = formatUSD(crvDaily);
+    boostValEl.textContent = boost.toFixed(1) + '×';
+
+    const effectiveCrv = crvDaily * boost;
+    const weekly = effectiveCrv * 7;
+    const feesAPY = 4.2 + (lp / 10000) * 0.1; // slight lp-size effect
+    const crvAPY = (effectiveCrv / (lp || 1)) * 365 * 100;
+    const totalAPY = feesAPY + crvAPY;
+
+    dailyCrvEl.textContent = '$' + effectiveCrv.toLocaleString('en-US', {maximumFractionDigits:2});
+    weeklyEl.textContent = '$' + weekly.toLocaleString('en-US', {maximumFractionDigits:2});
+    feesEl.textContent = '~' + feesAPY.toFixed(1) + '%';
+    crvApyEl.textContent = '~' + crvAPY.toFixed(1) + '%';
+    totalEl.textContent = '~' + totalAPY.toFixed(1) + '%';
+
+    const maxAPY = 20;
+    barBase.style.width = Math.min(feesAPY / maxAPY * 100, 100) + '%';
+    barCrv.style.width = Math.min(crvAPY / maxAPY * 100, 100) + '%';
+    barTotal.style.width = Math.min(totalAPY / maxAPY * 100, 100) + '%';
+    barBaseVal.textContent = '~' + feesAPY.toFixed(1) + '%';
+    barCrvVal.textContent = '~' + crvAPY.toFixed(1) + '%';
+    barTotalVal.textContent = '~' + totalAPY.toFixed(1) + '%';
+  }
+
+  lpSlider.addEventListener('input', calcYield);
+  crvSlider.addEventListener('input', calcYield);
+  boostSlider.addEventListener('input', calcYield);
+  calcYield();
+})();
+
+// ─────────────────────────────────────────
+// Bonding Curve Explorer (Drag interaction)
+// ─────────────────────────────────────────
+(function() {
+  const svg = document.getElementById('bonding-svg');
+  const handle = document.getElementById('bonding-handle');
+  const infoX = document.getElementById('bonding-info-x');
+  const infoY = document.getElementById('bonding-info-y');
+  const infoStatus = document.getElementById('bonding-info-status');
+  const labelX = document.getElementById('bonding-label-x');
+  const labelY = document.getElementById('bonding-label-y');
+  const safeZone = document.getElementById('safe-zone');
+  const dangerZone = document.getElementById('danger-zone');
+
+  const SVG_W = 600, SVG_H = 300;
+  // Points along the curve (precomputed)
+  const curvePoints = [
+    {x:35,y:275},{x:50,y:268},{x:70,y:250},{x:100,y:215},
+    {x:130,y:172},{x:160,y:125},{x:190,y:82},{x:220,y:48},
+    {x:250,y:30},{x:280,y:20},{x:310,y:15},{x:340,y:12.5},
+    {x:370,y:11.3},{x:400,y:10.8},{x:430,y:10.5},{x:460,y:10.3},
+    {x:490,y:10.2},{x:520,y:10.1},{x:550,y:10}
+  ];
+
+  let dragging = false;
+  let handleIndex = 0;
+
+  function updateHandlePos(mouseX) {
+    // Find closest curve point
+    const svgRect = svg.getBoundingClientRect();
+    const svgScaleX = SVG_W / svgRect.width;
+    const rawX = (mouseX - svgRect.left) * svgScaleX;
+
+    let best = 0, bestDist = Infinity;
+    for (let i = 0; i < curvePoints.length; i++) {
+      const dist = Math.abs(curvePoints[i].x - rawX);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+    handleIndex = best;
+    const pt = curvePoints[best];
+    const svgScaleY = SVG_H / svgRect.height;
+    const handleY = pt.y;
+    const pctX = (pt.x - 30) / 540;
+    const pctY = (280 - pt.y) / 270;
+    const tokenA = Math.round(5 + pctX * 95);
+    const tokenB = Math.round(95 - pctY * 90);
+
+    handle.setAttribute('cx', pt.x);
+    handle.setAttribute('cy', pt.y);
+    labelX.setAttribute('x', pt.x);
+    labelX.setAttribute('y', pt.y + 18);
+    labelY.setAttribute('x', 10);
+    labelY.setAttribute('y', pt.y);
+    labelX.textContent = 'x=' + tokenA;
+    labelY.textContent = 'y=' + tokenB;
+    infoX.textContent = 'Token A: ' + tokenA;
+    infoY.textContent = 'Token B: ' + tokenB;
+
+    const isSafe = pt.x < 450;
+    infoStatus.textContent = isSafe ? '● Safe' : '● Danger';
+    infoStatus.setAttribute('fill', isSafe ? '#22c55e' : '#ef4444');
+    safeZone.setAttribute('stroke', isSafe ? 'rgba(34,197,94,0.4)' : 'rgba(34,197,94,0.2)');
+    dangerZone.setAttribute('stroke', !isSafe ? 'rgba(239,68,68,0.4)' : 'rgba(239,68,68,0.2)');
+  }
+
+  svg.addEventListener('mousedown', function(e) {
+    dragging = true;
+    handle.style.cursor = 'grabbing';
+    updateHandlePos(e.clientX);
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    updateHandlePos(e.clientX);
+  });
+  window.addEventListener('mouseup', function() {
+    dragging = false;
+    handle.style.cursor = 'grab';
+  });
+
+  // Touch support
+  svg.addEventListener('touchstart', function(e) {
+    dragging = true;
+    e.preventDefault();
+    updateHandlePos(e.touches[0].clientX);
+  });
+  window.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    updateHandlePos(e.touches[0].clientX);
+  });
+  window.addEventListener('touchend', function() { dragging = false; });
+
+  // Animate the curve drawing on load
+  const curvePath = document.getElementById('bonding-curve-path');
+  curvePath.style.strokeDashoffset = '600';
+  setTimeout(() => {
+    curvePath.style.transition = 'stroke-dashoffset 2s ease-out';
+    curvePath.style.strokeDashoffset = '0';
+    // Then set handle to start position
+    handle.setAttribute('cx', curvePoints[0].x);
+    handle.setAttribute('cy', curvePoints[0].y);
+  }, 600);
+})();
+
+// ─────────────────────────────────────────
+// veCRV Timeline
+// ─────────────────────────────────────────
+(function() {
+  const slider = document.getElementById('vecrv-lock');
+  const lockValEl = document.getElementById('vecrv-lock-val');
+  const durationDisplay = document.getElementById('vecrv-duration-display');
+  const boostDisplay = document.getElementById('vecrv-boost-display');
+  const voteDisplay = document.getElementById('vecrv-vote');
+  const shareDisplay = document.getElementById('vecrv-share');
+  const marker = document.getElementById('vecrv-timeline-marker');
+
+  // Slider: 1 week to 4 years (1 to 208 weeks)
+  function formatDuration(weeks) {
+    if (weeks <= 4) return weeks + ' week' + (weeks !== 1 ? 's' : '');
+    if (weeks <= 52) return (weeks / 4).toFixed(0) + ' months';
+    const years = weeks / 52;
+    return years.toFixed(1) + ' year' + (years !== 1 ? 's' : '');
+  }
+
+  function getBoost(weeks) {
+    return 1 + (weeks / 208) * 1.5;
+  }
+
+  function updateVecrv() {
+    const weeks = +slider.value;
+    const boost = getBoost(weeks);
+    lockValEl.textContent = formatDuration(weeks);
+    durationDisplay.textContent = formatDuration(weeks);
+    boostDisplay.textContent = boost.toFixed(2) + '×';
+    voteDisplay.textContent = Math.round(weeks * 100 / 208 / 4) + ' veCRV per 100 CRV';
+    shareDisplay.textContent = (boost * 0.5).toFixed(2) + '%';
+
+    const pct = (weeks / 208) * 100;
+    const steps = document.querySelectorAll('.chart-bar');
+    // Map weeks to timeline position (approximate)
+    marker.style.left = 'calc(' + pct + '% - 1px)';
+  }
+
+  slider.addEventListener('input', updateVecrv);
+  updateVecrv();
+})();
+
+// ─────────────────────────────────────────
+// Scroll-based bar animations
+// ─────────────────────────────────────────
+(function() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('animate-in');
+      }
+    });
+  }, { threshold: 0.2 });
+
+  document.querySelectorAll('.chart-bar').forEach(el => observer.observe(el));
+})();
+</script>
+  <!-- Tools & Links -->
+  <section class="tools-section">
+    <div class="container">
+      <div class="tools-header">🔗 Tools &amp; Links</div>
+      <div class="tools-grid">
+        <a href="https://coinbase.com/join/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🟣</span>
+          <span class="tool-name">Coinbase</span>
+          <span class="tool-desc">Buy &amp; trade crypto</span>
+        </a>
+        <a href="https://app.1inch.io/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🔀</span>
+          <span class="tool-name">1inch</span>
+          <span class="tool-desc">DEX aggregator</span>
+        </a>
+        <a href="https://defillama.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">📊</span>
+          <span class="tool-name">DeFiLlama</span>
+          <span class="tool-desc">TVL &amp; yield data</span>
+        </a>
+        <a href="https://debank.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">💼</span>
+          <span class="tool-name">DeBank</span>
+          <span class="tool-desc">Portfolio tracker</span>
+        </a>
+      </div>
+    </div>
+  </section>
+  <style>
+  .tools-section { padding: 40px 0 20px; }
+  .tools-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+  .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .tool-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; text-decoration: none; color: inherit; transition: all 0.2s; }
+  .tool-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  .tool-icon { font-size: 20px; flex-shrink: 0; }
+  .tool-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .tool-desc { font-size: 11px; color: var(--muted); margin-left: auto; }
+  </style>
+
+</body>
+</html>

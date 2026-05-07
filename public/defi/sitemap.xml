@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://defi-visualizer.systeminternals.dev/</loc><priority>1.0</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/aave.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/curve.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/makerdao.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/compound.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/lido.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/pendle.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/eigenlayer.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/mev.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/bridges.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/aggregators.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/risk-dashboard.html</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/glossary.html</loc><priority>0.8</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/strategies.html</loc><priority>0.8</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/morpho.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/gearbox.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/frax.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://defi-visualizer.systeminternals.dev/balancer.html</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+</urlset>

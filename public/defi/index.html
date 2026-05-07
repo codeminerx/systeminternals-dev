@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeFi Visualizer — Interactive Protocol Education</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230a0a0f'/><circle cx='16' cy='16' r='8' fill='none' stroke='%2300ffc8' stroke-width='2'/><circle cx='16' cy='16' r='3' fill='%2300ffc8'/></svg>">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "What is DeFi?", "acceptedAnswer": {"@type": "Answer", "text": "DeFi (Decentralized Finance) refers to financial applications built on blockchain networks that operate without traditional intermediaries like banks. Using smart contracts, DeFi enables lending, borrowing, trading, and earning yield directly between participants, with transparency and programmability that traditional finance lacks."}},
+      {"@type": "Question", "name": "What is Total Value Locked (TVL) in DeFi?", "acceptedAnswer": {"@type": "Answer", "text": "TVL is the total amount of assets deposited in a DeFi protocol, typically denominated in USD. It serves as a key metric for protocol size and user trust. A higher TVL generally indicates more liquidity and less slippage for traders, or more available capital for borrowers."}},
+      {"@type": "Question", "name": "What is the difference between lending and staking in DeFi?", "acceptedAnswer": {"@type": "Answer", "text": "Lending protocols like Aave and Compound pool user deposits and lend them to borrowers, with interest rates set algorithmically by supply/demand. Staking involves locking tokens to secure a blockchain network's consensus (Proof of Stake) and earning rewards for doing so. Staking is about network security; lending is about capital efficiency."}},
+      {"@type": "Question", "name": "What are smart contract risks in DeFi?", "acceptedAnswer": {"@type": "Answer", "text": "Smart contract risk is the possibility that a bug or vulnerability in a protocol's code leads to loss of funds. DeFi protocols undergo audits, but bugs can still slip through. Protocol complexity, upgradeability features, and integration with other protocols all increase attack surface. Diversifying across protocols reduces single-point-of-failure exposure."}},
+      {"@type": "Question", "name": "How do I evaluate a DeFi protocol's safety?", "acceptedAnswer": {"@type": "Answer", "text": "Key evaluation criteria include: (1) audit history and by which firms, (2) whether protocol has been live without hacks, (3) decentralization level and multisig controls, (4) TVL and user adoption, (5) code complexity and upgradeability risk, (6) oracle reliability, and (7) governance track record. No single metric guarantees safety."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+</head> type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230a0a0f'/><circle cx='16' cy='16' r='8' fill='none' stroke='%2300ffc8' stroke-width='2'/><circle cx='16' cy='16' r='3' fill='%2300ffc8'/></svg>">
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">DeFi<span>Flow</span></a>
+    <div class="nav-links">
+      <a href="#protocols">Protocols</a>
+      <a href="#features">Features</a>
+      <a href="#tools">Tools</a>
+      <a href="glossary.html">Glossary</a>
+      <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </nav>
+
+  <main class="page">
+
+    <!-- HERO -->
+    <section class="hero container">
+      <div class="hero-label">
+        <span class="dot"></span>
+        Interactive Learning Platform
+      </div>
+
+      <!-- Animated DeFi Flow Graphic -->
+      <div class="defi-flow" aria-hidden="true">
+        <svg class="flow-svg" viewBox="0 0 800 260" xmlns="http://www.w3.org/2000/svg">
+          <!-- Background grid -->
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e1e2e" stroke-width="0.5"/>
+            </pattern>
+            <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#00ffc8;stop-opacity:0.3"/>
+              <stop offset="50%" style="stop-color:#00ffc8;stop-opacity:1"/>
+              <stop offset="100%" style="stop-color:#a855f7;stop-opacity:0.3"/>
+            </linearGradient>
+            <linearGradient id="purpleLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#a855f7;stop-opacity:0.3"/>
+              <stop offset="50%" style="stop-color:#a855f7;stop-opacity:1"/>
+              <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:0.3"/>
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <filter id="nodeGlow">
+              <feGaussianBlur stdDeviation="6" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <rect width="800" height="260" fill="url(#grid)"/>
+
+          <!-- Connection paths -->
+          <!-- Top path: ETH Pool → Aave → Curve → Aggregator -->
+          <path class="flow-line" d="M 155 90 L 210 90 L 250 130" fill="none" stroke="url(#lineGrad)" stroke-width="2" stroke-dasharray="6 3"/>
+          <path class="flow-line" d="M 275 130 L 335 130 L 375 90" fill="none" stroke="url(#lineGrad)" stroke-width="2" stroke-dasharray="6 3"/>
+          <path class="flow-line" d="M 400 90 L 455 90 L 495 130" fill="none" stroke="url(#purpleLineGrad)" stroke-width="2" stroke-dasharray="6 3"/>
+          <path class="flow-line" d="M 520 130 L 575 130 L 615 90" fill="none" stroke="url(#purpleLineGrad)" stroke-width="2" stroke-dasharray="6 3"/>
+          <!-- Bottom path: BTC → MakerDAO → Compound → EigenLayer -->
+          <path class="flow-line" d="M 155 170 L 210 170 L 250 130" fill="none" stroke="url(#purpleLineGrad)" stroke-width="2" stroke-dasharray="6 3"/>
+          <path class="flow-line" d="M 275 130 L 335 130 L 375 170" fill="none" stroke="url(#lineGrad)" stroke-width="2" stroke-dasharray="6 3"/>
+          <path class="flow-line" d="M 400 170 L 455 170 L 495 130" fill="none" stroke="url(#lineGrad)" stroke-width="2" stroke-dasharray="6 3"/>
+          <path class="flow-line" d="M 520 130 L 575 130 L 615 170" fill="none" stroke="url(#purpleLineGrad)" stroke-width="2" stroke-dasharray="6 3"/>
+          <!-- Bridge connector -->
+          <path class="flow-line" d="M 615 90 L 655 110 L 655 150 L 615 170" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.6"/>
+
+          <!-- Flowing particles - top row -->
+          <circle class="particle" cx="50" cy="90" r="5" fill="#00ffc8" filter="url(#glow)"/>
+          <circle class="particle" cx="50" cy="170" r="5" fill="#a855f7" filter="url(#glow)"/>
+
+          <!-- Nodes -->
+          <!-- ETH Pool -->
+          <rect class="flow-node" x="70" y="70" width="85" height="40" rx="10" fill="#12121a" stroke="#00ffc8" stroke-width="1.5"/>
+          <text x="112" y="84" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">POOL</text>
+          <text x="112" y="97" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#00ffc8">ETH / wBTC</text>
+
+          <!-- BTC Pool -->
+          <rect class="flow-node" x="70" y="150" width="85" height="40" rx="10" fill="#12121a" stroke="#a855f7" stroke-width="1.5"/>
+          <text x="112" y="164" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">VAULT</text>
+          <text x="112" y="177" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#a855f7">DAI / USDC</text>
+
+          <!-- Aave -->
+          <rect class="flow-node" x="250" y="110" width="80" height="40" rx="10" fill="#12121a" stroke="#00ffc8" stroke-width="1.5"/>
+          <text x="290" y="124" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#64748b">LENDING</text>
+          <text x="290" y="137" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#00ffc8">Aave</text>
+
+          <!-- MakerDAO -->
+          <rect class="flow-node" x="250" y="110" width="80" height="40" rx="10" fill="#12121a" stroke="#a855f7" stroke-width="1.5" transform="translate(0,0)"/>
+          <text x="290" y="124" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#64748b" transform="translate(0,60)">CDP</text>
+          <text x="290" y="137" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#a855f7" transform="translate(0,60)">Maker</text>
+
+          <!-- Compound -->
+          <rect class="flow-node" x="375" y="150" width="80" height="40" rx="10" fill="#12121a" stroke="#a855f7" stroke-width="1.5"/>
+          <text x="415" y="164" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#64748b">MARKET</text>
+          <text x="415" y="177" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#a855f7">Compound</text>
+
+          <!-- Curve -->
+          <rect class="flow-node" x="375" y="70" width="80" height="40" rx="10" fill="#12121a" stroke="#00ffc8" stroke-width="1.5"/>
+          <text x="415" y="84" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#64748b">DEX</text>
+          <text x="415" y="97" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#00ffc8">Curve</text>
+
+          <!-- Lido -->
+          <rect class="flow-node" x="495" y="110" width="80" height="40" rx="10" fill="#12121a" stroke="#a855f7" stroke-width="1.5"/>
+          <text x="535" y="124" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#64748b">STAKING</text>
+          <text x="535" y="137" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#a855f7">Lido</text>
+
+          <!-- Aggregators -->
+          <rect class="flow-node" x="495" y="110" width="80" height="40" rx="10" fill="#12121a" stroke="#00ffc8" stroke-width="1.5"/>
+          <text x="535" y="124" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#64748b" transform="translate(0,60)">AGG</text>
+          <text x="535" y="137" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#00ffc8" transform="translate(0,60)">1inch</text>
+
+          <!-- EigenLayer -->
+          <rect class="flow-node" x="595" y="150" width="80" height="40" rx="10" fill="#12121a" stroke="#a855f7" stroke-width="1.5"/>
+          <text x="635" y="164" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#64748b">RESTAKING</text>
+          <text x="635" y="177" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#a855f7">EigenLayer</text>
+
+          <!-- Pendle -->
+          <rect class="flow-node" x="595" y="70" width="80" height="40" rx="10" fill="#12121a" stroke="#00ffc8" stroke-width="1.5"/>
+          <text x="635" y="84" text-anchor="middle" font-family="Inter,sans-serif" font-size="8" fill="#64748b">YIELD</text>
+          <text x="635" y="97" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#00ffc8">Pendle</text>
+
+          <!-- MEV badge -->
+          <rect class="flow-node" x="640" y="110" width="55" height="28" rx="8" fill="#12121a" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="667" y="128" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#f59e0b">MEV</text>
+
+          <!-- Bridge -->
+          <rect class="flow-node" x="640" y="135" width="55" height="28" rx="8" fill="#12121a" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="667" y="153" text-anchor="middle" font-family="Inter,sans-serif" font-size="9" fill="#f59e0b">Bridge</text>
+
+          <!-- Center label -->
+          <text x="400" y="200" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" fill="#64748b" letter-spacing="3">TOKEN FLOW ACROSS DeFi PROTOCOLS</text>
+        </svg>
+      </div>
+
+      <h1>Master <span class="grad">DeFi</span><br>Through Interactive Visuals</h1>
+      <p>Explore lending, staking, DEXs, and restaking protocols with real-time calculators, animated flow diagrams, and sandbox simulations.</p>
+      <a href="#protocols" class="hero-cta">
+        Explore Protocols
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+    </section>
+
+    <!-- STATS BAR -->
+    <div class="stats-bar" id="stats">
+      <div class="container stats-inner">
+        <div class="stat">
+          <span class="stat-val">$47.2B</span>
+          <span class="stat-lbl">Total TVL Covered</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-val">13</span>
+          <span class="stat-lbl">Protocols + Tools</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-val">Free</span>
+          <span class="stat-lbl">Always</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat live">
+          <span class="live-dot"></span>
+          <span class="stat-val">Updated live</span>
+          <span class="stat-lbl">via on-chain data</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROTOCOL CARDS -->
+    <section class="section container" id="protocols">
+      <div class="section-header">
+        <h2 class="section-title">Protocol <span>Universe</span></h2>
+        <span class="sort-label">Sorted by TVL</span>
+      </div>
+      <div class="cards">
+
+        <!-- Aave -->
+        <a href="aave.html" class="card reveal-card">
+          <div class="card-icon">🏦</div>
+          <h3>Aave</h3>
+          <p> Decentralized lending & borrowing with variable & stable rate options.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$15.8B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">2.8%</div>
+              <div class="lbl">Avg APY</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Curve -->
+        <a href="curve.html" class="card reveal-card">
+          <div class="card-icon">〰️</div>
+          <h3>Curve</h3>
+          <p>Stablecoin-focused AMM for low-slippage swaps and liquidity provision.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$9.3B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">4.1%</div>
+              <div class="lbl">Avg APY</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- MakerDAO -->
+        <a href="makerdao.html" class="card reveal-card">
+          <div class="card-icon">🧱</div>
+          <h3>MakerDAO</h3>
+          <p>Decentralized stablecoin DAI via collateralized debt positions (CDPs).</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$6.1B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">5.4%</div>
+              <div class="lbl">DAI APY</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Lido -->
+        <a href="lido.html" class="card reveal-card">
+          <div class="card-icon">💧</div>
+          <h3>Lido</h3>
+          <p>Liquid staking for ETH 2.0 — earn rewards while keeping liquidity.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$8.7B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">3.2%</div>
+              <div class="lbl">APY</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Compound -->
+        <a href="compound.html" class="card reveal-card">
+          <div class="card-icon">📈</div>
+          <h3>Compound</h3>
+          <p>Algorithmic interest rates and permissionless money market protocol.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$2.4B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">1.9%</div>
+              <div class="lbl">APY</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Pendle -->
+        <a href="pendle.html" class="card reveal-card">
+          <div class="card-icon">🎛️</div>
+          <h3>Pendle</h3>
+          <p>Yield tokenization — split, trade, and hedge yield on any yield-bearing asset.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$2.9B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">6.8%</div>
+              <div class="lbl">Avg YT APY</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- EigenLayer -->
+        <a href="eigenlayer.html" class="card reveal-card">
+          <div class="card-icon">🔄</div>
+          <h3>EigenLayer</h3>
+          <p>Liquid restaking — compound ETH staking rewards across middleware AVS.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$6.8B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">4.5%</div>
+              <div class="lbl">Restake APY</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- MEV -->
+        <a href="mev.html" class="card reveal-card">
+          <div class="card-icon">⚡</div>
+          <h3>MEV</h3>
+          <p>Maximal Extractable Value — understand sandwich attacks and block ordering.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$400M</div>
+              <div class="lbl">Daily Volume</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">Flashbots</div>
+              <div class="lbl">Key Player</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Bridges -->
+        <a href="bridges.html" class="card reveal-card">
+          <div class="card-icon">🌉</div>
+          <h3>Bridges</h3>
+          <p>Cross-chain asset transfers — understand bridge risk, liquidity, and TVL.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$14.2B</div>
+              <div class="lbl">Bridge TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">65+</div>
+              <div class="lbl">Bridges</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- DEX Aggregators -->
+        <a href="aggregators.html" class="card reveal-card">
+          <div class="card-icon">🔀</div>
+          <h3>DEX Aggregators</h3>
+          <p>Smart order routing across Uniswap, SushiSwap, Curve — best price guaranteed.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$38B</div>
+              <div class="lbl">Monthly Volume</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">0.05%</div>
+              <div class="lbl">Avg Saving</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Morpho -->
+        <a href="morpho.html" class="card reveal-card">
+          <div class="card-icon">🔗</div>
+          <h3>Morpho</h3>
+          <p>Peer-to-peer lending optimization on top of Compound & Aave — earn higher yields automatically.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$1.8B</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">+30%</div>
+              <div class="lbl">Yield Boost</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Gearbox -->
+        <a href="gearbox.html" class="card reveal-card">
+          <div class="card-icon">⚙️</div>
+          <h3>Gearbox</h3>
+          <p>Composable leverage protocol — use credit accounts to access up to 10x leverage on DeFi strategies.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$350M</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">10x</div>
+              <div class="lbl">Max Leverage</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Frax -->
+        <a href="frax.html" class="card reveal-card">
+          <div class="card-icon">🏅</div>
+          <h3>Frax</h3>
+          <p>Fractional-algorithmic stablecoin — the first of its kind, bridging collateralized and uncollateralized monetary systems.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$1.2B</div>
+              <div class="lbl">FRAX Supply</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">FXS</div>
+              <div class="lbl">Governance</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Balancer -->
+        <a href="balancer.html" class="card reveal-card">
+          <div class="card-icon">🔮</div>
+          <h3>Balancer</h3>
+          <p>Weighted pool AMM — any weights, any assets. From 50/50 to 80/20, Liquidity Bootstrapping Machines and more.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">$900M</div>
+              <div class="lbl">TVL</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">BAL</div>
+              <div class="lbl">Token</div>
+            </div>
+          </div>
+        </a>
+
+      </div>
+    </section>
+
+    <!-- TOOLS -->
+    <section class="section container" id="tools">
+      <div class="section-header">
+        <h2 class="section-title">Learning <span>Tools</span></h2>
+        <span class="sort-label">Practice Makes Perfect</span>
+      </div>
+      <div class="cards">
+
+        <!-- Risk Dashboard -->
+        <a href="risk-dashboard.html" class="card reveal-card">
+          <div class="card-icon">📊</div>
+          <h3>Risk Dashboard</h3>
+          <p>Compare smart contract risk, liquidation thresholds, and TVL across every protocol.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">10</div>
+              <div class="lbl">Protocols</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">IL Calc</div>
+              <div class="lbl">Tool</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- DeFi Strategies -->
+        <a href="strategies.html" class="card reveal-card">
+          <div class="card-icon">🎯</div>
+          <h3>DeFi Strategies</h3>
+          <p>Yield arbitrage, leveraged farming, stETH loops, and Pendle yield splitting explained.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">5</div>
+              <div class="lbl">Strategies</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">Simulators</div>
+              <div class="lbl">Interactive</div>
+            </div>
+          </div>
+        </a>
+
+        <!-- Glossary -->
+        <a href="glossary.html" class="card reveal-card">
+          <div class="card-icon">📖</div>
+          <h3>DeFi Glossary</h3>
+          <p>100+ terms explained — from AMM to ZK-Rollups, with cross-links to deep-dives.</p>
+          <div class="card-stats">
+            <div class="card-stat">
+              <div class="val">100+</div>
+              <div class="lbl">Terms</div>
+            </div>
+            <div class="card-stat">
+              <div class="val">A–Z</div>
+              <div class="lbl">Organized</div>
+            </div>
+          </div>
+        </a>
+
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="section features-section" id="features">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Why <span>DeFiFlow</span>?</h2>
+        </div>
+        <div class="features-grid">
+
+          <div class="feature-card reveal-card">
+            <div class="feature-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <h3>Interactive Simulators</h3>
+            <p>Adjust sliders for deposit amounts, rates, and risk parameters. See your projected returns update in real-time — no sign-up needed.</p>
+          </div>
+
+          <div class="feature-card reveal-card">
+            <div class="feature-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <h3>Real-Time Calculations</h3>
+            <p>APY compounding, impermanent loss, slippage, and gas cost estimates — all computed live from on-chain data feeds.</p>
+          </div>
+
+          <div class="feature-card reveal-card">
+            <div class="feature-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </div>
+            <h3>Visual Learning</h3>
+            <p>Animated flow diagrams show exactly how tokens move through pools, lending markets, and staking contracts — making DeFi intuitive.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="#protocols">Protocols</a>
+        <a href="#features">Features</a>
+        <a href="https://github.com" target="_blank" rel="noopener">Contribute</a>
+      </div>
+      <p>Built to make DeFi accessible. Data sourced from on-chain feeds.</p>
+      <p style="margin-top:8px; opacity: 0.5;">&copy; 2026 DeFiFlow Education</p>
+    </div>
+  </footer>
+
+  <style>
+    /* ─── Scroll-triggered reveal ─── */
+    .reveal-card {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 0.55s ease, transform 0.55s ease, border-color 0.2s, box-shadow 0.2s;
+    }
+    .reveal-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    /* Stagger by index */
+    .reveal-card:nth-child(1) { transition-delay: 0.05s; }
+    .reveal-card:nth-child(2) { transition-delay: 0.12s; }
+    .reveal-card:nth-child(3) { transition-delay: 0.19s; }
+    .reveal-card:nth-child(4) { transition-delay: 0.26s; }
+    .reveal-card:nth-child(5) { transition-delay: 0.33s; }
+    .reveal-card:nth-child(6) { transition-delay: 0.40s; }
+    .reveal-card:nth-child(7) { transition-delay: 0.47s; }
+    .reveal-card:nth-child(8) { transition-delay: 0.54s; }
+    .reveal-card:nth-child(9) { transition-delay: 0.61s; }
+    .reveal-card:nth-child(10) { transition-delay: 0.68s; }
+
+    /* ─── Animated DeFi Flow SVG ─── */
+    .defi-flow {
+      margin: 0 auto 48px;
+      max-width: 820px;
+    }
+    .flow-svg {
+      width: 100%;
+      height: auto;
+    }
+
+    /* Flow line dash animation */
+    @keyframes dashFlow {
+      to { stroke-dashoffset: -27; }
+    }
+    .flow-line {
+      animation: dashFlow 1.8s linear infinite;
+    }
+    /* Vary animation delay so lines don't pulse in sync */
+    .flow-line:nth-child(odd) { animation-delay: 0.3s; }
+    .flow-line:nth-child(even) { animation-delay: 0.9s; }
+
+    /* Particle animation along paths */
+    @keyframes moveParticle1 {
+      0%   { transform: translate(50px, 90px); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translate(605px, 90px); opacity: 0; }
+    }
+    @keyframes moveParticle2 {
+      0%   { transform: translate(155px, 130px); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translate(515px, 130px); opacity: 0; }
+    }
+    @keyframes moveParticle3 {
+      0%   { transform: translate(50px, 170px); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translate(595px, 170px); opacity: 0; }
+    }
+    @keyframes moveParticle4 {
+      0%   { transform: translate(155px, 130px) translate(125px, 0); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translate(155px, 130px) translate(340px, 40px); opacity: 0; }
+    }
+
+    /* SVG node pulse */
+    @keyframes nodePulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.6; }
+    }
+    .flow-node rect { animation: nodePulse 3s ease-in-out infinite; }
+    .flow-node:nth-child(odd) rect { animation-delay: 0.5s; }
+
+    /* ─── Stats Bar ─── */
+    .stats-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 0;
+      margin-bottom: 40px;
+    }
+    .stats-inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+    }
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 40px;
+    }
+    .stat-val {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .stat-lbl {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .stat-divider {
+      width: 1px;
+      height: 40px;
+      background: var(--border);
+    }
+    .stat.live {
+      flex-direction: row;
+      gap: 10px;
+      align-items: center;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    /* ─── Features ─── */
+    .features-section {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 32px 28px;
+      transition: all 0.25s;
+    }
+    .feature-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-4px);
+    }
+    .feature-icon {
+      width: 52px;
+      height: 52px;
+      background: rgba(0,255,200,0.1);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      color: var(--primary);
+    }
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .feature-card p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ─── Sort label ─── */
+    .sort-label {
+      font-size: 12px;
+      color: var(--muted);
+      align-self: flex-end;
+      margin-bottom: 4px;
+    }
+
+    /* ─── Hero SVG entrance ─── */
+    .defi-flow {
+      opacity: 0;
+      animation: fadeInUp 0.8s 0.2s ease forwards;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+
+  <script>
+    // Scroll-triggered reveal for cards
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal-card').forEach(el => observer.observe(el));
+  </script>
+
+</body>
+</html>

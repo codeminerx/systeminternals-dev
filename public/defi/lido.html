@@ -1,0 +1,2123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lido – Liquid Staking for Ethereum</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "What is Lido and how does liquid staking work?", "acceptedAnswer": {"@type": "Answer", "text": "Lido is a liquid staking protocol that lets users stake any amount of ETH (no 32 ETH minimum required for validators) and receive stETH in return. stETH is a liquid token that accrues staking rewards automatically and can be used in other DeFi protocols while your ETH is staked, solving the liquidity problem of native staking."}},
+      {"@type": "Question", "name": "What is the difference between stETH and wstETH?", "acceptedAnswer": {"@type": "Answer", "text": "stETH rebases daily to reflect accrued staking rewards (your balance increases). wstETH (wrapped stETH) does not rebases; instead, the wstETH/ETH ratio increases over time. wstETH is preferred for use in DeFi AMMs because it doesn't require constant balance updates, making it more compatible with standard ERC-20 integrations."}},
+      {"@type": "Question", "name": "What are the risks of using Lido?", "acceptedAnswer": {"@type": "Answer", "text": "Key risks include: (1) Slashing risk — if validators misbehave, staked ETH can be deducted (though Lido has a socialized loss model and insurance fund), (2) Smart contract risk, (3) Oracle risk, (4) Centralization risk — Lido has faced scrutiny for its large ETH stake (~30% of total staked ETH), raising concerns about Ethereum's decentralization."}},
+      {"@type": "Question", "name": "How does Lido's node operator model work?", "acceptedAnswer": {"@type": "Answer", "text": "Lido selects professional node operators (currently ~30) who run validators on behalf of the protocol. Operators are selected through DAO governance and must meet technical and financial requirements. Lido's smart contracts hold the withdrawal keys while operators hold the signing keys, providing a separation of custody."}},
+      {"@type": "Question", "name": "What is Lido's staking APR and how is it determined?", "acceptedAnswer": {"@type": "Answer", "text": "Lido's staking APR varies based on Ethereum's total issuance, which changes with the number of validators and ETH price. Currently around 3-4% APY. Lido takes a 10% protocol fee from the staking rewards, with 5% going to node operators and 5% to the Lido DAO treasury. The remaining 90% goes to stakers."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+  <style>
+    .lido-hero { background: linear-gradient(135deg, rgba(0,255,200,0.05) 0%, rgba(168,85,247,0.05) 100%); }
+
+    /* ─── Animated SVG Staking Flow ─── */
+    .stake-flow-svg-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      margin: 24px 0;
+      overflow-x: auto;
+    }
+    #stakeFlowSvg { width: 100%; min-width: 600px; display: block; }
+    .sf-node {
+      cursor: pointer;
+      transition: filter 0.3s;
+    }
+    .sf-node:hover { filter: brightness(1.2); }
+    .sf-node rect { transition: all 0.3s; }
+    .sf-node:hover rect { stroke-width: 3; }
+    .sf-path-anim {
+      stroke-dasharray: 12 6;
+      animation: sfDash 2s linear infinite;
+    }
+    .sf-path-anim-slow {
+      stroke-dasharray: 8 8;
+      animation: sfDash 3s linear infinite;
+    }
+    @keyframes sfDash {
+      to { stroke-dashoffset: -36; }
+    }
+    @keyframes nodeGlow {
+      0%, 100% { filter: drop-shadow(0 0 4px rgba(0,255,200,0.3)); }
+      50% { filter: drop-shadow(0 0 12px rgba(0,255,200,0.7)); }
+    }
+    @keyframes validatorPulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+    .sf-legend {
+      display: flex; gap: 24px; justify-content: center; margin-top: 20px;
+      font-size: 13px; color: var(--muted); flex-wrap: wrap;
+    }
+    .sf-legend span { display: flex; align-items: center; gap: 8px; }
+    .sf-legend .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+
+    /* ─── Rebase SVG Chart ─── */
+    .yield-curve-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      margin: 24px 0;
+    }
+    #yieldCurve { width: 100%; height: auto; display: block; }
+    .yc-grid-line { stroke: var(--border); stroke-width: 1; }
+    .yc-axis { stroke: var(--muted); stroke-width: 1.5; }
+    .yc-label { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+    .yc-line-eth {
+      fill: none;
+      stroke: var(--secondary);
+      stroke-width: 2.5;
+      stroke-dasharray: 6 4;
+      opacity: 0.6;
+    }
+    .yc-line-steth {
+      fill: none;
+      stroke: var(--primary);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .yc-area {
+      fill: url(#ycGrad);
+      opacity: 0.15;
+    }
+    .yc-dot-eth {
+      fill: var(--secondary);
+      filter: drop-shadow(0 0 5px var(--secondary));
+    }
+    .yc-dot-steth {
+      fill: var(--primary);
+      filter: drop-shadow(0 0 8px var(--primary));
+    }
+    .yc-hover-line {
+      stroke: rgba(0,255,200,0.2);
+      stroke-width: 1;
+      stroke-dasharray: 4 4;
+    }
+    .yc-hover-group { display: none; }
+    .yc-tooltip {
+      font-family: var(--mono);
+      font-size: 12px;
+      fill: var(--text);
+    }
+    .yc-tooltip-bg {
+      fill: var(--surface-2);
+      stroke: var(--border);
+      stroke-width: 1;
+      rx: 6;
+    }
+
+    /* ─── Withdrawal Timeline ─── */
+    .withdrawal-timeline-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      margin: 24px 0;
+    }
+    .wt-slider-row {
+      display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
+    }
+    .wt-slider-row label {
+      font-size: 14px; font-weight: 500; flex-shrink: 0;
+    }
+    .wt-slider-row input[type="range"] { flex: 1; min-width: 200px; }
+    .wt-days-display {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-family: var(--mono);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 120px;
+      text-align: center;
+    }
+    #withdrawalTimelineSvg { width: 100%; height: auto; display: block; }
+    .wt-phase { cursor: pointer; }
+    .wt-phase rect { transition: all 0.3s; }
+    .wt-phase:hover rect { filter: brightness(1.3); }
+    .wt-phase.active rect { stroke-width: 3; }
+
+    /* ─── Validator Calculator ─── */
+    .validator-calc-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      margin: 24px 0;
+    }
+    .vc-inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    .vc-input-block {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .vc-input-block label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .vc-input-block .vc-val {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+    .vc-results-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .vc-result-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    .vc-result-card .vc-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .vc-result-card .vc-num { font-family: var(--mono); font-size: 24px; font-weight: 700; }
+    .vc-result-card .vc-num.green { color: var(--success); }
+    .vc-result-card .vc-num.cyan { color: var(--primary); }
+    .vc-result-card .vc-num.purple { color: var(--secondary); }
+    .vc-result-card .vc-num.orange { color: var(--accent); }
+
+    /* ─── stETH vs ETH Comparison ─── */
+    .compare-chart-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      margin: 24px 0;
+    }
+    #compareChart { width: 100%; height: auto; display: block; }
+    .cc-bar { transition: width 0.6s ease; }
+    .cc-month-label { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+    .cc-eth-label { font-family: var(--mono); font-size: 11px; fill: var(--secondary); }
+    .cc-steth-label { font-family: var(--mono); font-size: 11px; fill: var(--primary); font-weight: 600; }
+    .compare-slider-row {
+      display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .compare-slider-row label { font-size: 14px; font-weight: 500; }
+    .compare-slider-row input[type="range"] { flex: 1; min-width: 200px; }
+
+    /* ─── Liquidity / DeFi Collab ─── */
+    .liquidity-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      margin: 24px 0;
+    }
+    .liq-strategies {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .liq-strategy {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .liq-strategy:hover { border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,255,200,0.1); }
+    .liq-strategy.active { border-color: var(--primary); background: rgba(0,255,200,0.05); }
+    .liq-strategy .ls-icon { font-size: 28px; margin-bottom: 10px; }
+    .liq-strategy h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .liq-strategy p { font-size: 12px; color: var(--muted); }
+    .liq-calc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .liq-result-panel {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .liq-result-row {
+      display: flex; justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .liq-result-row:last-child { border-bottom: none; }
+    .liq-result-row .lr-label { color: var(--muted); }
+    .liq-result-row .lr-val { font-family: var(--mono); font-weight: 600; color: var(--primary); }
+    .liq-result-row .lr-val.highlight { color: var(--accent); font-size: 18px; }
+
+    /* ─── Comparison cards ─── */
+    .compare-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .compare-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+    .compare-card.lido-card { border-color: var(--primary); }
+    .compare-card .c-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 3px 8px; border-radius: 4px; margin-bottom: 12px; }
+    .compare-card .c-badge.prime { background: rgba(0,255,200,0.15); color: var(--primary); }
+    .compare-card .c-badge.solid { background: rgba(168,85,247,0.15); color: var(--secondary); }
+    .compare-card .c-badge.ok { background: rgba(245,158,11,0.15); color: var(--accent); }
+    .compare-card .c-badge.hard { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .compare-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .compare-card .c-apy { font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--primary); margin-bottom: 16px; }
+    .compare-card .c-pros { list-style: none; margin-bottom: 12px; }
+    .compare-card .c-pros li { font-size: 13px; color: var(--muted); padding: 4px 0; display: flex; align-items: flex-start; gap: 8px; }
+    .compare-card .c-pros li::before { content: '✓'; color: var(--success); font-weight: 700; flex-shrink: 0; }
+    .compare-card .c-cons { list-style: none; }
+    .compare-card .c-cons li { font-size: 13px; color: var(--muted); padding: 4px 0; display: flex; align-items: flex-start; gap: 8px; }
+    .compare-card .c-cons li::before { content: '✗'; color: var(--danger); font-weight: 700; flex-shrink: 0; }
+
+    /* ─── Validator performance grid ─── */
+    .validator-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin: 24px 0; }
+    .validator-node { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; transition: all 0.3s; }
+    .validator-node.active { border-color: var(--success); }
+    .validator-node:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+    .validator-node .v-icon { font-size: 32px; margin-bottom: 8px; }
+    .validator-node .v-status { font-size: 11px; color: var(--success); text-transform: uppercase; letter-spacing: 0.5px; }
+    .validator-node .v-uptime { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--success); }
+
+    /* ─── Rebase timeline ─── */
+    .rebase-timeline { display: flex; gap: 6px; margin: 24px 0; overflow-x: auto; padding-bottom: 8px; }
+    .rebase-day { flex: 1; min-width: 60px; text-align: center; }
+    .rebase-day .day-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+    .rebase-bar-wrap { height: 80px; display: flex; align-items: flex-end; justify-content: center; }
+    .rebase-bar { width: 28px; background: linear-gradient(180deg, var(--primary), var(--secondary)); border-radius: 4px 4px 0 0; transition: height 0.4s ease; }
+    .rebase-day:first-child .rebase-bar { background: var(--surface-2); border: 1px solid var(--border); }
+    .rebase-value { font-family: var(--mono); font-size: 11px; color: var(--primary); margin-top: 4px; }
+    .rebase-today { border: 1px solid var(--primary); border-radius: 8px; padding: 4px; }
+
+    /* ─── Queue viz ─── */
+    .queue-viz { display: flex; align-items: center; gap: 4px; margin: 24px 0; overflow-x: auto; padding: 8px 0; }
+    .queue-slot { width: 24px; height: 24px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--border); flex-shrink: 0; cursor: pointer; transition: all 0.2s; }
+    .queue-slot:hover { transform: scale(1.2); }
+    .queue-slot.filled { background: var(--primary); border-color: var(--primary); }
+    .queue-slot.you { background: var(--accent); border-color: var(--accent); animation: pulse 2s infinite; }
+
+    /* ─── DeFi cards ─── */
+    .defi-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .defi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: all 0.3s; }
+    .defi-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .defi-card .d-icon { font-size: 28px; margin-bottom: 12px; }
+    .defi-card h4 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .defi-card p { font-size: 13px; color: var(--muted); }
+
+    /* ─── Glossary ─── */
+    .glossary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .glossary-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .glossary-item .g-term { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 6px; }
+    .glossary-item .g-def { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+    /* ─── Risk grid ─── */
+    .risk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .risk-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .risk-card.high { border-color: rgba(239,68,68,0.3); }
+    .risk-card.medium { border-color: rgba(245,158,11,0.3); }
+    .risk-card.low { border-color: rgba(34,197,94,0.3); }
+    .risk-card .r-icon { font-size: 28px; margin-bottom: 10px; }
+    .risk-card h4 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+    .risk-card p { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+    .risk-card .r-level { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 3px 8px; border-radius: 4px; }
+    .risk-card.high .r-level { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .risk-card.medium .r-level { background: rgba(245,158,11,0.15); color: var(--accent); }
+    .risk-card.low .r-level { background: rgba(34,197,94,0.15); color: var(--success); }
+
+    /* ─── Misc ─── */
+    .section-divider { border: none; border-top: 1px solid var(--border); margin: 60px 0; }
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; margin-bottom: 32px; transition: color 0.15s; }
+    .back-link:hover { color: var(--primary); }
+    .back-link .arrow { font-size: 18px; }
+    .sim-output { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .sim-stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+    .sim-stat .s-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .sim-stat .s-value { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--primary); }
+    .sim-stat .s-value.sub { font-size: 14px; color: var(--muted); }
+    .steth-meter { position: relative; height: 12px; background: var(--surface-2); border-radius: 6px; overflow: hidden; margin: 16px 0; }
+    .steth-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #00b8a9); border-radius: 6px; transition: width 0.6s ease; }
+    .stat-cards-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-align: center; }
+    .stat-card .sc-icon { font-size: 28px; margin-bottom: 8px; }
+    .stat-card .sc-val { font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+    .stat-card .sc-lbl { font-size: 13px; color: var(--muted); }
+
+    @keyframes borderGlow {
+      0%, 100% { border-color: rgba(0,255,200,0.3); }
+      50% { border-color: rgba(0,255,200,0.7); }
+    }
+    .glow-card { animation: borderGlow 3s ease-in-out infinite; }
+
+    .tween-num { transition: all 0.3s ease; }
+    select.inline-select {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 14px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      outline: none;
+      cursor: pointer;
+    }
+    select.inline-select:focus { border-color: var(--primary); }
+
+    @media (max-width: 640px) {
+      .vc-inputs { grid-template-columns: 1fr; }
+      .vc-results-grid { grid-template-columns: 1fr 1fr; }
+      .liq-calc-grid { grid-template-columns: 1fr; }
+      .stat-cards-row { grid-template-columns: 1fr; }
+      .sim-output { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-logo">DeFi<span>Viz</span></a>
+  <div class="nav-links">
+    <a href="index.html">Protocols</a>
+    <a href="ethereum.html">Ethereum</a>
+    <a href="liquid-staking.html">Liquid Staking</a>
+    <a href="lido.html" class="active">Lido</a>
+  </div>
+</nav>
+
+<div class="page container">
+
+  <!-- Back -->
+  <a href="index.html" class="back-link"><span class="arrow">←</span> Back to Protocols</a>
+
+  <!-- Hero -->
+  <div class="protocol-hero lido-hero">
+    <div class="protocol-icon">🌊</div>
+    <h1>Lido</h1>
+    <p class="tagline">Liquid Staking for Ethereum</p>
+    <div class="protocol-meta">
+      <div class="meta-item">
+        <div class="label">Total Value Locked</div>
+        <div class="value">~$10.3B</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">ETH Staked</div>
+        <div class="value">5.2M+ ETH</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">Validators</div>
+        <div class="value">163K+</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">stETH Holders</div>
+        <div class="value">300K+</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- What is Lido? -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">1</span> What is Lido?</div>
+    <p style="color:var(--muted);line-height:1.8;font-size:15px;">
+      Ethereum's transition to <strong style="color:var(--text);">Proof-of-Stake</strong> in September 2022 fundamentally changed how the network secures itself. Instead of miners expending massive amounts of energy, validators — operators who stake 32 ETH — are responsible for proposing and attesting to blocks. These validators earn rewards for their service, but there's a catch: to become a validator, you need to lock up <strong style="color:var(--text);">32 ETH</strong> (currently worth ~$80,000+). And once staked, your ETH is <em>not</em> immediately accessible — it's locked until withdrawals are enabled, and even then there's a queue.
+    </p>
+    <p style="color:var(--muted);line-height:1.8;font-size:15px;margin-top:16px;">
+      <strong style="color:var(--text);">Lido</strong> solves this friction. It's a decentralized liquid staking protocol that lets anyone stake any amount of ETH — even fractions of one — and receive <strong style="color:var(--text);">stETH</strong> in return. stETH is a token that represents your deposited ETH plus all accumulated staking rewards. Because it's a token, you can use it, trade it, or deploy it in DeFi while your ETH continues to earn rewards on the Beacon Chain.
+    </p>
+    <p style="color:var(--muted);line-height:1.8;font-size:15px;margin-top:16px;">
+      Here's the key difference: when you stake directly through Ethereum, your ETH is locked and unusable until you exit the validator queue (which can take weeks or months during high demand). But when you stake via Lido, you receive <strong style="color:var(--text);">stETH</strong> immediately. That stETH is redeemable 1:1 for ETH (subject to the withdrawal queue), but in the meantime, you can use it as collateral in Aave, provide liquidity on Curve, or integrate it into countless other DeFi protocols. <strong style="color:var(--text);">You're earning staking rewards AND maintaining liquidity</strong> — the best of both worlds.
+    </p>
+    <div class="stat-cards-row" style="margin-top:32px;">
+      <div class="stat-card glow-card">
+        <div class="sc-icon">📈</div>
+        <div class="sc-val">$10.3B</div>
+        <div class="sc-lbl">Total Value Locked</div>
+      </div>
+      <div class="stat-card glow-card" style="animation-delay:1s;">
+        <div class="sc-icon">🌍</div>
+        <div class="sc-val">5.2M</div>
+        <div class="sc-lbl">ETH Staked</div>
+      </div>
+      <div class="stat-card glow-card" style="animation-delay:2s;">
+        <div class="sc-icon">🛡️</div>
+        <div class="sc-val">163K</div>
+        <div class="sc-lbl">Active Validators</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────────────────
+       SECTION 2: Animated SVG Staking Flow
+  ──────────────────────────────────────────── -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">2</span> Animated Staking Flow</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">Watch ETH flow through Lido's staking pipeline. Click any node to highlight it. Hover over validators to see their status.</p>
+
+    <div class="stake-flow-svg-wrap">
+      <svg id="stakeFlowSvg" viewBox="0 0 900 320" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="flowGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#00ffc8;stop-opacity:0"/>
+            <stop offset="100%" style="stop-color:#00ffc8;stop-opacity:0.8"/>
+          </linearGradient>
+          <linearGradient id="flowGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#a855f7;stop-opacity:0"/>
+            <stop offset="100%" style="stop-color:#a855f7;stop-opacity:0.8"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Flow path 1: ETH → Lido -->
+        <path class="sf-path-anim" d="M 175 100 Q 240 100 280 100"
+              stroke="var(--primary)" stroke-width="2.5" fill="none"
+              marker-end="url(#arrow1)"/>
+        <defs>
+          <marker id="arrow1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0,8 4,0 8" fill="var(--primary)"/>
+          </marker>
+        </defs>
+
+        <!-- Flow path 2: Lido → Node Operators -->
+        <path class="sf-path-anim-slow" d="M 460 100 Q 510 100 530 160"
+              stroke="var(--secondary)" stroke-width="2" fill="none"
+              marker-end="url(#arrow2)"/>
+        <defs>
+          <marker id="arrow2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0,8 4,0 8" fill="var(--secondary)"/>
+          </marker>
+        </defs>
+
+        <!-- Flow path 3: Node Operators → Beacon Chain -->
+        <path class="sf-path-anim" d="M 745 160 Q 765 160 780 200"
+              stroke="var(--primary)" stroke-width="2" fill="none"
+              marker-end="url(#arrow3)"/>
+        <defs>
+          <marker id="arrow3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0,8 4,0 8" fill="var(--primary)"/>
+          </marker>
+        </defs>
+
+        <!-- Flow path 4: Rewards back to stETH holders (loop) -->
+        <path class="sf-path-anim-slow"
+              d="M 780 270 Q 450 310 175 270"
+              stroke="var(--accent)" stroke-width="2" fill="none"
+              stroke-dasharray="6 4"
+              marker-end="url(#arrow4)"/>
+        <defs>
+          <marker id="arrow4" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0,8 4,0 8" fill="var(--accent)"/>
+          </marker>
+        </defs>
+
+        <!-- ── Node 1: User deposits ETH ── -->
+        <g class="sf-node" id="sfNode1" onclick="highlightNode(1)">
+          <rect x="40" y="60" width="135" height="80" rx="12"
+                fill="var(--surface-2)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="107" y="90" text-anchor="middle" font-size="28">👤</text>
+          <text x="107" y="115" text-anchor="middle"
+                font-family="var(--mono)" font-size="11" fill="var(--muted)">User</text>
+          <text x="107" y="130" text-anchor="middle"
+                font-family="var(--mono)" font-size="13" font-weight="600" fill="var(--primary)">Deposits ETH</text>
+        </g>
+
+        <!-- ── Node 2: Lido Protocol ── -->
+        <g class="sf-node" id="sfNode2" onclick="highlightNode(2)">
+          <rect x="280" y="60" width="180" height="80" rx="12"
+                fill="var(--surface-2)" stroke="var(--secondary)" stroke-width="2"/>
+          <text x="370" y="90" text-anchor="middle" font-size="28">🏦</text>
+          <text x="370" y="115" text-anchor="middle"
+                font-family="var(--mono)" font-size="11" fill="var(--muted)">Lido Protocol</text>
+          <text x="370" y="130" text-anchor="middle"
+                font-family="var(--mono)" font-size="13" font-weight="600" fill="var(--secondary)">Mint stETH</text>
+        </g>
+
+        <!-- ── Node 3: Node Operators ── -->
+        <g class="sf-node" id="sfNode3" onclick="highlightNode(3)">
+          <rect x="530" y="120" width="215" height="80" rx="12"
+                fill="var(--surface-2)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="637" y="150" text-anchor="middle" font-size="28">⚙️</text>
+          <text x="637" y="175" text-anchor="middle"
+                font-family="var(--mono)" font-size="11" fill="var(--muted)">30+ Node Operators</text>
+          <text x="637" y="190" text-anchor="middle"
+                font-family="var(--mono)" font-size="13" font-weight="600" fill="var(--primary)">Run Validators</text>
+        </g>
+
+        <!-- ── Node 4: Beacon Chain ── -->
+        <g class="sf-node" id="sfNode4" onclick="highlightNode(4)">
+          <rect x="780" y="200" width="105" height="80" rx="12"
+                fill="var(--surface-2)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="832" y="230" text-anchor="middle" font-size="28">⛓️</text>
+          <text x="832" y="255" text-anchor="middle"
+                font-family="var(--mono)" font-size="11" fill="var(--muted)">Beacon Chain</text>
+          <text x="832" y="270" text-anchor="middle"
+                font-family="var(--mono)" font-size="13" font-weight="600" fill="var(--primary)">Consensus</text>
+        </g>
+
+        <!-- ── Animated particles along paths ── -->
+        <circle r="4" fill="var(--primary)" filter="url(#glow)">
+          <animateMotion dur="2s" repeatCount="indefinite"
+            path="M 175 100 Q 240 100 280 100"/>
+        </circle>
+        <circle r="4" fill="var(--secondary)" filter="url(#glow)">
+          <animateMotion dur="3s" repeatCount="indefinite"
+            path="M 460 100 Q 510 100 530 160"/>
+        </circle>
+        <circle r="4" fill="var(--primary)" filter="url(#glow)">
+          <animateMotion dur="1.8s" repeatCount="indefinite"
+            path="M 745 160 Q 765 160 780 200"/>
+        </circle>
+        <circle r="4" fill="var(--accent)" filter="url(#glow)">
+          <animateMotion dur="4s" repeatCount="indefinite"
+            path="M 780 270 Q 450 310 175 270"/>
+        </circle>
+
+        <!-- ── Legend ── -->
+        <text x="40" y="300" font-size="12" fill="var(--muted)" font-family="var(--mono)">● ETH Flow</text>
+        <text x="200" y="300" font-size="12" fill="var(--secondary)" font-family="var(--mono)">● Validator Routing</text>
+        <text x="400" y="300" font-size="12" fill="var(--accent)" font-family="var(--mono)">● Reward Distribution</text>
+
+        <!-- Status display (updates on click) -->
+        <rect x="580" y="20" width="300" height="50" rx="8"
+              fill="var(--surface-2)" stroke="var(--border)" stroke-width="1"/>
+        <text id="sfStatus" x="730" y="40" text-anchor="middle"
+              font-family="var(--mono)" font-size="12" fill="var(--muted)">Click a node to explore</text>
+        <text id="sfStatusDetail" x="730" y="58" text-anchor="middle"
+              font-family="var(--mono)" font-size="11" fill="var(--primary)"></text>
+      </svg>
+    </div>
+
+    <div class="sf-legend">
+      <span><span class="dot" style="background:var(--primary)"></span> ETH deposit flow</span>
+      <span><span class="dot" style="background:var(--secondary)"></span> Validator routing</span>
+      <span><span class="dot" style="background:var(--accent)"></span> Reward distribution</span>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────────────────
+       SECTION 3: Enhanced Staking Simulator with Yield Curve
+  ──────────────────────────────────────────── -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">3</span> stETH Yield Simulator</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">Adjust your stake and see stETH accumulation over time. Toggle compounding to see the power of reinvesting rewards.</p>
+
+    <!-- Controls -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px;">
+      <div class="slider-group" style="margin-bottom:0;">
+        <label>
+          <span>ETH Staked</span>
+          <span id="ssEthDisplay" style="font-family:var(--mono);color:var(--primary);font-weight:600;">5.0 ETH</span>
+        </label>
+        <input type="range" id="ssEth" min="0.1" max="100" step="0.1" value="5">
+      </div>
+      <div class="slider-group" style="margin-bottom:0;">
+        <label>
+          <span>APY (%)</span>
+          <span id="ssApyDisplay" style="font-family:var(--mono);color:var(--accent);font-weight:600;">4.2%</span>
+        </label>
+        <input type="range" id="ssApy" min="1" max="10" step="0.1" value="4.2">
+      </div>
+      <div class="slider-group" style="margin-bottom:0;">
+        <label>
+          <span>Time Horizon</span>
+          <span id="ssTimeDisplay" style="font-family:var(--mono);color:var(--secondary);font-weight:600;">12 mo</span>
+        </label>
+        <input type="range" id="ssTime" min="1" max="36" step="1" value="12">
+      </div>
+    </div>
+
+    <!-- Quick-set buttons -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
+      <button onclick="setSsEth(0.1)" class="liq-btn">0.1 ETH</button>
+      <button onclick="setSsEth(1)" class="liq-btn">1 ETH</button>
+      <button onclick="setSsEth(10)" class="liq-btn">10 ETH</button>
+      <button onclick="setSsEth(32)" class="liq-btn">32 ETH</button>
+      <button onclick="setSsEth(100)" class="liq-btn">100 ETH</button>
+      <button onclick="toggleCompound()" id="ssCompoundBtn" class="liq-btn" style="border-color:var(--secondary);color:var(--secondary);">Compound: ON</button>
+    </div>
+
+    <!-- Yield Curve SVG -->
+    <div class="yield-curve-container">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:14px;font-weight:600;">stETH vs ETH Growth Over <span id="ycTitle">12</span> Months</div>
+        <div style="display:flex;gap:16px;font-size:12px;color:var(--muted);">
+          <span style="display:flex;align-items:center;gap:6px;"><span style="width:16px;height:3px;background:var(--secondary);border-radius:2px;display:inline-block;opacity:0.7;"></span> ETH (no staking)</span>
+          <span style="display:flex;align-items:center;gap:6px;"><span style="width:16px;height:3px;background:var(--primary);border-radius:2px;display:inline-block;"></span> stETH (with compounding)</span>
+        </div>
+      </div>
+      <svg id="yieldCurve" viewBox="0 0 700 260" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="ycGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#00ffc8;stop-opacity:0.3"/>
+            <stop offset="100%" style="stop-color:#00ffc8;stop-opacity:0"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Grid -->
+        <line class="yc-grid-line" x1="60" y1="220" x2="680" y2="220"/>
+        <line class="yc-grid-line" x1="60" y1="170" x2="680" y2="170"/>
+        <line class="yc-grid-line" x1="60" y1="120" x2="680" y2="120"/>
+        <line class="yc-grid-line" x1="60" y1="70" x2="680" y2="70"/>
+        <line class="yc-axis" x1="60" y1="220" x2="60" y2="50"/>
+
+        <!-- Y-axis labels (ETH balance) -->
+        <text class="yc-label" x="55" y="224" text-anchor="end" id="ycY0">5.0</text>
+        <text class="yc-label" x="55" y="174" text-anchor="end" id="ycY1">5.5</text>
+        <text class="yc-label" x="55" y="124" text-anchor="end" id="ycY2">6.0</text>
+        <text class="yc-label" x="55" y="74" text-anchor="end" id="ycY3">6.5</text>
+        <text class="yc-label" x="18" y="140" text-anchor="middle" style="font-size:10px;" transform="rotate(-90,18,140)">stETH Balance</text>
+
+        <!-- X-axis labels (months) -->
+        <text class="yc-label" x="60" y="240" text-anchor="middle" id="ycX0">0</text>
+        <text class="yc-label" x="178" y="240" text-anchor="middle" id="ycX1">3</text>
+        <text class="yc-label" x="296" y="240" text-anchor="middle" id="ycX2">6</text>
+        <text class="yc-label" x="414" y="240" text-anchor="middle" id="ycX3">9</text>
+        <text class="yc-label" x="520" y="240" text-anchor="middle" id="ycX4">12</text>
+        <text class="yc-label" x="620" y="240" text-anchor="middle" id="ycX5">15</text>
+        <text class="yc-label" x="370" y="255" text-anchor="middle" style="font-size:12px;">Months</text>
+
+        <!-- Area under stETH curve -->
+        <path class="yc-area" id="ycArea"/>
+
+        <!-- ETH flat line (no staking) -->
+        <path class="yc-line-eth" id="ycEthLine"/>
+
+        <!-- stETH growth line -->
+        <path class="yc-line-steth" id="ycStethLine"/>
+
+        <!-- Hover line -->
+        <line class="yc-hover-line" id="ycHoverLine" x1="0" y1="50" x2="0" y2="220" style="display:none;"/>
+
+        <!-- Hover dot stETH -->
+        <circle class="yc-dot-steth" id="ycHoverDotSteth" r="6" cx="0" cy="0" style="display:none;"/>
+        <!-- Hover dot ETH -->
+        <circle class="yc-dot-eth" id="ycHoverDotEth" r="5" cx="0" cy="0" style="display:none;"/>
+
+        <!-- Tooltip group -->
+        <g id="ycTooltip" class="yc-hover-group">
+          <rect class="yc-tooltip-bg" id="ycTooltipBg" x="0" y="0" width="120" height="54" rx="6"/>
+          <text class="yc-tooltip" id="ycTooltipMonth" x="8" y="18" font-weight="600"/>
+          <text class="yc-tooltip" id="ycTooltipEth" x="8" y="33" fill="var(--secondary)" font-size="11"/>
+          <text class="yc-tooltip" id="ycTooltipSteth" x="8" y="48" fill="var(--primary)" font-size="11"/>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Stats output -->
+    <div class="sim-output" id="ssOutput">
+      <div class="sim-stat">
+        <div class="s-label">stETH Received</div>
+        <div class="s-value" id="ssSteth">5.000</div>
+      </div>
+      <div class="sim-stat">
+        <div class="s-label">APY</div>
+        <div class="s-value" id="ssApyOut">4.2%</div>
+      </div>
+      <div class="sim-stat">
+        <div class="s-label">Daily Rewards</div>
+        <div class="s-value" id="ssDaily">0.00574 ETH</div>
+      </div>
+      <div class="sim-stat">
+        <div class="s-label">Monthly Rewards</div>
+        <div class="s-value" id="ssMonthly">0.174 ETH</div>
+      </div>
+      <div class="sim-stat">
+        <div class="s-label">Final Balance</div>
+        <div class="s-value" id="ssFinal">5.210 ETH</div>
+      </div>
+      <div class="sim-stat">
+        <div class="s-label">Yield Earned</div>
+        <div class="s-value" id="ssYield" style="color:var(--accent);">+0.210 ETH</div>
+      </div>
+    </div>
+
+    <!-- stETH balance growth bar -->
+    <div style="margin-top:24px;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Balance Growth (<span id="sgLabel">12</span> months)</div>
+      <div class="steth-meter">
+        <div class="steth-fill" id="sgBar" style="width:5%;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);">
+        <span>Start: <span id="sgStart" style="color:var(--primary);font-family:var(--mono);">5.000</span></span>
+        <span>End: <span id="sgEnd" style="color:var(--primary);font-family:var(--mono);">5.210</span></span>
+        <span>Yield: <span id="sgYield" style="color:var(--accent);font-family:var(--mono);">+0.210 ETH</span></span>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────────────────
+       SECTION 4: Withdrawal Queue Visualizer
+  ──────────────────────────────────────────── -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">4</span> Withdrawal Queue Visualizer</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">Explore how the Beacon Chain withdrawal queue works. Adjust how many ETH you want to unstake and watch the timeline update.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
+      <div class="slider-group" style="margin-bottom:0;">
+        <label>
+          <span>ETH to Unstake</span>
+          <span id="wqEthDisplay" style="font-family:var(--mono);color:var(--primary);font-weight:600;">32 ETH</span>
+        </label>
+        <input type="range" id="wqEth" min="0.1" max="256" step="0.1" value="32">
+      </div>
+      <div class="slider-group" style="margin-bottom:0;">
+        <label>
+          <span>Queue Depth</span>
+          <span id="wqDepthDisplay" style="font-family:var(--mono);color:var(--accent);font-weight:600;">~25,000</span>
+        </label>
+        <input type="range" id="wqDepth" min="1000" max="100000" step="1000" value="25000">
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Validators Needed</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--primary);" id="wqValidators">1</div>
+      </div>
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Est. Wait Time</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent);" id="wqWait">~1 day</div>
+      </div>
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Queue Position</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--secondary);" id="wqPosition">#25,001</div>
+      </div>
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Exit Rate</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--success);">~900/day</div>
+      </div>
+    </div>
+
+    <!-- Animated SVG Timeline -->
+    <div class="withdrawal-timeline-wrap">
+      <svg id="withdrawalTimelineSvg" viewBox="0 0 700 220" xmlns="http://www.w3.org/2000/svg">
+        <!-- Phase labels -->
+        <text class="yc-label" x="350" y="15" text-anchor="middle" style="font-size:13px;font-weight:600;fill:var(--text);">Beacon Chain Withdrawal Timeline</text>
+
+        <!-- Phase boxes -->
+        <!-- Phase 1: Request submitted -->
+        <g class="wt-phase" id="wtPhase1" onclick="highlightPhase(1)">
+          <rect x="20" y="35" width="130" height="80" rx="10"
+                fill="var(--surface-2)" stroke="var(--primary)" stroke-width="2"/>
+          <text x="85" y="62" text-anchor="middle" font-size="22">📋</text>
+          <text x="85" y="83" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">Phase 1</text>
+          <text x="85" y="98" text-anchor="middle" font-family="var(--mono)" font-size="12" font-weight="600" fill="var(--primary)">Request</text>
+          <text x="85" y="112" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--text)">~1 block</text>
+        </g>
+
+        <!-- Connector 1-2 -->
+        <path class="sf-path-anim" d="M 155 75 L 195 75"
+              stroke="var(--primary)" stroke-width="2" fill="none"
+              marker-end="url(#wtArrow1)"/>
+        <defs>
+          <marker id="wtArrow1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0,8 4,0 8" fill="var(--primary)"/>
+          </marker>
+        </defs>
+
+        <!-- Phase 2: Queue waiting -->
+        <g class="wt-phase" id="wtPhase2" onclick="highlightPhase(2)">
+          <rect x="200" y="35" width="180" height="80" rx="10"
+                fill="var(--surface-2)" stroke="var(--accent)" stroke-width="2"/>
+          <text x="290" y="62" text-anchor="middle" font-size="22">⏳</text>
+          <text x="290" y="83" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">Phase 2</text>
+          <text x="290" y="98" text-anchor="middle" font-family="var(--mono)" font-size="12" font-weight="600" fill="var(--accent)">Queue Wait</text>
+          <text x="290" y="112" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--text)" id="wtPhase2Time">~1 day</text>
+        </g>
+
+        <!-- Connector 2-3 -->
+        <path class="sf-path-anim" d="M 385 75 L 425 75"
+              stroke="var(--primary)" stroke-width="2" fill="none"
+              marker-end="url(#wtArrow2)"/>
+        <defs>
+          <marker id="wtArrow2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0,8 4,0 8" fill="var(--primary)"/>
+          </marker>
+        </defs>
+
+        <!-- Phase 3: Validator exit -->
+        <g class="wt-phase" id="wtPhase3" onclick="highlightPhase(3)">
+          <rect x="430" y="35" width="130" height="80" rx="10"
+                fill="var(--surface-2)" stroke="var(--secondary)" stroke-width="2"/>
+          <text x="495" y="62" text-anchor="middle" font-size="22">🔐</text>
+          <text x="495" y="83" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">Phase 3</text>
+          <text x="495" y="98" text-anchor="middle" font-family="var(--mono)" font-size="12" font-weight="600" fill="var(--secondary)">Validator Exit</text>
+          <text x="495" y="112" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--text)">~27 hrs</text>
+        </g>
+
+        <!-- Connector 3-4 -->
+        <path class="sf-path-anim" d="M 565 75 L 605 75"
+              stroke="var(--primary)" stroke-width="2" fill="none"
+              marker-end="url(#wtArrow3)"/>
+        <defs>
+          <marker id="wtArrow3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <polygon points="0 0,8 4,0 8" fill="var(--primary)"/>
+          </marker>
+        </defs>
+
+        <!-- Phase 4: ETH received -->
+        <g class="wt-phase" id="wtPhase4" onclick="highlightPhase(4)">
+          <rect x="610" y="35" width="70" height="80" rx="10"
+                fill="var(--surface-2)" stroke="var(--success)" stroke-width="2"/>
+          <text x="645" y="62" text-anchor="middle" font-size="22">💰</text>
+          <text x="645" y="83" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--muted)">Done</text>
+          <text x="645" y="98" text-anchor="middle" font-family="var(--mono)" font-size="12" font-weight="600" fill="var(--success)">ETH</text>
+          <text x="645" y="112" text-anchor="middle" font-family="var(--mono)" font-size="11" fill="var(--text)">1:1</text>
+        </g>
+
+        <!-- Timeline bar (total process) -->
+        <rect x="20" y="145" width="660" height="30" rx="6"
+              fill="var(--surface-2)" stroke="var(--border)" stroke-width="1"/>
+        <!-- Processed portion -->
+        <rect id="wtProgressBar" x="20" y="145" width="0" height="30" rx="6"
+              fill="url(#wtProgressGrad)" style="transition:width 1s ease;"/>
+        <defs>
+          <linearGradient id="wtProgressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#00ffc8;stop-opacity:0.4"/>
+            <stop offset="100%" style="stop-color:#00ffc8;stop-opacity:0.9"/>
+          </linearGradient>
+        </defs>
+        <!-- Phase markers on timeline -->
+        <circle cx="85" cy="160" r="5" fill="var(--primary)" filter="url(#glow)"/>
+        <circle cx="290" cy="160" r="5" fill="var(--accent)"/>
+        <circle cx="495" cy="160" r="5" fill="var(--secondary)"/>
+        <circle cx="645" cy="160" r="5" fill="var(--success)"/>
+
+        <!-- Status text -->
+        <text id="wtStatus" x="350" y="200" text-anchor="middle"
+              font-family="var(--mono)" font-size="12" fill="var(--muted)">Click a phase to explore</text>
+      </svg>
+    </div>
+
+    <!-- Animated slot queue -->
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
+      Validator Exit Queue (<span id="wqTotalSlots">60</span> slots shown)
+    </div>
+    <div class="queue-viz" id="wqQueueViz"></div>
+    <div style="display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap;">
+      <span style="display:flex;align-items:center;gap:6px;"><span style="width:16px;height:16px;background:var(--primary);border-radius:3px;display:inline-block;"></span> Processed</span>
+      <span style="display:flex;align-items:center;gap:6px;"><span style="width:16px;height:16px;background:var(--accent);border-radius:3px;display:inline-block;animation:pulse 2s infinite;"></span> Your Position</span>
+      <span style="display:flex;align-items:center;gap:6px;"><span style="width:16px;height:16px;background:var(--surface-2);border:1px solid var(--border);border-radius:3px;display:inline-block;"></span> Waiting</span>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────────────────
+       SECTION 5: Validator Rewards Calculator
+  ──────────────────────────────────────────── -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">5</span> Validator Rewards Calculator</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">Adjust network and performance parameters to see how validator rewards change. The Lido fee is already deducted in the net APY shown.</p>
+
+    <div class="validator-calc-wrap">
+      <div class="vc-inputs">
+        <div class="vc-input-block">
+          <label>Network Participation</label>
+          <div class="vc-val" id="vcParticDisplay">98%</div>
+          <input type="range" id="vcPartic" min="80" max="100" step="0.5" value="98" style="margin-top:8px;">
+        </div>
+        <div class="vc-input-block">
+          <label>MEV Capture</label>
+          <div class="vc-val" id="vcMevDisplay" style="color:var(--accent);">ON</div>
+          <input type="range" id="vcMev" min="0" max="1" step="1" value="1" style="margin-top:8px;">
+        </div>
+        <div class="vc-input-block">
+          <label>Validator Count (virtual)</label>
+          <div class="vc-val" id="vcCountDisplay" style="color:var(--secondary);">1</div>
+          <input type="range" id="vcCount" min="1" max="1000" step="1" value="1" style="margin-top:8px;">
+        </div>
+      </div>
+
+      <!-- MEV toggle buttons -->
+      <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;">
+        <button onclick="setVcMev(0)" class="liq-btn" id="vcMevOff">MEV OFF</button>
+        <button onclick="setVcMev(1)" class="liq-btn active" id="vcMevOn" style="border-color:var(--accent);color:var(--accent);">MEV ON</button>
+        <span style="font-size:13px;color:var(--muted);align-self:center;margin-left:8px;">
+          <span style="color:var(--accent);font-family:var(--mono);">+0.5–1.0%</span> APY from MEV when enabled
+        </span>
+      </div>
+
+      <div class="vc-results-grid">
+        <div class="vc-result-card">
+          <div class="vc-label">Base Staking APY</div>
+          <div class="vc-num cyan" id="vcBaseApy">3.2%</div>
+        </div>
+        <div class="vc-result-card">
+          <div class="vc-label">MEV Bonus</div>
+          <div class="vc-num orange" id="vcMevBonus">+0.75%</div>
+        </div>
+        <div class="vc-result-card">
+          <div class="vc-label">Lido Fee (10%)</div>
+          <div class="vc-num purple" id="vcFee">−0.40%</div>
+        </div>
+        <div class="vc-result-card">
+          <div class="vc-label">Net APY</div>
+          <div class="vc-num green" id="vcNetApy" style="font-size:32px;">3.55%</div>
+        </div>
+        <div class="vc-result-card">
+          <div class="vc-label">Per Validator/yr</div>
+          <div class="vc-num cyan" id="vcPerValidator">~1.14 ETH</div>
+        </div>
+        <div class="vc-result-card">
+          <div class="vc-label">Total Rewards (all)</div>
+          <div class="vc-num orange" id="vcTotalRewards">~1.14 ETH</div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;padding:16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);">
+        <strong style="color:var(--text);">Note:</strong> Base APY scales with Ethereum's total staking participation. Higher total ETH staked = lower individual validator rewards. Lido's 10% fee covers node operator costs and DAO treasury. MEV Boost proceeds are distributed to stETH holders.
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────────────────
+       SECTION 6: stETH vs ETH Comparison Chart
+  ──────────────────────────────────────────── -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">6</span> stETH vs ETH — 12-Month Comparison</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">Compare holding plain ETH vs staking with Lido stETH over a year. The gap widens as rewards compound daily.</p>
+
+    <div class="compare-slider-row">
+      <label>Starting ETH:</label>
+      <input type="range" id="ccEth" min="1" max="100" step="1" value="10">
+      <span id="ccEthDisplay" style="font-family:var(--mono);font-weight:600;color:var(--secondary);min-width:60px;">10 ETH</span>
+    </div>
+
+    <div class="compare-chart-wrap">
+      <svg id="compareChart" viewBox="0 0 700 300" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="ccGradEth" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#a855f7;stop-opacity:0.3"/>
+            <stop offset="100%" style="stop-color:#a855f7;stop-opacity:0"/>
+          </linearGradient>
+          <linearGradient id="ccGradSteth" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#00ffc8;stop-opacity:0.3"/>
+            <stop offset="100%" style="stop-color:#00ffc8;stop-opacity:0"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Grid -->
+        <line class="yc-grid-line" x1="60" y1="260" x2="680" y2="260"/>
+        <line class="yc-grid-line" x1="60" y1="200" x2="680" y2="200"/>
+        <line class="yc-grid-line" x1="60" y1="140" x2="680" y2="140"/>
+        <line class="yc-grid-line" x1="60" y1="80" x2="680" y2="80"/>
+        <line class="yc-axis" x1="60" y1="260" x2="60" y2="50"/>
+
+        <!-- Y-axis labels -->
+        <text class="yc-label" x="55" y="264" text-anchor="end" id="ccY0">10.0</text>
+        <text class="yc-label" x="55" y="204" text-anchor="end" id="ccY1">10.5</text>
+        <text class="yc-label" x="55" y="144" text-anchor="end" id="ccY2">11.0</text>
+        <text class="yc-label" x="55" y="84" text-anchor="end" id="ccY3">11.5</text>
+        <text class="yc-label" x="18" y="160" text-anchor="middle" style="font-size:10px;" transform="rotate(-90,18,160)">ETH Balance</text>
+
+        <!-- Month labels -->
+        <text class="cc-month-label" x="60" y="275" text-anchor="middle">Jan</text>
+        <text class="cc-month-label" x="113" y="275" text-anchor="middle">Feb</text>
+        <text class="cc-month-label" x="167" y="275" text-anchor="middle">Mar</text>
+        <text class="cc-month-label" x="220" y="275" text-anchor="middle">Apr</text>
+        <text class="cc-month-label" x="273" y="275" text-anchor="middle">May</text>
+        <text class="cc-month-label" x="327" y="275" text-anchor="middle">Jun</text>
+        <text class="cc-month-label" x="380" y="275" text-anchor="middle">Jul</text>
+        <text class="cc-month-label" x="433" y="275" text-anchor="middle">Aug</text>
+        <text class="cc-month-label" x="487" y="275" text-anchor="middle">Sep</text>
+        <text class="cc-month-label" x="540" y="275" text-anchor="middle">Oct</text>
+        <text class="cc-month-label" x="593" y="275" text-anchor="middle">Nov</text>
+        <text class="cc-month-label" x="647" y="275" text-anchor="middle">Dec</text>
+
+        <!-- Area under ETH line -->
+        <path id="ccEthArea" fill="url(#ccGradEth)"/>
+        <!-- Area under stETH line -->
+        <path id="ccStethArea" fill="url(#ccGradSteth)"/>
+
+        <!-- ETH line (flat) -->
+        <path id="ccEthLine" class="yc-line-eth"/>
+
+        <!-- stETH growth line -->
+        <path id="ccStethLine" class="yc-line-steth"/>
+
+        <!-- Month bars (stacked) -->
+        <g id="ccBars"></g>
+
+        <!-- Value labels at end of lines -->
+        <text id="ccEthEnd" class="cc-eth-label" text-anchor="start"/>
+        <text id="ccStethEnd" class="cc-steth-label" text-anchor="start"/>
+
+        <!-- Gap annotation -->
+        <g id="ccGapGroup" style="display:none;">
+          <line id="ccGapLine" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <rect id="ccGapBg" class="yc-tooltip-bg" rx="6"/>
+          <text id="ccGapText" class="yc-tooltip" id="ccGapLabel" text-anchor="middle" fill="var(--accent)" font-weight="700"/>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Summary stats -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:20px;">
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">ETH (hold)</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--secondary);" id="ccEthFinal">10.000 ETH</div>
+      </div>
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">stETH (stake)</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--primary);" id="ccStethFinal">10.420 ETH</div>
+      </div>
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Extra ETH</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent);" id="ccExtraEth">+0.420 ETH</div>
+      </div>
+      <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Extra USD @ $3.5K</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent);" id="ccExtraUsd">+$1,470</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ───────────────────────────────────────────
+       SECTION 7: Liquidity / stETH DeFi Composability
+  ──────────────────────────────────────────── -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">7</span> stETH in DeFi — Liquidity &amp; Composability</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">stETH isn't idle — use it as DeFi collateral to stack yields. Select a strategy and adjust your leverage to see combined APY.</p>
+
+    <div class="liq-strategies">
+      <div class="liq-strategy active" id="liqStratAave" onclick="selectStrategy('aave')">
+        <div class="ls-icon">🏛️</div>
+        <h4>Aave — Leveraged Staking</h4>
+        <p>Deposit stETH → borrow ETH → restake → repeat. Loop for amplified yields.</p>
+        <div style="margin-top:10px;font-size:12px;color:var(--primary);font-family:var(--mono);">Potential: +1–3% extra APY</div>
+      </div>
+      <div class="liq-strategy" id="liqStratCurve" onclick="selectStrategy('curve')">
+        <div class="ls-icon">🌊</div>
+        <h4>Curve — stETH/ETH LP</h4>
+        <p>Provide liquidity to the stETH/ETH pool, earn trading fees + CRV rewards.</p>
+        <div style="margin-top:10px;font-size:12px;color:var(--primary);font-family:var(--mono);">Potential: +2–5% extra APY</div>
+      </div>
+      <div class="liq-strategy" id="liqStratYearn" onclick="selectStrategy('yearn')">
+        <div class="ls-icon">📊</div>
+        <h4>Yearn — Yield Aggregator</h4>
+        <p>Auto-optimizes across lending protocols to find best risk-adjusted stETH yield.</p>
+        <div style="margin-top:10px;font-size:12px;color:var(--primary);font-family:var(--mono);">Potential: +0.5–2% extra APY</div>
+      </div>
+      <div class="liq-strategy" id="liqStratBalancer" onclick="selectStrategy('balancer')">
+        <div class="ls-icon">⚖️</div>
+        <h4>Balancer — Boosted Pool</h4>
+        <p>LP in Balancer's boosted stETH pool with auto-compounding Wrapped ETH yield.</p>
+        <div style="margin-top:10px;font-size:12px;color:var(--primary);font-family:var(--mono);">Potential: +3–6% extra APY</div>
+      </div>
+    </div>
+
+    <div class="liq-calc-grid">
+      <!-- Left: inputs -->
+      <div>
+        <div class="slider-group">
+          <label>
+            <span>stETH as Collateral</span>
+            <span id="liqCollatDisplay" style="font-family:var(--mono);color:var(--primary);font-weight:600;">10 stETH</span>
+          </label>
+          <input type="range" id="liqCollat" min="1" max="200" step="1" value="10">
+        </div>
+        <div class="slider-group">
+          <label>
+            <span>LTV / Leverage</span>
+            <span id="liqLtvDisplay" style="font-family:var(--mono);color:var(--accent);font-weight:600;">50%</span>
+          </label>
+          <input type="range" id="liqLtv" min="0" max="80" step="5" value="50">
+        </div>
+        <div class="slider-group">
+          <label>
+            <span>ETH Price (USD)</span>
+            <span id="liqEthPriceDisplay" style="font-family:var(--mono);color:var(--secondary);font-weight:600;">$3,500</span>
+          </label>
+          <input type="range" id="liqEthPrice" min="1000" max="10000" step="50" value="3500">
+        </div>
+
+        <!-- Strategy returns table -->
+        <div style="margin-top:16px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Strategy Breakdown</div>
+          <div id="liqStratDetails">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+              <span style="color:var(--muted);">Base Staking APY</span>
+              <span style="font-family:var(--mono);color:var(--primary);font-weight:600;" id="liqBaseApy">4.2%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+              <span style="color:var(--muted);">DeFi Strategy APY</span>
+              <span style="font-family:var(--mono);color:var(--accent);font-weight:600;" id="liqDefiApy">+2.0%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+              <span style="color:var(--muted);">Borrow Cost (if leveraged)</span>
+              <span style="font-family:var(--mono);color:var(--danger);font-weight:600;" id="liqBorrowCost">−0.8%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;">
+              <span style="color:var(--muted);">Lido Fee (10%)</span>
+              <span style="font-family:var(--mono);color:var(--secondary);font-weight:600;">−0.42%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: results -->
+      <div>
+        <div class="liq-result-panel">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Combined Position</div>
+          <div class="liq-result-row">
+            <span class="lr-label">Collateral Value</span>
+            <span class="lr-val" id="liqCollatVal">$35,000</span>
+          </div>
+          <div class="liq-result-row">
+            <span class="lr-label">Borrowed Amount</span>
+            <span class="lr-val" id="liqBorrowed" style="color:var(--danger);">$17,500</span>
+          </div>
+          <div class="liq-result-row">
+            <span class="lr-label">Net Exposure</span>
+            <span class="lr-val" id="liqExposure">$35,000</span>
+          </div>
+          <div class="liq-result-row">
+            <span class="lr-label">Base stETH APY</span>
+            <span class="lr-val" id="liqBaseYield">$1,470/yr</span>
+          </div>
+          <div class="liq-result-row">
+            <span class="lr-label">DeFi Extra Yield</span>
+            <span class="lr-val" id="liqExtraYield" style="color:var(--accent);">$700/yr</span>
+          </div>
+          <div class="liq-result-row">
+            <span class="lr-label">Total Annual Yield</span>
+            <span class="lr-val highlight" id="liqTotalYield">~$2,170/yr</span>
+          </div>
+          <div class="liq-result-row">
+            <span class="lr-label">Blended APY</span>
+            <span class="lr-val highlight" id="liqBlendedApy" style="font-size:18px;">6.2%</span>
+          </div>
+        </div>
+
+        <!-- Risk note -->
+        <div style="margin-top:12px;padding:12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;font-size:12px;color:var(--muted);">
+          <strong style="color:var(--accent);">⚠️ Risk:</strong> Leveraged positions add liquidation risk if ETH price drops &gt;50%. stETH depeg risk applies. Only use risk capital.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- stETH Rebase Visualizer (retained) -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">8</span> Daily Rebase — How stETH Balance Grows</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">
+      Every ~24 hours, stETH undergoes a <strong style="color:var(--text);">rebase</strong> — automatically increasing every holder's stETH balance to reflect accumulated staking rewards. No claiming needed.
+    </p>
+    <div style="background:var(--surface-2);border-radius:12px;padding:24px;margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;text-align:center;">
+        <div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">Starting Balance</div>
+          <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text);" id="rbStart">10.000 stETH</div>
+        </div>
+        <div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">After 30 Days</div>
+          <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--primary);" id="rb30day">10.428 stETH</div>
+        </div>
+        <div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">APY Applied</div>
+          <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--secondary);">4.2%</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">30-Day Rebase Timeline</div>
+    <div class="rebase-timeline" id="rbTimeline"></div>
+    <div style="display:flex;gap:24px;margin-top:16px;font-size:12px;color:var(--muted);flex-wrap:wrap;">
+      <span>◼ Gray = Day 0 (starting)</span>
+      <span style="color:var(--primary);">■ Teal = Accumulates daily rewards</span>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Lido vs Others (retained) -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">9</span> Lido vs Other Staking Options</div>
+    <div class="compare-cards">
+      <div class="compare-card lido-card">
+        <span class="c-badge prime">Recommended</span>
+        <h3>🌊 Lido</h3>
+        <div class="c-apy">4.2% APY</div>
+        <ul class="c-pros">
+          <li>Stake any amount (no 32 ETH minimum)</li>
+          <li>Instant liquidity via stETH token</li>
+          <li>Use stETH in DeFi (earn extra yield)</li>
+          <li>Decentralized node operator set</li>
+          <li>No lock-up beyond withdrawal queue</li>
+        </ul>
+        <ul class="c-cons">
+          <li>Smart contract risk</li>
+          <li>Oracle risk</li>
+          <li>stETH can trade at slight discount</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <span class="c-badge solid">Decentralized</span>
+        <h3>🚀 Rocket Pool</h3>
+        <div class="c-apy">3.8% APY</div>
+        <ul class="c-pros">
+          <li>Fully decentralized, no admin keys</li>
+          <li>Lower collateral requirements</li>
+          <li>RPL token rewards on top</li>
+          <li>Permissionless node operation</li>
+        </ul>
+        <ul class="c-cons">
+          <li>Smaller TVL than Lido</li>
+          <li>More complex token mechanics (rETH)</li>
+          <li>Fewer node operators</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <span class="c-badge ok">Centralized</span>
+        <h3>🏦 Coinbase</h3>
+        <div class="c-apy">4.0% APY</div>
+        <ul class="c-pros">
+          <li>Institutional-grade security</li>
+          <li>Easy for beginners</li>
+          <li>CBETH with DeFi composability</li>
+          <li>Regulated entity</li>
+        </ul>
+        <ul class="c-cons">
+          <li>Custodial — you don't hold keys</li>
+          <li>Single point of failure risk</li>
+          <li>Revenue goes to Coinbase, not users</li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <span class="c-badge hard">Advanced</span>
+        <h3>🖥️ Solo Staking</h3>
+        <div class="c-apy">4.3% APY</div>
+        <ul class="c-pros">
+          <li>Maximum rewards (no middleman)</li>
+          <li>Full custody of funds</li>
+          <li>No smart contract risk</li>
+          <li>Pure decentralization</li>
+        </ul>
+        <ul class="c-cons">
+          <li>Requires exactly 32 ETH</li>
+          <li>Hardware, electricity, uptime</li>
+          <li>Slashing risk if you mess up</li>
+          <li>No liquidity — locked until exit</li>
+          <li>~$200+ monthly operational cost</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Validator Performance Dashboard (retained) -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">10</span> Validator Performance Dashboard</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">
+      Lido's validator set is distributed across <strong style="color:var(--text);">30+ node operators</strong> including institutional staking providers, crypto exchanges, and professional infrastructure teams.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:32px;">
+      <div style="background:var(--surface-2);border-radius:12px;padding:24px;text-align:center;">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Network Uptime</div>
+        <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:var(--success);">99.9%</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">Lido validators vs Ethereum average</div>
+      </div>
+      <div style="background:var(--surface-2);border-radius:12px;padding:24px;text-align:center;">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Annual Return</div>
+        <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:var(--primary);">4.2%</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">vs 4.3% for solo (0.1% fee)</div>
+      </div>
+      <div style="background:var(--surface-2);border-radius:12px;padding:24px;text-align:center;">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Slashing Events</div>
+        <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:var(--success);">0</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">in the past 12 months</div>
+      </div>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">Live Validator Sample</div>
+    <div class="validator-grid" id="vGrid"></div>
+    <div style="margin-top:16px;padding:16px;background:var(--surface-2);border-radius:8px;font-size:13px;color:var(--muted);">
+      <strong style="color:var(--text);">MEV Boost:</strong> Lido validators use MEV-Boost to capture extra value from maximal extractable value in each block, with proceeds shared with stETH holders. This adds approximately <strong style="color:var(--primary);">0.5–1% additional APY</strong> on top of base staking rewards.
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Glossary (retained) -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">11</span> Glossary</div>
+    <div class="glossary-grid">
+      <div class="glossary-item">
+        <div class="g-term">stETH</div>
+        <div class="g-def">Lido's staking receipt token. 1 stETH = 1 ETH of staked assets + accumulated rewards. Balance updates daily via rebase.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="g-term">Validator</div>
+        <div class="g-def">A node that has deposited 32 ETH and participates in Ethereum's Proof-of-Stake consensus — proposing and attesting blocks.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="g-term">Beacon Chain</div>
+        <div class="g-def">Ethereum's consensus layer that coordinates the validator set, handles random beacon generation, and manages the exit queue.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="g-term">Withdrawal Queue</div>
+        <div class="g-def">The pending list of validators waiting to exit and receive their ETH back. Limited to ~900 exits per day.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="g-term">Liquid Staking</div>
+        <div class="g-def">A staking mechanism that issues a liquid token (like stETH) representing the staked assets, so users retain composability and liquidity.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="g-term">Node Operator</div>
+        <div class="g-def">A professional infrastructure provider approved by Lido DAO to run validators on behalf of the protocol.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="g-term">MEV Boost</div>
+        <div class="g-def">A middleware that allows validators to capture maximal extractable value from block ordering, boosting staking rewards for stETH holders.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="g-term">Lido DAO</div>
+        <div class="g-def">The decentralized autonomous organization governing Lido — LDO token holders vote on protocol upgrades, node operators, and treasury decisions.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="g-term">Rebase</div>
+        <div class="g-def">A mechanism where stETH total supply increases proportionally so each holder's balance grows automatically without manual claiming.</div>
+      </div>
+      <div class="glossary-item">
+        <div class="g-term">Slashing</div>
+        <div class="g-def">A penalty that destroys part of a validator's stake for malicious behavior like double-signing or causing chain reorganization.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Risks (retained) -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">12</span> Risks to Understand Before Staking</div>
+    <div class="risk-grid">
+      <div class="risk-card high">
+        <div class="r-icon">⚡</div>
+        <h4>Slashing Risk</h4>
+        <p>If a Lido validator double-signs or behaves maliciously, a portion of the staked ETH is destroyed. Lido has insurance funds, but losses could theoretically fall on stETH holders.</p>
+        <span class="r-level">Medium-High</span>
+      </div>
+      <div class="risk-card high">
+        <div class="r-icon">🔮</div>
+        <h4>Oracle Risk</h4>
+        <p>Lido relies on oracles to report validator performance and distribute rewards. A compromised oracle could manipulate reporting data.</p>
+        <span class="r-level">Medium-High</span>
+      </div>
+      <div class="risk-card medium">
+        <div class="r-icon">🏛️</div>
+        <h4>Centralization Risk</h4>
+        <p>Lido holds ~30% of all staked ETH. Critics argue this gives Lido disproportionate influence over Ethereum's validator set and governance.</p>
+        <span class="r-level">Medium</span>
+      </div>
+      <div class="risk-card medium">
+        <div class="r-icon">💱</div>
+        <h4>stETH Depeg Risk</h4>
+        <p>Under extreme conditions (mass unstaking, crisis of confidence), stETH could trade below 1 ETH. The stETH/ETH Curve pool has seen divergences during high-stress periods.</p>
+        <span class="r-level">Medium</span>
+      </div>
+      <div class="risk-card low">
+        <div class="r-icon">📜</div>
+        <h4>Smart Contract Risk</h4>
+        <p>Lido's contracts have been audited by multiple firms and have a track record, but bugs or exploits could theoretically drain funds. Lido has a $150M insurance fund.</p>
+        <span class="r-level">Low-Medium</span>
+      </div>
+      <div class="risk-card low">
+        <div class="r-icon">🚪</div>
+        <h4>Withdrawal Queue Risk</h4>
+        <p>In extreme demand scenarios, the exit queue could stretch to weeks or months, limiting your ability to quickly exit and reclaim ETH. This is a protocol-level constraint, not a Lido issue.</p>
+        <span class="r-level">Low</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-links">
+      <a href="https://lido.fi" target="_blank">Lido Website</a>
+      <a href="https://docs.lido.fi" target="_blank">Docs</a>
+      <a href="https://research.lido.fi" target="_blank">Research Forum</a>
+    </div>
+    <p>Built as a DeFi education tool · Not financial advice · DYOR</p>
+  </div>
+
+</div>
+
+<style>
+.liq-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font);
+}
+.liq-btn:hover { border-color: var(--primary); color: var(--primary); }
+.liq-btn.active { border-color: var(--primary); color: var(--primary); background: rgba(0,255,200,0.08); }
+</style>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONSTANTS & STATE
+// ═══════════════════════════════════════════════
+const ETH_PRICE = 3500;
+const BASE_APY = 0.042;
+let compoundEnabled = true;
+let currentStrategy = 'aave';
+
+// ═══════════════════════════════════════════════
+// SECTION 2: STAKING FLOW (SVG) INTERACTIONS
+// ═══════════════════════════════════════════════
+const NODE_DESCS = {
+  1: ['User deposits ETH into Lido smart contract', 'Your ETH is received by the Lido Deposit contract', 'Instant: stETH is minted immediately'],
+  2: ['Lido bundles deposits and assigns to node operators', 'DAO-approved operators run validators 24/7', 'Distributed across 30+ professional operators'],
+  3: ['Node operators run Ethereum validators with 32 ETH each', 'They propose/attest blocks on the Beacon Chain', 'Lido has 163K+ validators in the network'],
+  4: ['Beacon Chain coordinates consensus across all validators', 'Rewards are calculated per epoch (~6.4 min)', 'Rewards flow back to stETH holders via oracle'],
+};
+
+function highlightNode(n) {
+  // Reset all nodes
+  for (let i = 1; i <= 4; i++) {
+    const node = document.getElementById('sfNode' + i);
+    if (node) {
+      node.querySelector('rect').style.filter = '';
+      node.querySelector('rect').style.strokeWidth = '2';
+    }
+  }
+  // Highlight selected
+  const sel = document.getElementById('sfNode' + n);
+  if (sel) {
+    sel.querySelector('rect').style.filter = 'drop-shadow(0 0 12px rgba(0,255,200,0.8))';
+    sel.querySelector('rect').style.strokeWidth = '3';
+  }
+  const desc = NODE_DESCS[n] || [];
+  document.getElementById('sfStatus').textContent = desc[0] || '';
+  document.getElementById('sfStatusDetail').textContent = desc[1] || '';
+}
+
+// Init flow svg nodes with hover listeners
+document.querySelectorAll('.sf-node').forEach(node => {
+  node.addEventListener('mouseenter', function() {
+    // handled by onclick
+  });
+});
+
+// ═══════════════════════════════════════════════
+// SECTION 3: YIELD SIMULATOR WITH SVG CURVE
+// ═══════════════════════════════════════════════
+const ssEthSlider = document.getElementById('ssEth');
+const ssApySlider = document.getElementById('ssApy');
+const ssTimeSlider = document.getElementById('ssTime');
+
+function setSsEth(v) {
+  ssEthSlider.value = v;
+  updateYieldSim();
+}
+
+function toggleCompound() {
+  compoundEnabled = !compoundEnabled;
+  const btn = document.getElementById('ssCompoundBtn');
+  btn.textContent = 'Compound: ' + (compoundEnabled ? 'ON' : 'OFF');
+  btn.style.borderColor = compoundEnabled ? 'var(--secondary)' : 'var(--border)';
+  btn.style.color = compoundEnabled ? 'var(--secondary)' : 'var(--muted)';
+  updateYieldSim();
+}
+
+function updateYieldSim() {
+  const eth = parseFloat(ssEthSlider.value);
+  const apy = parseFloat(ssApySlider.value) / 100;
+  const months = parseInt(ssTimeSlider.value);
+
+  document.getElementById('ssEthDisplay').textContent = eth.toFixed(1) + ' ETH';
+  document.getElementById('ssApyDisplay').textContent = (apy * 100).toFixed(1) + '%';
+  document.getElementById('ssTimeDisplay').textContent = months + ' mo';
+  document.getElementById('ycTitle').textContent = months;
+
+  // Calculate balances
+  const dailyRate = Math.pow(1 + apy, 1/365) - 1;
+  const ethBalance = eth; // flat
+  let stethBalance = eth;
+  const points = [];
+  const ethPoints = [];
+
+  for (let m = 0; m <= months; m++) {
+    const days = m * 30;
+    stethBalance = compoundEnabled
+      ? eth * Math.pow(1 + dailyRate, days)
+      : eth * (1 + apy * (days / 365));
+    points.push({ month: m, steth: stethBalance, eth: eth });
+    ethPoints.push({ month: m, eth: eth });
+  }
+
+  // Build SVG curves
+  // Y range: from eth - 10% to eth + 20% APY equivalent
+  const minBal = eth;
+  const maxBal = eth * (1 + apy * (months / 365) * 1.2);
+
+  function balToY(bal) {
+    return 220 - ((bal - minBal) / (maxBal - minBal)) * 150;
+  }
+  function monthToX(m) {
+    return 60 + (m / Math.max(months, 12)) * 600;
+  }
+
+  // ETH flat line
+  const ethY = balToY(eth);
+  const ethPath = `M 60 ${ethY} L ${monthToX(months)} ${ethY}`;
+  document.getElementById('ycEthLine').setAttribute('d', ethPath);
+
+  // stETH curve
+  let stethD = `M ${monthToX(0)} ${balToY(points[0].steth)}`;
+  for (let i = 1; i < points.length; i++) {
+    const x1 = monthToX(points[i-1].month);
+    const y1 = balToY(points[i-1].steth);
+    const x2 = monthToX(points[i].month);
+    const y2 = balToY(points[i].steth);
+    const cpx = (x1 + x2) / 2;
+    stethD += ` Q ${x1} ${y1} ${cpx} ${(y1+y2)/2}`;
+  }
+  document.getElementById('ycStethLine').setAttribute('d', stethD);
+
+  // Area
+  const lastPt = points[points.length - 1];
+  const areaD = stethD + ` L ${monthToX(months)} 220 L 60 220 Z`;
+  document.getElementById('ycArea').setAttribute('d', areaD);
+
+  // Y-axis labels
+  const yRange = maxBal - minBal;
+  document.getElementById('ycY0').textContent = minBal.toFixed(1);
+  document.getElementById('ycY1').textContent = (minBal + yRange * 0.33).toFixed(1);
+  document.getElementById('ycY2').textContent = (minBal + yRange * 0.66).toFixed(1);
+  document.getElementById('ycY3').textContent = maxBal.toFixed(1);
+
+  // X-axis labels
+  const xLabels = ['ycX0','ycX1','ycX2','ycX3','ycX4','ycX5'];
+  xLabels.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = Math.round((i / 4) * Math.max(months, 12));
+  });
+
+  // Stats
+  const finalSteth = points[points.length - 1].steth;
+  const yieldEarned = finalSteth - eth;
+  const dailyR = eth * dailyRate;
+  const monthlyR = eth * (Math.pow(1 + dailyRate, 30) - 1);
+
+  document.getElementById('ssSteth').textContent = eth.toFixed(3);
+  document.getElementById('ssApyOut').textContent = (apy * 100).toFixed(1) + '%';
+  document.getElementById('ssDaily').textContent = dailyR.toFixed(5) + ' ETH';
+  document.getElementById('ssMonthly').textContent = monthlyR.toFixed(3) + ' ETH';
+  document.getElementById('ssFinal').textContent = finalSteth.toFixed(3) + ' ETH';
+  document.getElementById('ssYield').textContent = '+' + yieldEarned.toFixed(3) + ' ETH';
+
+  // Growth bar
+  const growthPct = (yieldEarned / eth) * 100;
+  document.getElementById('sgBar').style.width = Math.min(100, growthPct * 10) + '%';
+  document.getElementById('sgLabel').textContent = months;
+  document.getElementById('sgStart').textContent = eth.toFixed(3);
+  document.getElementById('sgEnd').textContent = finalSteth.toFixed(3);
+  document.getElementById('sgYield').textContent = '+' + yieldEarned.toFixed(3) + ' ETH';
+}
+
+ssEthSlider.addEventListener('input', updateYieldSim);
+ssApySlider.addEventListener('input', updateYieldSim);
+ssTimeSlider.addEventListener('input', updateYieldSim);
+
+// SVG hover interaction
+const ycSvg = document.getElementById('yieldCurve');
+ycSvg.addEventListener('mousemove', function(e) {
+  const rect = ycSvg.getBoundingClientRect();
+  const scaleX = 700 / rect.width;
+  const mx = (e.clientX - rect.left) * scaleX;
+  if (mx < 60 || mx > 680) return;
+
+  const apy = parseFloat(ssApySlider.value) / 100;
+  const eth = parseFloat(ssEthSlider.value);
+  const months = parseInt(ssTimeSlider.value);
+  const dailyRate = Math.pow(1 + apy, 1/365) - 1;
+
+  const month = Math.round(((mx - 60) / 600) * Math.max(months, 12));
+  const clampedMonth = Math.max(0, Math.min(months, month));
+
+  const stethBal = compoundEnabled
+    ? eth * Math.pow(1 + dailyRate, clampedMonth * 30)
+    : eth * (1 + apy * (clampedMonth * 30 / 365));
+
+  const minBal = eth;
+  const maxBal = eth * (1 + apy * (months / 365) * 1.2);
+  const yPos = 220 - ((stethBal - minBal) / (maxBal - minBal)) * 150;
+  const xPos = 60 + (clampedMonth / Math.max(months, 12)) * 600;
+
+  const hoverLine = document.getElementById('ycHoverLine');
+  hoverLine.style.display = 'block';
+  hoverLine.setAttribute('x1', xPos);
+  hoverLine.setAttribute('x2', xPos);
+
+  const dotS = document.getElementById('ycHoverDotSteth');
+  dotS.style.display = 'block';
+  dotS.setAttribute('cx', xPos);
+  dotS.setAttribute('cy', yPos);
+
+  const dotE = document.getElementById('ycHoverDotEth');
+  dotE.style.display = 'block';
+  dotE.setAttribute('cx', xPos);
+  dotE.setAttribute('cy', 220 - ((eth - minBal) / (maxBal - minBal)) * 150);
+
+  // Tooltip
+  const tg = document.getElementById('ycTooltip');
+  tg.style.display = 'block';
+  const tx = Math.min(xPos + 10, 560);
+  const ty = Math.max(yPos - 60, 10);
+  document.getElementById('ycTooltipBg').setAttribute('x', tx);
+  document.getElementById('ycTooltipBg').setAttribute('y', ty);
+  document.getElementById('ycTooltipMonth').setAttribute('x', tx + 8);
+  document.getElementById('ycTooltipMonth').setAttribute('y', ty + 14);
+  document.getElementById('ycTooltipMonth').textContent = 'Month ' + clampedMonth;
+  document.getElementById('ycTooltipEth').setAttribute('x', tx + 8);
+  document.getElementById('ycTooltipEth').setAttribute('y', ty + 29);
+  document.getElementById('ycTooltipEth').textContent = 'ETH: ' + eth.toFixed(3);
+  document.getElementById('ycTooltipSteth').setAttribute('x', tx + 8);
+  document.getElementById('ycTooltipSteth').setAttribute('y', ty + 44);
+  document.getElementById('ycTooltipSteth').textContent = 'stETH: ' + stethBal.toFixed(3);
+  document.getElementById('ycTooltip').setAttribute('transform', '');
+});
+
+ycSvg.addEventListener('mouseleave', function() {
+  document.getElementById('ycHoverLine').style.display = 'none';
+  document.getElementById('ycHoverDotSteth').style.display = 'none';
+  document.getElementById('ycHoverDotEth').style.display = 'none';
+  document.getElementById('ycTooltip').style.display = 'none';
+});
+
+updateYieldSim();
+
+// ═══════════════════════════════════════════════
+// SECTION 4: WITHDRAWAL QUEUE VISUALIZER
+// ═══════════════════════════════════════════════
+const wqEthSlider = document.getElementById('wqEth');
+const wqDepthSlider = document.getElementById('wqDepth');
+
+function updateWq() {
+  const ethAmt = parseFloat(wqEthSlider.value);
+  const depth = parseInt(wqDepthSlider.value);
+  const validatorsNeeded = Math.ceil(ethAmt / 32);
+  const exitsPerDay = 900;
+  const queuePos = depth + 1;
+  const waitDays = Math.ceil(validatorsNeeded * (32 / exitsPerDay)) + Math.ceil(queuePos / exitsPerDay);
+
+  document.getElementById('wqEthDisplay').textContent = ethAmt.toFixed(1) + ' ETH';
+  document.getElementById('wqDepthDisplay').textContent = '~' + depth.toLocaleString();
+  document.getElementById('wqValidators').textContent = validatorsNeeded;
+  document.getElementById('wqWait').textContent = '~' + (waitDays > 0 ? waitDays + ' days' : '< 1 day');
+  document.getElementById('wqPosition').textContent = '#' + queuePos.toLocaleString();
+
+  // Update phase 2 time
+  document.getElementById('wtPhase2Time').textContent = '~' + Math.ceil(queuePos / exitsPerDay) + ' day' + (Math.ceil(queuePos / exitsPerDay) !== 1 ? 's' : '');
+
+  // Build slot queue
+  const container = document.getElementById('wqQueueViz');
+  container.innerHTML = '';
+  const totalSlots = 60;
+  const filledPct = depth / 100000;
+  const filled = Math.floor(filledPct * totalSlots);
+  const yourPos = Math.max(0, Math.floor((queuePos / 100000) * totalSlots));
+  const showSlot = Math.max(1, Math.min(yourPos, totalSlots - 5));
+
+  for (let i = 0; i < totalSlots; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'queue-slot';
+    if (i < filled) {
+      slot.classList.add('filled');
+    } else if (i === showSlot) {
+      slot.classList.add('you');
+    }
+    slot.title = 'Slot ' + (i + 1) + (i < filled ? ' (processed)' : i === showSlot ? ' (your request)' : ' (waiting)');
+    container.appendChild(slot);
+  }
+
+  document.getElementById('wqTotalSlots').textContent = totalSlots;
+
+  // Update progress bar
+  const progressPct = (showSlot / totalSlots) * 100;
+  document.getElementById('wtProgressBar').setAttribute('width', progressPct * 6.6 + 20);
+}
+
+function highlightPhase(n) {
+  const phases = ['wtPhase1','wtPhase2','wtPhase3','wtPhase4'];
+  const statusTexts = [
+    'Phase 1: Withdrawal request submitted to Lido. Processed in ~1 block (~12s).',
+    'Phase 2: Your request enters the Beacon Chain exit queue. Wait depends on queue depth.',
+    'Phase 3: Validator processes your exit. Takes ~27 hours for a single validator.',
+    'Phase 4: ETH received! 1:1 redemption minus any small rounding differences.'
+  ];
+  phases.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.querySelector('rect').style.strokeWidth = (i+1 === n) ? '3' : '2';
+  });
+  document.getElementById('wtStatus').textContent = statusTexts[n-1] || '';
+}
+
+wqEthSlider.addEventListener('input', updateWq);
+wqDepthSlider.addEventListener('input', updateWq);
+updateWq();
+
+// ═══════════════════════════════════════════════
+// SECTION 5: VALIDATOR REWARDS CALCULATOR
+// ═══════════════════════════════════════════════
+const vcParticSlider = document.getElementById('vcPartic');
+const vcMevSlider = document.getElementById('vcMev');
+const vcCountSlider = document.getElementById('vcCount');
+const LIDO_FEE = 0.10;
+
+function setVcMev(v) {
+  vcMevSlider.value = v;
+  updateVcCalc();
+}
+
+function updateVcCalc() {
+  const partic = parseFloat(vcParticSlider.value) / 100;
+  const mevOn = parseInt(vcMevSlider.value) === 1;
+  const count = parseInt(vcCountSlider.value);
+
+  document.getElementById('vcParticDisplay').textContent = (partic * 100).toFixed(1) + '%';
+  document.getElementById('vcMevDisplay').textContent = mevOn ? 'ON' : 'OFF';
+  document.getElementById('vcMevDisplay').style.color = mevOn ? 'var(--accent)' : 'var(--muted)';
+  document.getElementById('vcCountDisplay').textContent = count;
+
+  // Update buttons
+  document.getElementById('vcMevOff').classList.toggle('active', !mevOn);
+  document.getElementById('vcMevOn').classList.toggle('active', mevOn);
+  if (mevOn) {
+    document.getElementById('vcMevOn').style.borderColor = 'var(--accent)';
+    document.getElementById('vcMevOn').style.color = 'var(--accent)';
+    document.getElementById('vcMevOff').style.borderColor = 'var(--border)';
+    document.getElementById('vcMevOff').style.color = 'var(--muted)';
+  } else {
+    document.getElementById('vcMevOff').style.borderColor = 'var(--primary)';
+    document.getElementById('vcMevOff').style.color = 'var(--primary)';
+    document.getElementById('vcMevOn').style.borderColor = 'var(--border)';
+    document.getElementById('vcMevOn').style.color = 'var(--muted)';
+  }
+
+  // Base APY: scales with participation
+  // Higher ETH staked = lower APR per validator
+  const totalStaked = 32 * 163000; // ~5.2M ETH
+  const baseRate = 0.054 - (0.00000001 * (totalStaked / 1e6)); // ~3.2% base
+  const particFactor = 0.5 + (partic * 0.5); // 50-100% of max based on uptime
+  const baseApy = baseRate * particFactor;
+
+  // MEV bonus
+  const mevBonus = mevOn ? 0.0075 : 0;
+
+  // Lido fee
+  const grossApy = baseApy + mevBonus;
+  const netApy = grossApy * (1 - LIDO_FEE);
+
+  const perValidator = 32 * netApy;
+  const totalRewards = perValidator * count;
+
+  document.getElementById('vcBaseApy').textContent = (baseApy * 100).toFixed(2) + '%';
+  document.getElementById('vcMevBonus').textContent = '+' + (mevBonus * 100).toFixed(2) + '%';
+  document.getElementById('vcFee').textContent = '−' + (grossApy * LIDO_FEE * 100).toFixed(2) + '%';
+  document.getElementById('vcNetApy').textContent = (netApy * 100).toFixed(2) + '%';
+  document.getElementById('vcPerValidator').textContent = '~' + perValidator.toFixed(3) + ' ETH';
+  document.getElementById('vcTotalRewards').textContent = '~' + totalRewards.toFixed(3) + ' ETH';
+}
+
+vcParticSlider.addEventListener('input', updateVcCalc);
+vcMevSlider.addEventListener('input', updateVcCalc);
+vcCountSlider.addEventListener('input', updateVcCalc);
+updateVcCalc();
+
+// ═══════════════════════════════════════════════
+// SECTION 6: stETH vs ETH COMPARISON CHART
+// ═══════════════════════════════════════════════
+const ccEthSlider = document.getElementById('ccEth');
+
+function updateCompareChart() {
+  const eth = parseFloat(ccEthSlider.value);
+  const apy = BASE_APY;
+  const months = 12;
+  const dailyRate = Math.pow(1 + apy, 1/365) - 1;
+
+  document.getElementById('ccEthDisplay').textContent = eth + ' ETH';
+
+  // Calculate data
+  const data = [];
+  let stethBal = eth;
+  for (let m = 0; m <= 12; m++) {
+    stethBal = eth * Math.pow(1 + dailyRate, m * 30);
+    data.push({ month: m, eth: eth, steth: stethBal });
+  }
+
+  const minBal = eth;
+  const maxBal = eth * (1 + apy);
+  const yRange = maxBal - minBal;
+
+  function balToY(bal) {
+    return 260 - ((bal - minBal) / yRange) * 190;
+  }
+  function monthToX(m) {
+    return 60 + (m / 12) * 587;
+  }
+
+  // ETH flat line
+  const ethY = balToY(eth);
+  document.getElementById('ccEthLine').setAttribute('d', `M 60 ${ethY} L 647 ${ethY}`);
+
+  // stETH curve
+  let stethD = `M ${monthToX(0)} ${balToY(data[0].steth)}`;
+  for (let i = 1; i < data.length; i++) {
+    const x1 = monthToX(data[i-1].month);
+    const y1 = balToY(data[i-1].steth);
+    const x2 = monthToX(data[i].month);
+    const y2 = balToY(data[i].steth);
+    stethD += ` Q ${x1} ${y1} ${(x1+x2)/2} ${(y1+y2)/2}`;
+  }
+  document.getElementById('ccStethLine').setAttribute('d', stethD);
+
+  // Areas
+  document.getElementById('ccEthArea').setAttribute('d',
+    `M 60 ${ethY} L 647 ${ethY} L 647 260 L 60 260 Z`);
+  document.getElementById('ccStethArea').setAttribute('d',
+    stethD + ` L 647 260 L 60 260 Z`);
+
+  // Y-axis
+  document.getElementById('ccY0').textContent = minBal.toFixed(1);
+  document.getElementById('ccY1').textContent = (minBal + yRange * 0.33).toFixed(1);
+  document.getElementById('ccY2').textContent = (minBal + yRange * 0.66).toFixed(1);
+  document.getElementById('ccY3').textContent = maxBal.toFixed(1);
+
+  // End labels
+  const endX = monthToX(12);
+  const endYEth = ethY;
+  const endYSteth = balToY(data[12].steth);
+
+  document.getElementById('ccEthEnd').setAttribute('x', endX + 5);
+  document.getElementById('ccEthEnd').setAttribute('y', endYEth + 4);
+  document.getElementById('ccEthEnd').textContent = eth.toFixed(2) + ' ETH';
+
+  document.getElementById('ccStethEnd').setAttribute('x', endX + 5);
+  document.getElementById('ccStethEnd').setAttribute('y', endYSteth + 4);
+  document.getElementById('ccStethEnd').textContent = data[12].steth.toFixed(2) + ' ETH';
+
+  // Bars
+  const barsG = document.getElementById('ccBars');
+  barsG.innerHTML = '';
+  for (let m = 0; m <= 12; m++) {
+    const x = monthToX(m);
+    const ethH = 0;
+    const stethH = balToY(data[m].steth) - ethY;
+    if (stethH > 0) {
+      const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bar.setAttribute('x', x - 8);
+      bar.setAttribute('y', ethY - stethH);
+      bar.setAttribute('width', 16);
+      bar.setAttribute('height', stethH);
+      bar.setAttribute('fill', 'rgba(0,255,200,0.15)');
+      bar.setAttribute('rx', 3);
+      bar.classList.add('cc-bar');
+      barsG.appendChild(bar);
+    }
+  }
+
+  // Gap annotation
+  const gap = data[12].steth - eth;
+  const gapX = monthToX(12);
+  const gapY = (endYEth + endYSteth) / 2;
+  document.getElementById('ccGapLine').setAttribute('x1', gapX + 5);
+  document.getElementById('ccGapLine').setAttribute('y1', endYEth);
+  document.getElementById('ccGapLine').setAttribute('x2', gapX + 5);
+  document.getElementById('ccGapLine').setAttribute('y2', endYSteth);
+  document.getElementById('ccGapBg').setAttribute('x', gapX + 10);
+  document.getElementById('ccGapBg').setAttribute('y', gapY - 15);
+  document.getElementById('ccGapText').setAttribute('x', gapX + 60);
+  document.getElementById('ccGapText').setAttribute('y', gapY + 4);
+  document.getElementById('ccGapText').textContent = '+' + gap.toFixed(3) + ' ETH';
+  document.getElementById('ccGapGroup').style.display = null;
+
+  // Stats
+  const finalSteth = data[12].steth;
+  document.getElementById('ccEthFinal').textContent = eth.toFixed(3) + ' ETH';
+  document.getElementById('ccStethFinal').textContent = finalSteth.toFixed(3) + ' ETH';
+  document.getElementById('ccExtraEth').textContent = '+' + (finalSteth - eth).toFixed(3) + ' ETH';
+  document.getElementById('ccExtraUsd').textContent = '+$' + Math.round((finalSteth - eth) * ETH_PRICE).toLocaleString();
+}
+
+ccEthSlider.addEventListener('input', updateCompareChart);
+updateCompareChart();
+
+// ═══════════════════════════════════════════════
+// SECTION 7: LIQUIDITY / DEFI COMPOSABILITY
+// ═══════════════════════════════════════════════
+const STRAT_CONFIG = {
+  aave:   { extraApy: 0.020, borrowCost: 0.032, label: 'Aave Leveraged' },
+  curve:  { extraApy: 0.035, borrowCost: 0,      label: 'Curve LP' },
+  yearn:  { extraApy: 0.010, borrowCost: 0,      label: 'Yearn Aggregator' },
+  balancer:{ extraApy: 0.045, borrowCost: 0,     label: 'Balancer Boosted' },
+};
+
+function selectStrategy(name) {
+  currentStrategy = name;
+  Object.keys(STRAT_CONFIG).forEach(k => {
+    const el = document.getElementById('liqStrat' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (el) el.classList.toggle('active', k === name);
+  });
+  updateLiqCalc();
+}
+
+const liqCollatSlider = document.getElementById('liqCollat');
+const liqLtvSlider = document.getElementById('liqLtv');
+const liqEthPriceSlider = document.getElementById('liqEthPrice');
+
+function updateLiqCalc() {
+  const collat = parseFloat(liqCollatSlider.value);
+  const ltv = parseFloat(liqLtvSlider.value) / 100;
+  const ethPrice = parseFloat(liqEthPriceSlider.value);
+  const cfg = STRAT_CONFIG[currentStrategy];
+
+  const collatVal = collat * ethPrice;
+  const borrowed = collatVal * ltv;
+  const netExposure = collatVal; // stETH stays at full value
+  const baseYield = collat * BASE_APY * ethPrice;
+  const extraYield = collat * cfg.extraApy * ethPrice;
+  const borrowCost = borrowed * cfg.borrowCost;
+  const lidoFee = (baseYield + extraYield) * 0.10;
+  const netTotal = baseYield + extraYield - borrowCost - lidoFee;
+  const blendedApy = netTotal / collatVal;
+
+  document.getElementById('liqCollatDisplay').textContent = collat + ' stETH';
+  document.getElementById('liqLtvDisplay').textContent = Math.round(ltv * 100) + '%';
+  document.getElementById('liqEthPriceDisplay').textContent = '$' + ethPrice.toLocaleString();
+
+  document.getElementById('liqCollatVal').textContent = '$' + Math.round(collatVal).toLocaleString();
+  document.getElementById('liqBorrowed').textContent = '$' + Math.round(borrowed).toLocaleString();
+  document.getElementById('liqExposure').textContent = '$' + Math.round(netExposure).toLocaleString();
+  document.getElementById('liqBaseYield').textContent = '$' + Math.round(baseYield).toLocaleString() + '/yr';
+  document.getElementById('liqExtraYield').textContent = '$' + Math.round(extraYield).toLocaleString() + '/yr';
+  document.getElementById('liqTotalYield').textContent = '~$' + Math.round(netTotal).toLocaleString() + '/yr';
+  document.getElementById('liqBlendedApy').textContent = (blendedApy * 100).toFixed(1) + '%';
+
+  document.getElementById('liqBaseApy').textContent = (BASE_APY * 100).toFixed(1) + '%';
+  document.getElementById('liqDefiApy').textContent = '+' + (cfg.extraApy * 100).toFixed(1) + '%';
+  document.getElementById('liqBorrowCost').textContent = cfg.borrowCost > 0 ? '−' + (cfg.borrowCost * 100).toFixed(1) + '%' : '—';
+}
+
+liqCollatSlider.addEventListener('input', updateLiqCalc);
+liqLtvSlider.addEventListener('input', updateLiqCalc);
+liqEthPriceSlider.addEventListener('input', updateLiqCalc);
+updateLiqCalc();
+
+// ═══════════════════════════════════════════════
+// REBASE TIMELINE
+// ═══════════════════════════════════════════════
+function buildRebaseTimeline() {
+  const container = document.getElementById('rbTimeline');
+  const days = 30;
+  const startBalance = 10;
+  const dailyRate = Math.pow(1 + BASE_APY, 1/365) - 1;
+  let balance = startBalance;
+  const minBal = startBalance;
+  const maxBal = startBalance * Math.pow(1 + dailyRate, days);
+
+  for (let i = 0; i <= days; i++) {
+    const day = document.createElement('div');
+    day.className = 'rebase-day' + (i === 0 ? ' rebase-today' : '');
+    const pct = i === 0 ? 0 : ((balance - minBal) / (maxBal - minBal)) * 100;
+    day.innerHTML = `
+      <div class="day-label">Day ${i}</div>
+      <div class="rebase-bar-wrap">
+        <div class="rebase-bar" style="height:${Math.max(4, pct * 5)}%"></div>
+      </div>
+      <div class="rebase-value">${i === 0 ? startBalance.toFixed(1) : balance.toFixed(2)}</div>
+    `;
+    container.appendChild(day);
+    balance *= (1 + dailyRate);
+  }
+
+  document.getElementById('rbStart').textContent = startBalance.toFixed(3) + ' stETH';
+  document.getElementById('rb30day').textContent = (startBalance * Math.pow(1 + BASE_APY)).toFixed(3) + ' stETH';
+}
+
+buildRebaseTimeline();
+
+// ═══════════════════════════════════════════════
+// VALIDATOR GRID
+// ═══════════════════════════════════════════════
+function buildValidatorGrid() {
+  const grid = document.getElementById('vGrid');
+  const names = ['Staked.us', 'Bison Trails', 'Coinbase Cloud', 'KuCoin', 'Tessera', 'Figment', 'P2P', 'Rockaway', 'Chorus One', 'Staking Facilities', '共识 Rus', 'Bware'];
+  const uptimes = ['99.98%', '99.99%', '100%', '99.97%', '99.99%', '99.96%', '99.98%', '99.99%', '99.97%', '100%', '99.98%', '99.99%'];
+  const indices = [];
+  while (indices.length < 6) {
+    const idx = Math.floor(Math.random() * names.length);
+    if (!indices.includes(idx)) indices.push(idx);
+  }
+  indices.forEach(idx => {
+    const node = document.createElement('div');
+    node.className = 'validator-node active';
+    node.innerHTML = `
+      <div class="v-icon">🔐</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">${names[idx]}</div>
+      <div class="v-status">Active</div>
+      <div class="v-uptime">${uptimes[idx]}</div>
+      <div style="font-size:11px;color:var(--muted);">uptime</div>
+    `;
+    grid.appendChild(node);
+  });
+}
+buildValidatorGrid();
+
+</script>
+</body>
+</html>

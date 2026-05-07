@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeFi Strategy Simulators — DeFiVis</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+  <style>
+    /* Strategy-specific overrides */
+    .strategy-section { padding: 60px 0; border-bottom: 1px solid var(--border); }
+    .strategy-section:last-of-type { border-bottom: none; }
+    .strategy-header { margin-bottom: 32px; }
+    .strategy-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+    .strategy-tag.risky { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: var(--danger); }
+    .strategy-tag.moderate { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); color: var(--accent); }
+    .strategy-tag.safe { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: var(--success); }
+    .strategy-title { font-size: clamp(24px, 4vw, 36px); font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }
+    .strategy-desc { font-size: 15px; color: var(--muted); max-width: 700px; line-height: 1.7; }
+
+    .strategy-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+    .controls-col { }
+    .visual-col { }
+
+    /* Flow animations */
+    @keyframes flowPulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+    @keyframes flowBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    @keyframes particleMove {
+      0% { offset-distance: 0%; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { offset-distance: 100%; opacity: 0; }
+    }
+    .flow-svg { width: 100%; height: 180px; background: var(--surface-2); border-radius: 12px; }
+    .flow-particle {
+      offset-rotate: 0deg;
+      animation: particleMove 3s linear infinite;
+    }
+
+    /* Risk badge */
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .risk-badge.safe { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+    .risk-badge.caution { background: rgba(245,158,11,0.15); color: var(--accent); border: 1px solid rgba(245,158,11,0.3); }
+    .risk-badge.danger { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+
+    /* Risk matrix */
+    .risk-matrix { width: 100%; border-collapse: collapse; }
+    .risk-matrix th, .risk-matrix td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .risk-matrix th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+    .risk-matrix td { font-family: var(--mono); }
+    .risk-matrix tr:hover td { background: var(--surface); }
+
+    /* Quiz */
+    .quiz-container { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; }
+    .quiz-question { margin-bottom: 24px; }
+    .quiz-question h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+    .quiz-options { display: flex; flex-direction: column; gap: 8px; }
+    .quiz-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 14px;
+    }
+    .quiz-option:hover { border-color: var(--primary); background: rgba(0,255,200,0.04); }
+    .quiz-option.selected { border-color: var(--primary); background: rgba(0,255,200,0.08); }
+    .quiz-option input { accent-color: var(--primary); width: 16px; height: 16px; }
+    .quiz-result {
+      margin-top: 24px;
+      padding: 24px;
+      background: rgba(0,255,200,0.06);
+      border: 1px solid rgba(0,255,200,0.2);
+      border-radius: 12px;
+      display: none;
+    }
+    .quiz-result.show { display: block; }
+    .quiz-result h4 { font-size: 18px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+    .quiz-result p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+    /* Health factor bar */
+    .health-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+    .health-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease, background 0.4s ease; }
+
+    @media (max-width: 768px) {
+      .strategy-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html" class="nav-logo">DeFi<span>Vis</span></a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="aave.html">Aave</a>
+      <a href="lido.html">Lido</a>
+      <a href="pendle.html">Pendle</a>
+      <a href="eigenlayer.html">EigenLayer</a>
+      <a href="curve.html">Curve</a>
+      <a href="strategies.html" class="active">Strategies</a>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="container">
+
+      <!-- Hero -->
+      <div class="hero">
+        <div class="hero-label">
+          <span class="dot"></span>
+          Interactive Simulators
+        </div>
+        <h1>DeFi <span class="grad">Strategy Lab</span></h1>
+        <p>Build, stress-test, and understand real-world DeFi strategies with live calculations, animated capital flows, and risk analysis.</p>
+        <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+          <a href="#leveraged-farming" class="hero-cta" style="background:var(--primary); color:var(--bg); font-size:14px; padding:12px 20px;">⚡ Leveraged Farming</a>
+          <a href="#delta-neutral" class="hero-cta" style="background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:14px; padding:12px 20px;">⚖️ Delta Neutral</a>
+          <a href="#yield-arbitrage" class="hero-cta" style="background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:14px; padding:12px 20px;">📊 Yield Arbitrage</a>
+          <a href="#lsd-liquidity" class="hero-cta" style="background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:14px; padding:12px 20px;">🔄 LSD Liquidity</a>
+          <a href="#pendle-hedge" class="hero-cta" style="background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:14px; padding:12px 20px;">🛡️ PT/YT Hedge</a>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────── -->
+      <!-- 1. LEVERAGED FARMING                                   -->
+      <!-- ─────────────────────────────────────────────────────── -->
+      <div class="strategy-section" id="leveraged-farming">
+        <div class="strategy-header">
+          <span class="strategy-tag risky">⚠️ High Risk</span>
+          <h2 class="strategy-title">Leveraged Farming</h2>
+          <p class="strategy-desc">
+            Amplify your farming yields by borrowing on Aave or Compound, then providing the combined position as liquidity to a yield farm. The borrowed capital magnifies your exposure — gains compound faster, but so do losses. This strategy sits one bad day away from liquidation if asset prices move against you.
+          </p>
+        </div>
+
+        <div class="strategy-layout">
+          <div class="controls-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">1</span>Position Sizing</div>
+
+              <div class="input-group">
+                <label>Collateral Asset</label>
+                <select id="lfAsset" onchange="updateLeveragedFarming()">
+                  <option value="ETH">ETH (3.2% borrow rate)</option>
+                  <option value="stETH">stETH (3.0% borrow rate)</option>
+                  <option value="WBTC">WBTC (5.1% borrow rate)</option>
+                </select>
+              </div>
+
+              <div class="slider-group">
+                <label><span>Collateral Amount</span><span id="lfCollateral">5 ETH</span></label>
+                <input type="range" id="lfCollateralSlider" min="1" max="50" value="5" oninput="updateLeveragedFarming()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Leverage Multiplier</span><span id="lfLeverage">3x</span></label>
+                <input type="range" id="lfLeverageSlider" min="1" max="10" step="0.5" value="3" oninput="updateLeveragedFarming()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Farm APY</span><span id="lfFarmApy">8.0%</span></label>
+                <input type="range" id="lfFarmApySlider" min="2" max="30" step="0.5" value="8" oninput="updateLeveragedFarming()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Asset Price Change (liquidation buffer)</span><span id="lfPriceChange">0%</span></label>
+                <input type="range" id="lfPriceSlider" min="-50" max="10" step="1" value="0" oninput="updateLeveragedFarming()">
+              </div>
+
+              <div class="result-box">
+                <div class="result-row">
+                  <span class="label">Total Position Size</span>
+                  <span class="value" id="lfTotalPos">15.00 ETH</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Borrowed Amount</span>
+                  <span class="value" id="lfBorrowed">10.00 ETH</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Gross Farm Yield</span>
+                  <span class="value success" id="lfGrossYield">1.20 ETH</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Borrow Cost (annual)</span>
+                  <span class="value danger" id="lfBorrowCost">0.30 ETH</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Net Yield (annual)</span>
+                  <span class="value" id="lfNetYield">0.90 ETH</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Effective APY</span>
+                  <span class="value" id="lfEffectiveApy">18.0%</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Liquidation Price Drop</span>
+                  <span class="value" id="lfLiqBuffer">-33%</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Health Factor (current)</span>
+                  <span class="value" id="lfHealthFactor">1.50</span>
+                </div>
+                <div class="result-row" id="lfRiskRow">
+                  <span class="label">Risk Status</span>
+                  <span class="risk-badge caution" id="lfRiskBadge">⚠️ Caution</span>
+                </div>
+              </div>
+
+              <div style="margin-top:16px; padding:16px; background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.2); border-radius:8px; font-size:13px; color:var(--muted); line-height:1.6;">
+                📖 <strong>How it works:</strong> Deposit 5 ETH as collateral on Aave → borrow 10 ETH → supply 15 ETH to a Curve LP farm earning 8% APY. Your collateral earns 3.2% while your debt costs 3.0% — the spread plus farm yields is your profit. A 33% price drop liquidates you at 3x leverage.
+              </div>
+
+              <div style="margin-top:12px;">
+                <a href="aave.html" class="hero-cta" style="display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-weight:600; font-size:13px; padding:10px 18px; border-radius:8px; text-decoration:none; transition:all 0.15s;">
+                  🔗 Deep-dive: Aave <span style="color:var(--muted); font-size:12px;">→</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="visual-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">2</span>Capital Flow</div>
+              <svg class="flow-svg" viewBox="0 0 500 170" xmlns="http://www.w3.org/2000/svg">
+                <!-- Background nodes -->
+                <rect x="10" y="65" width="80" height="50" rx="8" fill="#12121a" stroke="#00ffc8" stroke-width="1.5"/>
+                <text x="50" y="85" text-anchor="middle" fill="#00ffc8" font-family="Inter,sans-serif" font-size="10" font-weight="600">Collateral</text>
+                <text x="50" y="100" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" id="lfFlow1">5 ETH</text>
+
+                <rect x="110" y="65" width="80" height="50" rx="8" fill="#12121a" stroke="#a855f7" stroke-width="1.5"/>
+                <text x="150" y="85" text-anchor="middle" fill="#a855f7" font-family="Inter,sans-serif" font-size="10" font-weight="600">Aave</text>
+                <text x="150" y="100" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Lend/Borrow</text>
+
+                <rect x="210" y="65" width="80" height="50" rx="8" fill="#12121a" stroke="#a855f7" stroke-width="1.5"/>
+                <text x="250" y="85" text-anchor="middle" fill="#a855f7" font-family="Inter,sans-serif" font-size="10" font-weight="600">Borrowed</text>
+                <text x="250" y="100" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" id="lfFlow3">10 ETH</text>
+
+                <rect x="310" y="65" width="80" height="50" rx="8" fill="#12121a" stroke="#f59e0b" stroke-width="1.5"/>
+                <text x="350" y="85" text-anchor="middle" fill="#f59e0b" font-family="Inter,sans-serif" font-size="10" font-weight="600">LP Farm</text>
+                <text x="350" y="100" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Curve/Bal</text>
+
+                <rect x="410" y="65" width="80" height="50" rx="8" fill="#12121a" stroke="#22c55e" stroke-width="1.5"/>
+                <text x="450" y="85" text-anchor="middle" fill="#22c55e" font-family="Inter,sans-serif" font-size="10" font-weight="600">Yield +</text>
+                <text x="450" y="100" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" id="lfFlow5">Repay</text>
+
+                <!-- Arrows -->
+                <line x1="90" y1="90" x2="108" y2="90" stroke="#00ffc8" stroke-width="1.5" stroke-dasharray="4,2">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/>
+                </line>
+                <line x1="190" y1="90" x2="208" y2="90" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="4,2">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/>
+                </line>
+                <line x1="290" y1="90" x2="308" y2="90" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,2">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/>
+                </line>
+                <line x1="390" y1="90" x2="408" y2="90" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4,2">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/>
+                </line>
+
+                <!-- Labels under arrows -->
+                <text x="100" y="108" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">deposit</text>
+                <text x="200" y="108" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">leverage 3x</text>
+                <text x="300" y="108" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">farm APY</text>
+                <text x="400" y="108" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">net yield</text>
+
+                <!-- Liquidation warning -->
+                <rect x="155" y="130" width="190" height="32" rx="6" fill="rgba(245,158,11,0.08)" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
+                <text x="250" y="150" text-anchor="middle" fill="#f59e0b" font-family="Inter,sans-serif" font-size="11" font-weight="600" id="lfLiqWarning">⚠️ -33% price drop = liquidation</text>
+              </svg>
+
+              <!-- Risk gauge -->
+              <div class="sandbox-title" style="margin-top:24px;"><span class="num">3</span>Risk Assessment</div>
+              <div class="result-box">
+                <div class="result-row">
+                  <span class="label">Liquidation Risk</span>
+                  <span id="lfLiqRiskLabel" class="risk-badge caution">⚠️ Moderate</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Liquidation Price</span>
+                  <span class="value danger" id="lfLiqPrice">~$1,420 ETH</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Max Drawdown Scenario</span>
+                  <span class="value danger" id="lfMaxDraw">-5.00 ETH</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Annualized Volatility Buffer</span>
+                  <span class="value" id="lfVolBuffer">±12%</span>
+                </div>
+              </div>
+              <div class="health-bar" style="margin-top:12px;">
+                <div class="health-bar-fill" id="lfHealthBar" style="width:60%; background:var(--accent);"></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:4px;">
+                <span>Danger (1.0)</span>
+                <span id="lfHealthLabel">Caution zone</span>
+                <span>Safe (2.0+)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────── -->
+      <!-- 2. DELTA NEUTRAL                                       -->
+      <!-- ─────────────────────────────────────────────────────── -->
+      <div class="strategy-section" id="delta-neutral">
+        <div class="strategy-header">
+          <span class="strategy-tag moderate">⚡ Moderate Risk</span>
+          <h2 class="strategy-title">Delta Neutral with stETH + Pendle PT</h2>
+          <p class="strategy-desc">
+            Earn a fixed yield on your staked ETH without directional price exposure. By pairing stETH deposits with short PT positions on Pendle, your net delta approaches zero — you're insulated from ETH price movements while capturing the yield spread. The magic is that your stETH appreciates from staking rewards while your short PT position loses value slowly as it converges to par, netting you a predictable return.
+          </p>
+        </div>
+
+        <div class="strategy-layout">
+          <div class="controls-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">1</span>Position Construction</div>
+
+              <div class="slider-group">
+                <label><span>stETH Amount</span><span id="dnSteth">10 stETH</span></label>
+                <input type="range" id="dnStethSlider" min="1" max="100" value="10" oninput="updateDeltaNeutral()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>PT Allocation (% of position)</span><span id="dnPtAlloc">50%</span></label>
+                <input type="range" id="dnPtAllocSlider" min="0" max="100" value="50" oninput="updateDeltaNeutral()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>stETH APY</span><span id="dnStethApy">4.2%</span></label>
+                <input type="range" id="dnStethApySlider" min="2" max="8" step="0.1" value="4.2" oninput="updateDeltaNeutral()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>PT Implied Yield (fixed rate)</span><span id="dnPtYield">5.5%</span></label>
+                <input type="range" id="dnPtYieldSlider" min="1" max="12" step="0.1" value="5.5" oninput="updateDeltaNeutral()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Days to Maturity</span><span id="dnDays">90 days</span></label>
+                <input type="range" id="dnDaysSlider" min="7" max="365" value="90" oninput="updateDeltaNeutral()">
+              </div>
+
+              <div class="result-box">
+                <div class="result-row">
+                  <span class="label">Net Delta Exposure</span>
+                  <span class="value success" id="dnDelta">≈ 0.00 (neutral)</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">ETH Price Move Impact</span>
+                  <span class="value" id="dnPriceImpact">~$0.00</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">stETH Yield Earned</span>
+                  <span class="value success" id="dnStethYield">+0.42 ETH/yr</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">PT Short Cost (decay)</span>
+                  <span class="value danger" id="dnPtCost">-0.028 ETH</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Net Annual PnL</span>
+                  <span class="value success" id="dnNetPnl">+$0.34 ETH/yr</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Effective Fixed APY</span>
+                  <span class="value" id="dnEffectiveApy">3.4%</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Position Value at Maturity</span>
+                  <span class="value" id="dnMaturityVal">10.34 ETH</span>
+                </div>
+              </div>
+
+              <div style="margin-top:16px; padding:16px; background:rgba(0,255,200,0.06); border:1px solid rgba(0,255,200,0.15); border-radius:8px; font-size:13px; color:var(--muted); line-height:1.6;">
+                📖 <strong>Why delta neutral works:</strong> stETH gives you long ETH exposure. Shorting PT (selling the right to future yield) gives you short ETH exposure. In a perfectly neutral setup these cancel out — you're left with purely the yield differential. The fixed rate you lock in via PT determines your net return.
+              </div>
+
+              <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+                <a href="lido.html" style="display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-weight:600; font-size:13px; padding:10px 18px; border-radius:8px; text-decoration:none;">🔗 Lido →</a>
+                <a href="pendle.html" style="display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-weight:600; font-size:13px; padding:10px 18px; border-radius:8px; text-decoration:none;">🔗 Pendle →</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="visual-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">2</span>Position Flow</div>
+              <svg class="flow-svg" viewBox="0 0 500 170" xmlns="http://www.w3.org/2000/svg">
+                <!-- Long stETH leg -->
+                <rect x="10" y="20" width="90" height="50" rx="8" fill="#12121a" stroke="#00ffc8" stroke-width="1.5"/>
+                <text x="55" y="38" text-anchor="middle" fill="#00ffc8" font-family="Inter,sans-serif" font-size="10" font-weight="600">Long stETH</text>
+                <text x="55" y="53" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="9">+ETH exposure</text>
+                <text x="55" y="66" text-anchor="middle" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="9">+4.2% APY</text>
+
+                <line x1="100" y1="45" x2="118" y2="45" stroke="#00ffc8" stroke-width="1.5" stroke-dasharray="4,2">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1.2s" repeatCount="indefinite"/>
+                </line>
+
+                <!-- Short PT leg -->
+                <rect x="10" y="100" width="90" height="50" rx="8" fill="#12121a" stroke="#a855f7" stroke-width="1.5"/>
+                <text x="55" y="118" text-anchor="middle" fill="#a855f7" font-family="Inter,sans-serif" font-size="10" font-weight="600">Short PT</text>
+                <text x="55" y="133" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="9">-ETH exposure</text>
+                <text x="55" y="146" text-anchor="middle" fill="#ef4444" font-family="JetBrains Mono,monospace" font-size="9">PT decay cost</text>
+
+                <!-- Netting circle -->
+                <circle cx="170" cy="85" r="28" fill="#12121a" stroke="#f59e0b" stroke-width="2"/>
+                <text x="170" y="81" text-anchor="middle" fill="#f59e0b" font-family="Inter,sans-serif" font-size="9" font-weight="700">NET</text>
+                <text x="170" y="95" text-anchor="middle" fill="#00ffc8" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">Δ ≈ 0</text>
+
+                <line x1="100" y1="45" x2="143" y2="75" stroke="#00ffc8" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
+                <line x1="100" y1="125" x2="143" y2="100" stroke="#a855f7" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
+
+                <!-- Net result -->
+                <rect x="210" y="55" width="130" height="60" rx="8" fill="#12121a" stroke="#22c55e" stroke-width="1.5"/>
+                <text x="275" y="74" text-anchor="middle" fill="#22c55e" font-family="Inter,sans-serif" font-size="11" font-weight="700">Delta Neutral</text>
+                <text x="275" y="90" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Fixed Yield: +3.4%</text>
+                <text x="275" y="106" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">No ETH price exposure</text>
+
+                <line x1="198" y1="85" x2="208" y2="85" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,2">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/>
+                </line>
+
+                <!-- Maturity box -->
+                <rect x="360" y="55" width="130" height="60" rx="8" fill="#12121a" stroke="#64748b" stroke-width="1"/>
+                <text x="425" y="74" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="11" font-weight="600">At Maturity</text>
+                <text x="425" y="90" text-anchor="middle" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="10">+0.34 ETH net</text>
+                <text x="425" y="106" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">PT → $1.00 par</text>
+
+                <line x1="340" y1="85" x2="358" y2="85" stroke="#64748b" stroke-width="1" stroke-dasharray="4,2"/>
+              </svg>
+
+              <div class="sandbox-title" style="margin-top:24px;"><span class="num">3</span>PNL Breakdown</div>
+              <div class="yield-chart" id="dnPnlChart">
+                <div class="chart-bar">
+                  <span class="bar-label">stETH yield</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:84%; background:linear-gradient(90deg,#22c55e,#16a34a);"></div></div>
+                  <span class="bar-val" style="color:var(--success);">+$0.42</span>
+                </div>
+                <div class="chart-bar">
+                  <span class="bar-label">PT short cost</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:56%; background:linear-gradient(90deg,#ef4444,#dc2626);"></div></div>
+                  <span class="bar-val" style="color:var(--danger);">-$0.08</span>
+                </div>
+                <div class="chart-bar">
+                  <span class="bar-label">Net result</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:68%; background:linear-gradient(90deg,#00ffc8,#00c9a7);"></div></div>
+                  <span class="bar-val" style="color:var(--primary);">+$0.34</span>
+                </div>
+              </div>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+                <span class="risk-badge safe">✅ Price-neutral</span>
+                <span class="risk-badge caution">⏳ Maturity-dependent</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────── -->
+      <!-- 3. YIELD ARBITRAGE                                     -->
+      <!-- ─────────────────────────────────────────────────────── -->
+      <div class="strategy-section" id="yield-arbitrage">
+        <div class="strategy-header">
+          <span class="strategy-tag safe">✅ Lower Risk</span>
+          <h2 class="strategy-title">Yield Arbitrage</h2>
+          <p class="strategy-desc">
+            Exploit yield spreads between lending protocols and liquidity pools. The core idea: borrow cheaply from one market (e.g., Compound at 3.5%), deploy into a higher-yielding pool (e.g., Curve USDC pool at 5.2%), and pocket the spread. This strategy only works when the spread is wide enough to cover gas costs and impermanent loss. On stablecoins, there's no impermanent loss — pure carry trading.
+          </p>
+        </div>
+
+        <div class="strategy-layout">
+          <div class="controls-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">1</span>Spread Calculator</div>
+
+              <div class="input-group">
+                <label>Capital Asset</label>
+                <select id="yaAsset" onchange="updateYieldArbitrage()">
+                  <option value="USDC">USDC</option>
+                  <option value="DAI">DAI</option>
+                  <option value="USDT">USDT</option>
+                  <option value="ETH">ETH (non-stable)</option>
+                </select>
+              </div>
+
+              <div class="slider-group">
+                <label><span>Capital Amount</span><span id="yaCapital">$50,000</span></label>
+                <input type="range" id="yaCapitalSlider" min="1000" max="500000" step="1000" value="50000" oninput="updateYieldArbitrage()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Borrow Rate (source)</span><span id="yaBorrowRate">3.5%</span></label>
+                <input type="range" id="yaBorrowSlider" min="1" max="10" step="0.1" value="3.5" oninput="updateYieldArbitrage()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>LP Yield Rate (destination)</span><span id="yaLpRate">5.2%</span></label>
+                <input type="range" id="yaLpSlider" min="2" max="25" step="0.1" value="5.2" oninput="updateYieldArbitrage()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Gas / Fees (one-time cost)</span><span id="yaFees">$150</span></label>
+                <input type="range" id="yaFeesSlider" min="20" max="1000" step="10" value="150" oninput="updateYieldArbitrage()">
+              </div>
+
+              <div class="result-box">
+                <div class="result-row">
+                  <span class="label">Gross LP Yield</span>
+                  <span class="value success" id="yaGrossYield">$2,600</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Borrow Cost</span>
+                  <span class="value danger" id="yaBorrowCost">$1,750</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Net Spread Income</span>
+                  <span class="value" id="yaNetSpread">$850</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Net APY (after fees)</span>
+                  <span class="value" id="yaNetApy">1.40%</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Break-even Days</span>
+                  <span class="value" id="yaBreakEven">21 days</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Spread Capture</span>
+                  <span class="value success" id="yaSpreadCapture">+1.7%</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Annual ROI</span>
+                  <span class="value success" id="yaAnnualRoi">1.7%</span>
+                </div>
+              </div>
+
+              <div style="margin-top:16px; padding:16px; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); border-radius:8px; font-size:13px; color:var(--muted); line-height:1.6;">
+                📖 <strong>Spread mechanics:</strong> If borrow rate is 3.5% and LP yield is 5.2%, you capture 1.7% net. With $50K capital and $50K borrowed, your spread income is $850/year after costs. On stablecoins there's no IL — this is pure carry. Watch for rate convergence which compresses the spread.
+              </div>
+
+              <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+                <a href="aave.html" style="display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-weight:600; font-size:13px; padding:10px 18px; border-radius:8px; text-decoration:none;">🔗 Aave →</a>
+                <a href="curve.html" style="display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-weight:600; font-size:13px; padding:10px 18px; border-radius:8px; text-decoration:none;">🔗 Curve →</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="visual-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">2</span>Capital Flow</div>
+              <svg class="flow-svg" viewBox="0 0 500 170" xmlns="http://www.w3.org/2000/svg">
+                <rect x="10" y="55" width="90" height="55" rx="8" fill="#12121a" stroke="#00ffc8" stroke-width="1.5"/>
+                <text x="55" y="73" text-anchor="middle" fill="#00ffc8" font-family="Inter,sans-serif" font-size="10" font-weight="600">Your Capital</text>
+                <text x="55" y="88" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" id="yaFlow1">$50K</text>
+                <text x="55" y="102" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">0% APY (idle)</text>
+
+                <line x1="100" y1="82" x2="118" y2="82" stroke="#00ffc8" stroke-width="1.5" stroke-dasharray="4,2">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/>
+                </line>
+                <text x="109" y="75" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">supply</text>
+
+                <rect x="120" y="55" width="90" height="55" rx="8" fill="#12121a" stroke="#a855f7" stroke-width="1.5"/>
+                <text x="165" y="73" text-anchor="middle" fill="#a855f7" font-family="Inter,sans-serif" font-size="10" font-weight="600">Aave / Compound</text>
+                <text x="165" y="88" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Borrow</text>
+                <text x="165" y="102" text-anchor="middle" fill="#ef4444" font-family="Inter,sans-serif" font-size="9">3.5% APY</text>
+
+                <line x1="210" y1="82" x2="228" y2="82" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="4,2">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/>
+                </line>
+                <text x="219" y="75" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">deploy</text>
+
+                <rect x="230" y="55" width="90" height="55" rx="8" fill="#12121a" stroke="#f59e0b" stroke-width="1.5"/>
+                <text x="275" y="73" text-anchor="middle" fill="#f59e0b" font-family="Inter,sans-serif" font-size="10" font-weight="600">Curve / Balancer</text>
+                <text x="275" y="88" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">LP Pool</text>
+                <text x="275" y="102" text-anchor="middle" fill="#22c55e" font-family="Inter,sans-serif" font-size="9">5.2% APY</text>
+
+                <line x1="320" y1="82" x2="338" y2="82" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,2">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite"/>
+                </line>
+                <text x="329" y="75" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">earn</text>
+
+                <rect x="340" y="55" width="90" height="55" rx="8" fill="#12121a" stroke="#22c55e" stroke-width="1.5"/>
+                <text x="385" y="73" text-anchor="middle" fill="#22c55e" font-family="Inter,sans-serif" font-size="10" font-weight="600">Net Profit</text>
+                <text x="385" y="88" text-anchor="middle" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="10" id="yaFlow5">+$850/yr</text>
+                <text x="385" y="102" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">1.7% APY</text>
+
+                <line x1="430" y1="82" x2="448" y2="82" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4,2"/>
+              </svg>
+
+              <div class="sandbox-title" style="margin-top:24px;"><span class="num">3</span>Yield Comparison</div>
+              <div class="yield-chart" id="yaYieldChart">
+                <div class="chart-bar">
+                  <span class="bar-label" id="yaBorrowLbl">Aave borrow</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:35%; background:linear-gradient(90deg,#ef4444,#dc2626);"></div></div>
+                  <span class="bar-val" style="color:var(--danger);" id="yaBorrowBar">-3.5%</span>
+                </div>
+                <div class="chart-bar">
+                  <span class="bar-label" id="yaLpLbl">Curve LP</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:52%; background:linear-gradient(90deg,#f59e0b,#d97706);"></div></div>
+                  <span class="bar-val" style="color:var(--accent);" id="yaLpBar">+5.2%</span>
+                </div>
+                <div class="chart-bar">
+                  <span class="bar-label">Net spread</span>
+                  <div class="bar-track"><div class="bar-fill" style="width:17%; background:linear-gradient(90deg,#22c55e,#16a34a);"></div></div>
+                  <span class="bar-val" style="color:var(--success);" id="yaNetBar">+1.7%</span>
+                </div>
+              </div>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+                <span class="risk-badge safe">✅ No IL (stablecoins)</span>
+                <span class="risk-badge caution">⚠️ Rate可变</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────── -->
+      <!-- 4. LSD LIQUIDITY                                       -->
+      <!-- ─────────────────────────────────────────────────────── -->
+      <div class="strategy-section" id="lsd-liquidity">
+        <div class="strategy-header">
+          <span class="strategy-tag safe">✅ Lower Risk</span>
+          <h2 class="strategy-title">LSD Liquidity (stETH as Collateral)</h2>
+          <p class="strategy-desc">
+            Use your stETH holdings as collateral on Aave to borrow stablecoins or ETH without selling your position. This unlocks liquidity from your idle staked ETH — borrow USDC to pay bills, deploy more capital, or bridge to other chains — while your stETH continues earning 4.2% APY. The key metric is your Health Factor: stay above 1.5 to avoid liquidation. The LTV ratio determines your borrowing power.
+          </p>
+        </div>
+
+        <div class="strategy-layout">
+          <div class="controls-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">1</span>Borrowing Power</div>
+
+              <div class="input-group">
+                <label>Collateral Type</label>
+                <select id="lsdCollateral" onchange="updateLsdLiquidity()">
+                  <option value="stETH">stETH (Lido — 4.2% APY)</option>
+                  <option value="wstETH">wstETH (Lido — 4.3% APY)</option>
+                  <option value="rETH">rETH (Rocket Pool — 3.8% APY)</option>
+                </select>
+              </div>
+
+              <div class="slider-group">
+                <label><span>stETH Collateral</span><span id="lsdSteth">20 stETH</span></label>
+                <input type="range" id="lsdStethSlider" min="1" max="200" value="20" oninput="updateLsdLiquidity()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>ETH Price (USD)</span><span id="lsdEthPrice">$2,400</span></label>
+                <input type="range" id="lsdEthPriceSlider" min="800" max="8000" step="50" value="2400" oninput="updateLsdLiquidity()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Loan-to-Value Ratio</span><span id="lsdLtv">65%</span></label>
+                <input type="range" id="lsdLtvSlider" min="10" max="85" value="65" oninput="updateLsdLiquidity()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Borrow Rate (variable)</span><span id="lsdBorrowRate">3.2%</span></label>
+                <input type="range" id="lsdBorrowRateSlider" min="1" max="12" step="0.1" value="3.2" oninput="updateLsdLiquidity()">
+              </div>
+
+              <div class="result-box">
+                <div class="result-row">
+                  <span class="label">Collateral Value</span>
+                  <span class="value" id="lsdCollateralVal">$48,000</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Max Borrowing Power</span>
+                  <span class="value" id="lsdBorrowPower">$31,200</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Staking APY Earned</span>
+                  <span class="value success" id="lsdStakingYield">+$840/yr</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Annual Borrow Cost</span>
+                  <span class="value danger" id="lsdBorrowCost">-$0 (undrawn)</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Net Position (undrawn)</span>
+                  <span class="value success" id="lsdNetPosition">+$840/yr</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Liquidation Price (ETH)</span>
+                  <span class="value" id="lsdLiqPrice">~$1,640</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Health Factor</span>
+                  <span class="value" id="lsdHealthFactor">—</span>
+                </div>
+                <div class="result-row" id="lsdRiskRow">
+                  <span class="label">Risk Status</span>
+                  <span class="risk-badge safe" id="lsdRiskBadge">✅ Safe (undrawn)</span>
+                </div>
+              </div>
+
+              <div style="margin-top:16px; padding:16px; background:rgba(0,255,200,0.06); border:1px solid rgba(0,255,200,0.15); border-radius:8px; font-size:13px; color:var(--muted); line-height:1.6;">
+                📖 <strong>The leverage loop:</strong> Deposit 20 stETH → borrow 10 ETH worth of USDC → convert USDC to ETH and deposit as stETH → repeat up to LTV limit. Each iteration compounds your staking yield. But borrowing adds risk: if ETH drops 35%, your 65% LTV position gets liquidated.
+              </div>
+
+              <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+                <a href="lido.html" style="display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-weight:600; font-size:13px; padding:10px 18px; border-radius:8px; text-decoration:none;">🔗 Lido →</a>
+                <a href="aave.html" style="display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-weight:600; font-size:13px; padding:10px 18px; border-radius:8px; text-decoration:none;">🔗 Aave →</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="visual-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">2</span>Health Factor Tracker</div>
+              <svg class="flow-svg" viewBox="0 0 500 140" xmlns="http://www.w3.org/2000/svg">
+                <!-- Health factor zones -->
+                <rect x="20" y="40" width="140" height="70" rx="8" fill="rgba(239,68,68,0.08)" stroke="rgba(239,68,68,0.3)" stroke-width="1"/>
+                <text x="90" y="62" text-anchor="middle" fill="#ef4444" font-family="Inter,sans-serif" font-size="11" font-weight="700">DANGER</text>
+                <text x="90" y="78" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">HF &lt; 1.0</text>
+                <text x="90" y="95" text-anchor="middle" fill="#ef4444" font-family="Inter,sans-serif" font-size="9">Liquidation</text>
+
+                <rect x="170" y="40" width="140" height="70" rx="8" fill="rgba(245,158,11,0.08)" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
+                <text x="240" y="62" text-anchor="middle" fill="#f59e0b" font-family="Inter,sans-serif" font-size="11" font-weight="700">CAUTION</text>
+                <text x="240" y="78" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">HF 1.0–1.5</text>
+                <text x="240" y="95" text-anchor="middle" fill="#f59e0b" font-family="Inter,sans-serif" font-size="9">Watch closely</text>
+
+                <rect x="320" y="40" width="140" height="70" rx="8" fill="rgba(34,197,94,0.08)" stroke="rgba(34,197,94,0.3)" stroke-width="1"/>
+                <text x="390" y="62" text-anchor="middle" fill="#22c55e" font-family="Inter,sans-serif" font-size="11" font-weight="700">SAFE</text>
+                <text x="390" y="78" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">HF &gt; 1.5</text>
+                <text x="390" y="95" text-anchor="middle" fill="#22c55e" font-family="Inter,sans-serif" font-size="9">Healthy</text>
+
+                <!-- Arrow indicator -->
+                <circle cx="250" cy="20" r="14" fill="#12121a" stroke="#00ffc8" stroke-width="2"/>
+                <text x="250" y="25" text-anchor="middle" fill="#00ffc8" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" id="lsdHindicator">—</text>
+
+                <!-- LTV meter -->
+                <text x="20" y="135" fill="#64748b" font-family="Inter,sans-serif" font-size="10">0%</text>
+                <text x="160" y="135" fill="#64748b" font-family="Inter,sans-serif" font-size="10">50%</text>
+                <text x="300" y="135" fill="#64748b" font-family="Inter,sans-serif" font-size="10">75%</text>
+                <text x="440" y="135" fill="#64748b" font-family="Inter,sans-serif" font-size="10">85%+</text>
+              </svg>
+
+              <div class="sandbox-title" style="margin-top:24px;"><span class="num">3</span>Borrow Scenario</div>
+              <div class="slider-group">
+                <label><span>Borrow Amount (USDC)</span><span id="lsdBorrowAmt">$0</span></label>
+                <input type="range" id="lsdBorrowAmtSlider" min="0" max="100" value="0" oninput="updateLsdBorrow()">
+              </div>
+
+              <div class="result-box" id="lsdBorrowScenario" style="display:none;">
+                <div class="result-row">
+                  <span class="label">New Health Factor</span>
+                  <span class="value" id="lsdNewHf">1.54</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Est. Monthly Borrow Cost</span>
+                  <span class="value danger" id="lsdMonthlyCost">$0</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Net Annual Yield (yield - cost)</span>
+                  <span class="value" id="lsdNetAnnual">+$840</span>
+                </div>
+              </div>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+                <span class="risk-badge safe">✅ Staking yield continues</span>
+                <span class="risk-badge caution">⚠️ LTV cap at 85%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────── -->
+      <!-- 5. PENDLE PT/YT HEDGE                                  -->
+      <!-- ─────────────────────────────────────────────────────── -->
+      <div class="strategy-section" id="pendle-hedge">
+        <div class="strategy-header">
+          <span class="strategy-tag moderate">⚡ Moderate Risk</span>
+          <h2 class="strategy-title">Pendle PT/YT Fixed Yield Hedge</h2>
+          <p class="strategy-desc">
+            Lock in a fixed yield by buying PT (Principal Tokens) on Pendle while earning variable yield from your staked ETH. The PT represents the principal portion of a yield-bearing asset — it trades at a discount to par based on time and implied yield, and converges to $1.00 at maturity. By holding PT instead of raw ETH, you eliminate yield variability and lock a known return. YT (Yield Tokens) give you variable yield exposure — if ETH staking rewards rise, YT holders capture that upside.
+          </p>
+        </div>
+
+        <div class="strategy-layout">
+          <div class="controls-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">1</span>Fixed vs Variable Yield</div>
+
+              <div class="input-group">
+                <label>Underlying Asset</label>
+                <select id="ptAsset" onchange="updatePendleHedge()">
+                  <option value="stETH">stETH — 4.2% APY</option>
+                  <option value="wstETH">wstETH — 4.3% APY</option>
+                  <option value="aUSDC">aUSDC — 5.1% APY</option>
+                  <option value="cETH">cETH — 3.8% APY</option>
+                </select>
+              </div>
+
+              <div class="slider-group">
+                <label><span>Position Size (ETH equivalent)</span><span id="ptPosition">10 ETH</span></label>
+                <input type="range" id="ptPositionSlider" min="1" max="100" value="10" oninput="updatePendleHedge()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>PT / YT Split</span><span id="ptSplit">80% PT / 20% YT</span></label>
+                <input type="range" id="ptSplitSlider" min="0" max="100" value="80" oninput="updatePendleHedge()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Market Implied APY</span><span id="ptImpliedApy">5.5%</span></label>
+                <input type="range" id="ptImpliedApySlider" min="1" max="15" step="0.1" value="5.5" oninput="updatePendleHedge()">
+              </div>
+
+              <div class="slider-group">
+                <label><span>Time to Maturity</span><span id="ptMaturity">90 days</span></label>
+                <input type="range" id="ptMaturitySlider" min="7" max="365" value="90" oninput="updatePendleHedge()">
+              </div>
+
+              <div class="result-box">
+                <div class="result-row">
+                  <span class="label">PT Value at Purchase</span>
+                  <span class="value" id="ptPurchaseVal">$0.96/pt</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">PT Value at Maturity</span>
+                  <span class="value success">$1.00/pt</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">PT Guaranteed Gain</span>
+                  <span class="value success" id="ptGuaranteedGain">+$0.04/pt</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">YT Variable Yield (projected)</span>
+                  <span class="value" id="ptYtYield">+$0.009/yt</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Total Fixed Yield (annualized)</span>
+                  <span class="value" id="ptTotalYield">5.5%</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">vs Holding stETH</span>
+                  <span class="value" id="ptVsHolding">+1.3% more</span>
+                </div>
+                <div class="result-row">
+                  <span class="label">Break-even APY (if YT = 0)</span>
+                  <span class="value" id="ptBreakEven">4.2%</span>
+                </div>
+              </div>
+
+              <div style="margin-top:16px; padding:16px; background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.2); border-radius:8px; font-size:13px; color:var(--muted); line-height:1.6;">
+                📖 <strong>PT pricing formula:</strong> PT price = 1 / (1 + APY × years_to_maturity). At 5.5% APY and 90 days (0.25yr), PT = 1/(1+0.055×0.25) = $0.986. You pay $0.986 today, get $1.00 at maturity — that's your locked 5.5% annualized return. No yield volatility, no ETH price exposure on the PT leg.
+              </div>
+
+              <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+                <a href="pendle.html" style="display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-weight:600; font-size:13px; padding:10px 18px; border-radius:8px; text-decoration:none;">🔗 Pendle Deep-dive →</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="visual-col">
+            <div class="sandbox">
+              <div class="sandbox-title"><span class="num">2</span>Timeline: PT Convergence to Par</div>
+              <svg class="flow-svg" viewBox="0 0 500 160" xmlns="http://www.w3.org/2000/svg">
+                <!-- Timeline axis -->
+                <line x1="30" y1="130" x2="470" y2="130" stroke="#1e1e2e" stroke-width="2"/>
+
+                <!-- Today marker -->
+                <circle cx="30" cy="130" r="6" fill="#00ffc8"/>
+                <text x="30" y="148" text-anchor="middle" fill="#00ffc8" font-family="Inter,sans-serif" font-size="9" font-weight="600">TODAY</text>
+                <text x="30" y="115" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" id="ptTimeline0">$0.986</text>
+
+                <!-- +30 days -->
+                <circle cx="130" cy="130" r="4" fill="#1e1e2e"/>
+                <line x1="130" y1="126" x2="130" y2="134" stroke="#1e1e2e" stroke-width="2"/>
+                <text x="130" y="148" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">+30d</text>
+                <text x="130" y="115" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" id="ptTimeline1">$0.991</text>
+
+                <!-- +60 days -->
+                <circle cx="230" cy="130" r="4" fill="#1e1e2e"/>
+                <line x1="230" y1="126" x2="230" y2="134" stroke="#1e1e2e" stroke-width="2"/>
+                <text x="230" y="148" text-anchor="middle" fill="#64748b" font-family="Inter,sans-serif" font-size="9">+60d</text>
+                <text x="230" y="115" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10" id="ptTimeline2">$0.995</text>
+
+                <!-- +90 days / Maturity -->
+                <circle cx="330" cy="130" r="6" fill="#22c55e"/>
+                <text x="330" y="148" text-anchor="middle" fill="#22c55e" font-family="Inter,sans-serif" font-size="9" font-weight="600">MATURITY</text>
+                <text x="330" y="115" text-anchor="middle" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="10" id="ptTimeline3">$1.000</text>
+
+                <!-- Convergence arrow (animated dash) -->
+                <line x1="36" y1="80" x2="324" y2="80" stroke="#00ffc8" stroke-width="1.5" stroke-dasharray="6,3">
+                  <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="2s" repeatCount="indefinite"/>
+                </line>
+                <text x="180" y="74" text-anchor="middle" fill="#00ffc8" font-family="Inter,sans-serif" font-size="9">PT converging to par →</text>
+
+                <!-- PT/YT split boxes -->
+                <rect x="360" y="20" width="120" height="45" rx="8" fill="#12121a" stroke="#00ffc8" stroke-width="1.5"/>
+                <text x="420" y="38" text-anchor="middle" fill="#00ffc8" font-family="Inter,sans-serif" font-size="11" font-weight="700">80% PT</text>
+                <text x="420" y="54" text-anchor="middle" fill="#22c55e" font-family="JetBrains Mono,monospace" font-size="10">Fixed: +5.5%</text>
+
+                <rect x="360" y="75" width="120" height="45" rx="8" fill="#12121a" stroke="#a855f7" stroke-width="1.5"/>
+                <text x="420" y="93" text-anchor="middle" fill="#a855f7" font-family="Inter,sans-serif" font-size="11" font-weight="700">20% YT</text>
+                <text x="420" y="109" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="10">Variable: 0–15%</text>
+
+                <!-- Labels -->
+                <text x="470" y="38" text-anchor="end" fill="#64748b" font-family="Inter,sans-serif" font-size="9">Lock fixed rate</text>
+                <text x="470" y="93" text-anchor="end" fill="#64748b" font-family="Inter,sans-serif" font-size="9">Yield exposure</text>
+              </svg>
+
+              <div class="sandbox-title" style="margin-top:24px;"><span class="num">3</span>Scenario Analysis</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); border-radius:8px; padding:16px;">
+                  <div style="font-size:13px; font-weight:700; color:var(--success); margin-bottom:8px;">📈 Bull Case — APY rises to 9%</div>
+                  <p style="font-size:12px; color:var(--muted); line-height:1.5;">YT value surges as higher yield is expected. Your 20% YT allocation gains significantly. PT still delivers fixed return.</p>
+                  <div style="font-family:var(--mono); font-size:13px; color:var(--success); margin-top:8px;">Total: ~+7.2%</div>
+                </div>
+                <div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:16px;">
+                  <div style="font-size:13px; font-weight:700; color:var(--danger); margin-bottom:8px;">📉 Bear Case — APY drops to 2%</div>
+                  <p style="font-size:12px; color:var(--muted); line-height:1.5;">YT loses value as yield expectations collapse. But PT still pays par at maturity. You still earn the fixed spread.</p>
+                  <div style="font-family:var(--mono); font-size:13px; color:var(--text); margin-top:8px;">Total: ~+3.5%</div>
+                </div>
+              </div>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+                <span class="risk-badge safe">✅ PT = fixed rate</span>
+                <span class="risk-badge caution">⚠️ YT = variable</span>
+                <span class="risk-badge caution">⏳ Maturity-locked</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────── -->
+      <!-- STRATEGY RISK MATRIX                                   -->
+      <!-- ─────────────────────────────────────────────────────── -->
+      <div class="sandbox" style="margin-top:48px;">
+        <div class="sandbox-title">
+          <span class="num" style="background:var(--secondary);">★</span>
+          Strategy Risk Matrix
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="risk-matrix">
+            <thead>
+              <tr>
+                <th>Strategy</th>
+                <th>Risk Level</th>
+                <th>Liquidation Risk</th>
+                <th>Smart Contract Risk</th>
+                <th>IL Risk</th>
+                <th>Complexity</th>
+                <th>Min Capital</th>
+                <th>Best For</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="color:var(--text); font-family:var(--font); font-weight:600;">Leveraged Farming</td>
+                <td><span class="risk-badge danger">🔴 High</span></td>
+                <td style="color:var(--danger);">High (3–10x)</td>
+                <td style="color:var(--accent);">Medium (×2)</td>
+                <td style="color:var(--accent);">Medium</td>
+                <td style="color:var(--accent);">High</td>
+                <td>$5,000+</td>
+                <td style="color:var(--muted); font-family:var(--font);">Yield maximizers</td>
+              </tr>
+              <tr>
+                <td style="color:var(--text); font-family:var(--font); font-weight:600;">Delta Neutral</td>
+                <td><span class="risk-badge caution">🟡 Moderate</span></td>
+                <td style="color:var(--accent);">Low</td>
+                <td style="color:var(--accent);">Medium (×2)</td>
+                <td style="color:var(--success);">None</td>
+                <td style="color:var(--accent);">Medium</td>
+                <td>$2,000+</td>
+                <td style="color:var(--muted); font-family:var(--font);">Hedged ETH holders</td>
+              </tr>
+              <tr>
+                <td style="color:var(--text); font-family:var(--font); font-weight:600;">Yield Arbitrage</td>
+                <td><span class="risk-badge safe">🟢 Low</span></td>
+                <td style="color:var(--success);">Very Low</td>
+                <td style="color:var(--accent);">Medium (×2)</td>
+                <td style="color:var(--success);">None (stable)</td>
+                <td style="color:var(--muted);">Low-Med</td>
+                <td>$1,000+</td>
+                <td style="color:var(--muted); font-family:var(--font);">Carry traders</td>
+              </tr>
+              <tr>
+                <td style="color:var(--text); font-family:var(--font); font-weight:600;">LSD Liquidity</td>
+                <td><span class="risk-badge safe">🟢 Low</span></td>
+                <td style="color:var(--accent);">Low-Med</td>
+                <td style="color:var(--accent);">Medium (×2)</td>
+                <td style="color:var(--success);">None</td>
+                <td style="color:var(--muted);">Low</td>
+                <td>$500+</td>
+                <td style="color:var(--muted); font-family:var(--font);">stETH holders</td>
+              </tr>
+              <tr>
+                <td style="color:var(--text); font-family:var(--font); font-weight:600;">PT/YT Hedge</td>
+                <td><span class="risk-badge caution">🟡 Moderate</span></td>
+                <td style="color:var(--success);">None (PT)</td>
+                <td style="color:var(--accent);">Medium (×2)</td>
+                <td style="color:var(--success);">None</td>
+                <td style="color:var(--accent);">Medium</td>
+                <td>$1,000+</td>
+                <td style="color:var(--muted); font-family:var(--font);">Fixed-rate seekers</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:20px; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; font-size:12px; color:var(--muted);">
+          <div>🔴 <strong style="color:var(--danger);">High:</strong> Capital at risk of total loss</div>
+          <div>🟡 <strong style="color:var(--accent);">Moderate:</strong> Controlled risk with defined outcomes</div>
+          <div>🟢 <strong style="color:var(--success);">Low:</strong> Relatively predictable, managed downside</div>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────── -->
+      <!-- WHICH STRATEGY IS RIGHT FOR YOU?                      -->
+      <!-- ─────────────────────────────────────────────────────── -->
+      <div class="sandbox" style="margin-top:32px;">
+        <div class="sandbox-title">
+          <span class="num" style="background:var(--accent);">?</span>
+          Which Strategy Is Right For You?
+        </div>
+        <p style="font-size:15px; color:var(--muted); margin-bottom:28px;">
+          Answer these three questions to find your best-fit strategy.
+        </p>
+
+        <div class="quiz-container">
+          <div class="quiz-question" id="q1">
+            <h3>1. What's your primary goal?</h3>
+            <div class="quiz-options">
+              <label class="quiz-option" onclick="selectOption(this, 'q1', 'a')">
+                <input type="radio" name="q1" value="a" onchange="selectOption(this.parentElement, 'q1', 'a')">
+                <span>Maximize yield — I'm okay with high risk</span>
+              </label>
+              <label class="quiz-option" onclick="selectOption(this, 'q1', 'b')">
+                <input type="radio" name="q1" value="b" onchange="selectOption(this.parentElement, 'q1', 'b')">
+                <span>Earn a stable, predictable return</span>
+              </label>
+              <label class="quiz-option" onclick="selectOption(this, 'q1', 'c')">
+                <input type="radio" name="q1" value="c" onchange="selectOption(this.parentElement, 'q1', 'c')">
+                <span>Unlock liquidity from existing holdings without selling</span>
+              </label>
+              <label class="quiz-option" onclick="selectOption(this, 'q1', 'd')">
+                <input type="radio" name="q1" value="d" onchange="selectOption(this.parentElement, 'q1', 'd')">
+                <span>Hedge my ETH exposure or lock in a fixed rate</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="quiz-question" id="q2">
+            <h3>2. How much capital are you deploying?</h3>
+            <div class="quiz-options">
+              <label class="quiz-option" onclick="selectOption(this, 'q2', 'a')">
+                <input type="radio" name="q2" value="a" onchange="selectOption(this.parentElement, 'q2', 'a')">
+                <span>$1,000 – $5,000 (need efficiency)</span>
+              </label>
+              <label class="quiz-option" onclick="selectOption(this, 'q2', 'b')">
+                <input type="radio" name="q2" value="b" onchange="selectOption(this.parentElement, 'q2', 'b')">
+                <span>$5,000 – $50,000 (can handle volatility)</span>
+              </label>
+              <label class="quiz-option" onclick="selectOption(this, 'q2', 'c')">
+                <input type="radio" name="q2" value="c" onchange="selectOption(this.parentElement, 'q2', 'c')">
+                <span>$50,000+ (sophisticated, large positions)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="quiz-question" id="q3">
+            <h3>3. What's your risk tolerance?</h3>
+            <div class="quiz-options">
+              <label class="quiz-option" onclick="selectOption(this, 'q3', 'a')">
+                <input type="radio" name="q3" value="a" onchange="selectOption(this.parentElement, 'q3', 'a')">
+                <span>High — I'm comfortable with liquidation risk</span>
+              </label>
+              <label class="quiz-option" onclick="selectOption(this, 'q3', 'b')">
+                <input type="radio" name="q3" value="b" onchange="selectOption(this.parentElement, 'q3', 'b')">
+                <span>Moderate — I want to understand and manage risks</span>
+              </label>
+              <label class="quiz-option" onclick="selectOption(this, 'q3', 'c')">
+                <input type="radio" name="q3" value="c" onchange="selectOption(this.parentElement, 'q3', 'c')">
+                <span>Low — I prefer capital preservation</span>
+              </label>
+            </div>
+          </div>
+
+          <button onclick="calculateRecommendation()" style="background:var(--primary); color:var(--bg); border:none; padding:14px 28px; border-radius:8px; font-weight:700; font-size:15px; cursor:pointer; margin-top:8px; transition:all 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+            Get My Strategy Match →
+          </button>
+
+          <div class="quiz-result" id="quizResult">
+            <h4 id="quizResultTitle">Your Strategy Match</h4>
+            <p id="quizResultText"></p>
+            <a href="#" id="quizResultLink" style="display:inline-flex; align-items:center; gap:6px; margin-top:12px; color:var(--primary); font-size:14px; font-weight:600; text-decoration:none;">Try the simulator →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────── -->
+      <!-- FAQ                                                   -->
+      <!-- ─────────────────────────────────────────────────────── -->
+      <div class="sandbox" style="margin-top:32px;" itemscope itemtype="https://schema.org/FAQPage">
+        <div class="sandbox-title">
+          <span class="num" style="background:var(--muted);">?</span>
+          Frequently Asked Questions
+        </div>
+
+        <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" style="margin-bottom:24px;">
+          <h3 itemprop="name" style="font-size:16px; font-weight:700; margin-bottom:8px; color:var(--primary);">What's the safest DeFi strategy?</h3>
+          <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+            <p itemprop="text" style="font-size:14px; color:var(--muted); line-height:1.7;">
+              Using LSD (Liquid Staking Derivatives) like stETH as collateral is among the safest active strategies. You're earning staking yield (~4.2%) while maintaining exposure to ETH price appreciation. The risk is primarily smart contract risk and slight LTV liquidation risk at very high borrow ratios. Simple supply/borrow on established protocols (Aave, Compound) for stablecoins with a tight spread is also relatively low risk, especially if you avoid high leverage.
+            </p>
+          </div>
+        </div>
+
+        <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" style="margin-bottom:24px;">
+          <h3 itemprop="name" style="font-size:16px; font-weight:700; margin-bottom:8px; color:var(--primary);">What's the highest-yield DeFi strategy?</h3>
+          <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+            <p itemprop="text" style="font-size:14px; color:var(--muted); line-height:1.7;">
+              Leveraged farming with 5–10x leverage on productive DeFi protocols historically delivered the highest yields, sometimes 20–50%+ APY. However, this comes with proportional risk: a 10–20% adverse price move at 10x leverage results in total liquidation. More sustainable high yields come from yield arbitrage (stablecoin carry trades), harness strategies on Pendle (combining staking yield + YT farming), and EigenLayer restaking which earns extra yields from protocol-level security services.
+            </p>
+          </div>
+        </div>
+
+        <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" style="margin-bottom:24px;">
+          <h3 itemprop="name" style="font-size:16px; font-weight:700; margin-bottom:8px; color:var(--primary);">What is a health factor in DeFi lending?</h3>
+          <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+            <p itemprop="text" style="font-size:14px; color:var(--muted); line-height:1.7;">
+              The Health Factor (HF) is the ratio of your collateral value (adjusted by LTV) to your borrowed value. HF = (collateral × liquidation threshold) / borrowed value. On Aave, if your HF drops below 1.0, your position can be liquidated. Most protocols recommend maintaining HF above 1.5 for safety. A HF of 2.0 means your collateral is worth twice what you owe — significant buffer against price drops. Watch your HF constantly when using leverage.
+            </p>
+          </div>
+        </div>
+
+        <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" style="margin-bottom:24px;">
+          <h3 itemprop="name" style="font-size:16px; font-weight:700; margin-bottom:8px; color:var(--primary);">What is delta neutral in DeFi?</h3>
+          <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+            <p itemprop="text" style="font-size:14px; color:var(--muted); line-height:1.7;">
+              Delta neutral means your net market exposure is approximately zero. In DeFi, this typically means holding a volatile asset (like stETH) while shorting a related instrument (like Pendle PT) in proportions that cancel out price movements. The result is a position that earns yield purely from the spread — you're insulated from ETH's price swings but exposed to changes in yield rates. Delta neutral strategies are popular among sophisticated traders who want to farm yield without directional bets.
+            </p>
+          </div>
+        </div>
+
+        <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" style="margin-bottom:24px;">
+          <h3 itemprop="name" style="font-size:16px; font-weight:700; margin-bottom:8px; color:var(--primary);">What's impermanent loss (IL) and does it affect all strategies?</h3>
+          <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+            <p itemprop="text" style="font-size:14px; color:var(--muted); line-height:1.7;">
+              Impermanent loss occurs when you provide liquidity to an AMM (like Curve or Balancer) and the price of your assets diverges from when you deposited. It's called "impermanent" because it only becomes real loss when you withdraw. IL affects strategies involving LP positions — leveraged farming, yield arbitrage with non-stable pairs. It does NOT affect: simple lending/borrowing (no AMM exposure), LSD collateral strategies (no LP), or PT/YT positions on Pendle (AMM-free trading via PT/YT split). Stablecoin LP has essentially zero IL since all assets are pegged at $1.00.
+            </p>
+          </div>
+        </div>
+
+        <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" style="margin-bottom:24px;">
+          <h3 itemprop="name" style="font-size:16px; font-weight:700; margin-bottom:8px; color:var(--primary);">How do I get started with these strategies?</h3>
+          <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
+            <p itemprop="text" style="font-size:14px; color:var(--muted); line-height:1.7;">
+              Start small. Every protocol page on this site has an interactive sandbox — use those to build intuition before committing real capital. For beginners, the LSD Liquidity strategy (using stETH as collateral) is the most approachable: deposit stETH on Aave, borrow a small amount of stablecoin, and observe how your health factor changes. For yield arbitrage, use the simulators to find spread opportunities that exceed $100 annual net income — smaller than that and gas fees eat your profits. Never use more than 3x leverage until you deeply understand liquidation dynamics.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /container -->
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-links">
+        <a href="index.html">Protocol Overview</a>
+        <a href="aave.html">Aave</a>
+        <a href="lido.html">Lido</a>
+        <a href="pendle.html">Pendle</a>
+        <a href="https://docs.pendle.finance" target="_blank">Docs</a>
+      </div>
+      <p>Built for educational purposes. Not financial advice. DeFi involves significant risk.</p>
+    </div>
+
+  </div><!-- /page -->
+
+  <script>
+    // ── Utility ─────────────────────────────────────────────────────────────
+    const fmt = (n, d = 2) => n.toFixed(d);
+    const fmtM = (n) => n >= 1000 ? '$' + (n / 1000).toFixed(0) + 'K' : '$' + n.toFixed(0);
+
+    // ── 1. Leveraged Farming ────────────────────────────────────────────────
+    const BORROW_RATES = { ETH: 3.2, stETH: 3.0, WBTC: 5.1 };
+
+    function updateLeveragedFarming() {
+      const asset = document.getElementById('lfAsset').value;
+      const collateral = parseFloat(document.getElementById('lfCollateralSlider').value);
+      const leverage = parseFloat(document.getElementById('lfLeverageSlider').value);
+      const farmApy = parseFloat(document.getElementById('lfFarmApySlider').value);
+      const priceChange = parseFloat(document.getElementById('lfPriceSlider').value);
+
+      document.getElementById('lfCollateral').textContent = collateral + ' ' + asset;
+      document.getElementById('lfLeverage').textContent = leverage + 'x';
+      document.getElementById('lfFarmApy').textContent = farmApy.toFixed(1) + '%';
+      document.getElementById('lfPriceChange').textContent = priceChange + '%';
+
+      const borrowRate = BORROW_RATES[asset] || 3.2;
+      const totalPos = collateral * leverage;
+      const borrowed = totalPos - collateral;
+      const grossYield = totalPos * (farmApy / 100);
+      const borrowCost = borrowed * (borrowRate / 100);
+      const netYield = grossYield - borrowCost;
+      const effectiveApy = (netYield / collateral) * 100;
+      const liqBuffer = ((1 / leverage) * 100).toFixed(0);
+      const healthFactor = (collateral * leverage * 0.8) / (borrowed);
+      const priceAfterDrop = 1 + (priceChange / 100);
+      const effectiveHf = healthFactor / (priceAfterDrop > 0 ? priceAfterDrop : 0.01);
+
+      document.getElementById('lfTotalPos').textContent = fmt(totalPos, 2) + ' ' + asset;
+      document.getElementById('lfBorrowed').textContent = fmt(borrowed, 2) + ' ' + asset;
+      document.getElementById('lfGrossYield').textContent = '+' + fmt(grossYield, 3) + ' ' + asset + '/yr';
+      document.getElementById('lfBorrowCost').textContent = '-' + fmt(borrowCost, 3) + ' ' + asset + '/yr';
+      document.getElementById('lfNetYield').textContent = fmt(netYield, 3) + ' ' + asset + '/yr';
+      document.getElementById('lfEffectiveApy').textContent = fmt(effectiveApy, 1) + '%';
+      document.getElementById('lfLiqBuffer').textContent = '-' + liqBuffer + '%';
+      document.getElementById('lfHealthFactor').textContent = fmt(effectiveHf, 2);
+      document.getElementById('lfFlow1').textContent = collateral + ' ' + asset;
+      document.getElementById('lfFlow3').textContent = fmt(borrowed, 1) + ' ' + asset;
+      document.getElementById('lfFlow5').textContent = '+' + fmt(netYield, 2);
+      document.getElementById('lfLiqWarning').textContent = '⚠️ ' + liqBuffer + '% price drop = liquidation';
+
+      const liqPrice = 2400 * (1 - parseFloat(liqBuffer) / 100);
+      document.getElementById('lfLiqPrice').textContent = '~$' + fmt(liqPrice, 0) + ' ETH';
+
+      const badge = document.getElementById('lfRiskBadge');
+      const liqBadge = document.getElementById('lfLiqRiskLabel');
+      if (effectiveHf < 1.2) {
+        badge.className = 'risk-badge danger'; badge.textContent = '🔴 Danger';
+        liqBadge.className = 'risk-badge danger'; liqBadge.textContent = '🔴 High Risk';
+      } else if (effectiveHf < 1.5) {
+        badge.className = 'risk-badge caution'; badge.textContent = '⚠️ Caution';
+        liqBadge.className = 'risk-badge caution'; liqBadge.textContent = '⚠️ Moderate';
+      } else {
+        badge.className = 'risk-badge safe'; badge.textContent = '✅ Safe';
+        liqBadge.className = 'risk-badge safe'; liqBadge.textContent = '✅ Low';
+      }
+
+      const healthBar = document.getElementById('lfHealthBar');
+      const hfPct = Math.min(100, (effectiveHf / 2.5) * 100);
+      healthBar.style.width = fmt(hfPct, 0) + '%';
+      healthBar.style.background = effectiveHf < 1.2 ? 'var(--danger)' : effectiveHf < 1.5 ? 'var(--accent)' : 'var(--success)';
+
+      document.getElementById('lfMaxDraw').textContent = '-' + fmt(collateral * 0.2, 2) + ' ' + asset;
+    }
+
+    // ── 2. Delta Neutral ────────────────────────────────────────────────────
+    function updateDeltaNeutral() {
+      const steth = parseFloat(document.getElementById('dnStethSlider').value);
+      const ptAlloc = parseFloat(document.getElementById('dnPtAllocSlider').value);
+      const stethApy = parseFloat(document.getElementById('dnStethApySlider').value);
+      const ptYield = parseFloat(document.getElementById('dnPtYieldSlider').value);
+      const days = parseInt(document.getElementById('dnDaysSlider').value);
+
+      document.getElementById('dnSteth').textContent = steth + ' stETH';
+      document.getElementById('dnPtAlloc').textContent = fmt(ptAlloc, 0) + '%';
+      document.getElementById('dnStethApy').textContent = stethApy.toFixed(1) + '%';
+      document.getElementById('dnPtYield').textContent = ptYield.toFixed(1) + '%';
+      document.getElementById('dnDays').textContent = days + ' days';
+
+      const years = days / 365;
+      const stethYield = steth * (stethApy / 100);
+      const ptPrice = 1 / (1 + ptYield * years / 100);
+      const ptDecay = (1 - ptPrice) * (ptAlloc / 100);
+      const ptCost = steth * ptDecay;
+      const netPnl = stethYield - ptCost;
+      const effectiveApy = (netPnl / steth) * 100;
+      const maturityVal = steth + netPnl;
+
+      document.getElementById('dnDelta').textContent = '≈ 0.00 (neutral)';
+      document.getElementById('dnPriceImpact').textContent = '~$0.00';
+      document.getElementById('dnStethYield').textContent = '+' + fmt(stethYield, 3) + ' ETH/yr';
+      document.getElementById('dnPtCost').textContent = '-' + fmt(ptCost, 3) + ' ETH';
+      document.getElementById('dnNetPnl').textContent = (netPnl >= 0 ? '+$' : '-$') + fmt(Math.abs(netPnl), 3) + ' ETH/yr';
+      document.getElementById('dnEffectiveApy').textContent = fmt(effectiveApy, 1) + '%';
+      document.getElementById('dnMaturityVal').textContent = fmt(maturityVal, 2) + ' ETH';
+    }
+
+    // ── 3. Yield Arbitrage ───────────────────────────────────────────────────
+    function updateYieldArbitrage() {
+      const capital = parseFloat(document.getElementById('yaCapitalSlider').value);
+      const borrowRate = parseFloat(document.getElementById('yaBorrowSlider').value);
+      const lpRate = parseFloat(document.getElementById('yaLpSlider').value);
+      const fees = parseFloat(document.getElementById('yaFeesSlider').value);
+
+      document.getElementById('yaCapital').textContent = fmtM(capital);
+      document.getElementById('yaBorrowRate').textContent = borrowRate.toFixed(1) + '%';
+      document.getElementById('yaLpRate').textContent = lpRate.toFixed(1) + '%';
+      document.getElementById('yaFees').textContent = '$' + fees;
+      document.getElementById('yaFlow1').textContent = fmtM(capital);
+      document.getElementById('yaFlow5').textContent = '+$' + Math.max(0, (lpRate - borrowRate) / 100 * capital - fees).toFixed(0) + '/yr';
+
+      const grossYield = capital * (lpRate / 100);
+      const borrowCost = capital * (borrowRate / 100);
+      const netSpread = grossYield - borrowCost - fees;
+      const netApy = (netSpread / capital) * 100;
+      const breakEven = fees > 0 && lpRate > borrowRate ? (fees / ((lpRate - borrowRate) / 100 * capital)) * 365 : 0;
+      const spread = lpRate - borrowRate;
+
+      document.getElementById('yaGrossYield').textContent = '$' + fmt(grossYield, 0);
+      document.getElementById('yaBorrowCost').textContent = '$' + fmt(borrowCost, 0);
+      document.getElementById('yaNetSpread').textContent = '$' + fmt(Math.max(0, netSpread), 0);
+      document.getElementById('yaNetApy').textContent = fmt(Math.max(0, netApy), 2) + '%';
+      document.getElementById('yaBreakEven').textContent = fmt(breakEven, 0) + ' days';
+      document.getElementById('yaSpreadCapture').textContent = '+' + fmt(spread, 1) + '%';
+      document.getElementById('yaAnnualRoi').textContent = fmt(Math.max(0, netApy), 2) + '%';
+
+      document.getElementById('yaBorrowLbl').textContent = 'Aave borrow';
+      document.getElementById('yaLpLbl').textContent = 'Curve LP';
+      document.getElementById('yaBorrowBar').textContent = '-' + fmt(borrowRate, 1) + '%';
+      document.getElementById('yaLpBar').textContent = '+' + fmt(lpRate, 1) + '%';
+      document.getElementById('yaNetBar').textContent = '+' + fmt(Math.max(0, spread), 1) + '%';
+    }
+
+    // ── 4. LSD Liquidity ─────────────────────────────────────────────────────
+    const LSD_APY = { stETH: 4.2, wstETH: 4.3, rETH: 3.8 };
+    const LSD_LTV_MAX = { stETH: 82, wstETH: 80, rETH: 75 };
+
+    function updateLsdLiquidity() {
+      const collateral = document.getElementById('lsdCollateral').value;
+      const stethAmt = parseFloat(document.getElementById('lsdStethSlider').value);
+      const ethPrice = parseFloat(document.getElementById('lsdEthPriceSlider').value);
+      const ltv = parseFloat(document.getElementById('lsdLtvSlider').value);
+      const borrowRate = parseFloat(document.getElementById('lsdBorrowRateSlider').value);
+
+      const apy = LSD_APY[collateral] || 4.2;
+      const maxLtv = LSD_LTV_MAX[collateral] || 80;
+
+      document.getElementById('lsdSteth').textContent = stethAmt + ' ' + collateral;
+      document.getElementById('lsdEthPrice').textContent = '$' + ethPrice;
+      document.getElementById('lsdLtv').textContent = fmt(Math.min(ltv, maxLtv), 0) + '%';
+      document.getElementById('lsdBorrowRate').textContent = borrowRate.toFixed(1) + '%';
+
+      const effectiveLtv = Math.min(ltv, maxLtv);
+      const collateralVal = stethAmt * ethPrice;
+      const borrowPower = collateralVal * (effectiveLtv / 100);
+      const stakingYield = stethAmt * ethPrice * (apy / 100);
+
+      document.getElementById('lsdCollateralVal').textContent = '$' + fmt(collateralVal, 0);
+      document.getElementById('lsdBorrowPower').textContent = '$' + fmt(borrowPower, 0);
+      document.getElementById('lsdStakingYield').textContent = '+$' + fmt(stakingYield, 0) + '/yr';
+      document.getElementById('lsdBorrowCost').textContent = '-$0 (undrawn)';
+      document.getElementById('lsdNetPosition').textContent = '+$' + fmt(stakingYield, 0) + '/yr';
+
+      const liqPrice = ethPrice * (1 - effectiveLtv / 100);
+      document.getElementById('lsdLiqPrice').textContent = '~$' + fmt(liqPrice, 0);
+      document.getElementById('lsdHealthFactor').textContent = '—';
+
+      const badge = document.getElementById('lsdRiskBadge');
+      badge.className = 'risk-badge safe'; badge.textContent = '✅ Safe (undrawn)';
+
+      // update slider max to maxLtv
+      document.getElementById('lsdLtvSlider').max = maxLtv;
+    }
+
+    function updateLsdBorrow() {
+      const collateral = document.getElementById('lsdCollateral').value;
+      const stethAmt = parseFloat(document.getElementById('lsdStethSlider').value);
+      const ethPrice = parseFloat(document.getElementById('lsdEthPriceSlider').value);
+      const ltv = parseFloat(document.getElementById('lsdLtvSlider').value);
+      const borrowRate = parseFloat(document.getElementById('lsdBorrowRateSlider').value);
+      const borrowPct = parseFloat(document.getElementById('lsdBorrowAmtSlider').value);
+      const apy = LSD_APY[collateral] || 4.2;
+
+      const collateralVal = stethAmt * ethPrice;
+      const maxBorrow = collateralVal * (ltv / 100);
+      const borrowAmt = maxBorrow * (borrowPct / 100);
+
+      document.getElementById('lsdBorrowAmt').textContent = '$' + fmt(borrowAmt, 0);
+
+      const scenario = document.getElementById('lsdBorrowScenario');
+      if (borrowPct > 0) {
+        scenario.style.display = 'block';
+        const healthFactor = (collateralVal * 0.82) / borrowAmt;
+        const borrowCost = borrowAmt * (borrowRate / 100);
+        const stakingYield = collateralVal * (apy / 100);
+        const netAnnual = stakingYield - borrowCost;
+
+        document.getElementById('lsdNewHf').textContent = fmt(healthFactor, 2);
+        document.getElementById('lsdMonthlyCost').textContent = '$' + fmt(borrowCost / 12, 0) + '/mo';
+        document.getElementById('lsdNetAnnual').textContent = (netAnnual >= 0 ? '+$' : '-$') + fmt(Math.abs(netAnnual), 0);
+
+        const badge = document.getElementById('lsdRiskBadge');
+        if (healthFactor < 1.2) { badge.className = 'risk-badge danger'; badge.textContent = '🔴 Danger'; }
+        else if (healthFactor < 1.5) { badge.className = 'risk-badge caution'; badge.textContent = '⚠️ Caution'; }
+        else { badge.className = 'risk-badge safe'; badge.textContent = '✅ Safe'; }
+      } else {
+        scenario.style.display = 'none';
+        const badge = document.getElementById('lsdRiskBadge');
+        badge.className = 'risk-badge safe'; badge.textContent = '✅ Safe (undrawn)';
+      }
+    }
+
+    // ── 5. Pendle PT/YT Hedge ────────────────────────────────────────────────
+    function updatePendleHedge() {
+      const position = parseFloat(document.getElementById('ptPositionSlider').value);
+      const ptSplit = parseFloat(document.getElementById('ptSplitSlider').value);
+      const impliedApy = parseFloat(document.getElementById('ptImpliedApySlider').value);
+      const days = parseInt(document.getElementById('ptMaturitySlider').value);
+
+      document.getElementById('ptPosition').textContent = position + ' ETH';
+      document.getElementById('ptSplit').textContent = fmt(ptSplit, 0) + '% PT / ' + fmt(100 - ptSplit, 0) + '% YT';
+      document.getElementById('ptImpliedApy').textContent = impliedApy.toFixed(1) + '%';
+      document.getElementById('ptMaturity').textContent = days + ' days';
+
+      const years = days / 365;
+      const ptPrice = 1 / (1 + impliedApy * years / 100);
+      const ytPrice = 1 - ptPrice; // simplified
+      const ptGain = 1 - ptPrice;
+      const ytYield = ytPrice * 0.5 * (impliedApy / 100);
+      const totalYield = impliedApy;
+      const vsHolding = totalYield - 4.2;
+      const breakEven = (ptPrice / (1 - ptPrice)) * (365 / days) * 100;
+
+      document.getElementById('ptPurchaseVal').textContent = '$' + fmt(ptPrice, 3) + '/pt';
+      document.getElementById('ptGuaranteedGain').textContent = '+$' + fmt(ptGain, 3) + '/pt';
+      document.getElementById('ptYtYield').textContent = '+$' + fmt(ytYield, 4) + '/yt';
+      document.getElementById('ptTotalYield').textContent = fmt(totalYield, 1) + '%';
+      document.getElementById('ptVsHolding').textContent = (vsHolding >= 0 ? '+' : '') + fmt(vsHolding, 1) + '% more';
+      document.getElementById('ptBreakEven').textContent = fmt(breakEven, 1) + '%';
+
+      // Timeline
+      const daysToNow = days;
+      const t0 = 1 / (1 + impliedApy * (daysToNow / 365) / 100);
+      const t30 = 1 / (1 + impliedApy * Math.max(0, (daysToNow - 30) / 365) / 100);
+      const t60 = 1 / (1 + impliedApy * Math.max(0, (daysToNow - 60) / 365) / 100);
+
+      document.getElementById('ptTimeline0').textContent = '$' + fmt(t0, 3);
+      document.getElementById('ptTimeline1').textContent = '$' + fmt(t30, 3);
+      document.getElementById('ptTimeline2').textContent = '$' + fmt(t60, 3);
+    }
+
+    // ── Quiz ────────────────────────────────────────────────────────────────
+    function selectOption(el, qId, val) {
+      document.querySelectorAll('#' + qId + ' .quiz-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      el.querySelector('input').checked = true;
+    }
+
+    function getAnswer(q, val) {
+      return { q, val };
+    }
+
+    function calculateRecommendation() {
+      const q1 = document.querySelector('input[name="q1"]:checked');
+      const q2 = document.querySelector('input[name="q2"]:checked');
+      const q3 = document.querySelector('input[name="q3"]:checked');
+
+      if (!q1 || !q2 || !q3) {
+        alert('Please answer all three questions to get your recommendation.');
+        return;
+      }
+
+      const a1 = q1.value;
+      const a2 = q2.value;
+      const a3 = q3.value;
+
+      let strategy, description, link;
+
+      // Decision tree
+      if (a3 === 'c' || (a3 === 'b' && a1 === 'c')) {
+        strategy = 'LSD Liquidity (stETH as Collateral)';
+        description = 'You want low risk with capital preservation. Using stETH as collateral on Aave lets you earn ~4.2% staking yield while borrowing stablecoins for liquidity — no selling required. Your health factor stays safe as long as you keep LTV below 65%. This is the most beginner-friendly strategy with proven, consistent returns.';
+        link = '#lsd-liquidity';
+      } else if (a1 === 'b' || a1 === 'd') {
+        strategy = 'PT/YT Fixed Yield Hedge (Pendle)';
+        description = 'You want predictable, fixed-rate returns. Buying Pendle PT lets you lock in the current implied yield (often 5–8%) for a set period. Your principal is protected — PT always returns $1.00 at maturity. Combined with YT for variable exposure, this is the most sophisticated fixed-income-like instrument in DeFi.';
+        link = '#pendle-hedge';
+      } else if (a3 === 'a' || (a3 === 'b' && a1 === 'a')) {
+        strategy = 'Yield Arbitrage (Stablecoin Carry)';
+        description = 'Moderate-to-high yield with manageable risk. The stablecoin carry trade — borrowing on Aave and deploying to Curve LP — captures 1–3% net spread with essentially zero impermanent loss. With $5K+ capital this easily covers gas costs and generates reliable returns. Perfect for when you have idle stablecoins.';
+        link = '#yield-arbitrage';
+      } else if (a3 === 'a' && (a1 === 'a' || a2 === 'c')) {
+        strategy = 'Delta Neutral (stETH + Pendle PT Short)';
+        description = 'You want high yield with market-neutral positioning. The delta neutral strategy pairs long stETH (earning 4.2% staking yield) with a short PT position on Pendle. The two exposures cancel out — you\'re immune to ETH price swings but capture the net yield spread. More complex than simple strategies but elegant for sophisticated ETH holders.';
+        link = '#delta-neutral';
+      } else {
+        strategy = 'Leveraged Farming (3x leverage)';
+        description = 'You\'re comfortable with high risk for maximum yield. At 3x leverage on a Curve LP farm, your effective APY can reach 15–25%. The borrowed capital amplifies everything — including losses. Start with 3x, never go above 5x, and watch your health factor like a hawk. One bad day can wipe you out completely.';
+        link = '#leveraged-farming';
+      }
+
+      document.getElementById('quizResultTitle').textContent = 'Your Strategy: ' + strategy;
+      document.getElementById('quizResultText').textContent = description;
+      document.getElementById('quizResultLink').href = link;
+      document.getElementById('quizResult').classList.add('show');
+      document.getElementById('quizResult').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // ── Init all ─────────────────────────────────────────────────────────────
+    updateLeveragedFarming();
+    updateDeltaNeutral();
+    updateYieldArbitrage();
+    updateLsdLiquidity();
+    updateLsdBorrow();
+    updatePendleHedge();
+  </script>
+</body>
+</html>

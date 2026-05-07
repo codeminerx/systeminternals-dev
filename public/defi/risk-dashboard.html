@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeFi Risk Dashboard — Protocol Risk Comparison</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "How is DeFi protocol risk assessed?", "acceptedAnswer": {"@type": "Answer", "text": "DeFi protocol risk is assessed across multiple dimensions: smart contract risk (audits, bug bounty size, code complexity), financial risk (collateral factors, liquidation mechanics, oracle reliability), governance risk (decentralization level, token distribution, upgrade key controls), and systemic risk (correlations during market crashes, TVL concentration)."}},
+      {"@type": "Question", "name": "What is a collateral factor in DeFi lending?", "acceptedAnswer": {"@type": "Answer", "text": "The collateral factor is the maximum percentage of an asset's value you can borrow against it. For example, a 75% collateral factor on WBTC means you can borrow up to $75 of DAI for every $100 of WBTC you deposit. Higher collateral factors allow more leverage but increase liquidation risk. Different protocols set different factors based on asset volatility."}},
+      {"@type": "Question", "name": "What are the safest DeFi protocols?", "acceptedAnswer": {"@type": "Answer", "text": "No DeFi protocol is risk-free. Generally, the most battle-tested protocols with the longest track records (Aave, Compound, Curve) and highest TVL are considered lower risk, along with those with strong governance, large bug bounties, and audited contracts. However, 'safe' is always relative — smart contract exploits can affect even well-audited protocols."}},
+      {"@type": "Question", "name": "What is oracle risk in DeFi?", "acceptedAnswer": {"@type": "Answer", "text": "Oracle risk arises from the need for DeFi protocols to know real-world asset prices. If an oracle reports wrong prices (due to manipulation, network issues, or faulty data feeds), it can lead to incorrect liquidations or undercollateralized loans. Protocols mitigate this by using multiple oracle sources (like Chainlink, Uniswap TWAPs, or custom feeds) and time-weighted averages."}},
+      {"@type": "Question", "name": "Why is TVL concentration a risk?", "acceptedAnswer": {"@type": "Answer", "text": "Protocols with very high TVL relative to their token market cap are exposed to governance attacks — where an attacker accumulates enough voting power to approve malicious proposals that drain the protocol's funds. Lido's ~30% dominance of staked ETH has raised similar concerns about Ethereum's overall security. This is sometimes called 'social slashing' or governance governance risk."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+  <style>
+    /* Dashboard specific overrides */
+    .risk-hero { padding: 100px 0 60px; text-align: center; }
+    .risk-hero h1 { font-size: clamp(40px, 7vw, 72px); font-weight: 800; letter-spacing: -2px; margin-bottom: 16px; }
+    .risk-hero p { font-size: 18px; color: var(--muted); max-width: 680px; margin: 0 auto 40px; }
+
+    /* Risk Matrix Grid */
+    .risk-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 32px; }
+    .protocol-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      transition: all 0.25s;
+    }
+    .protocol-card:hover { border-color: var(--primary); transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.5); }
+    .protocol-card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+    .protocol-icon-sm {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .protocol-card h3 { font-size: 17px; font-weight: 700; }
+    .protocol-card .protocol-cat { font-size: 12px; color: var(--muted); }
+    .protocol-card .overall-score {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      font-family: var(--mono);
+      font-size: 16px;
+      font-weight: 700;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .score-low { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+    .score-med { background: rgba(245,158,11,0.15); color: var(--accent); border: 1px solid rgba(245,158,11,0.3); }
+    .score-high { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+
+    .risk-dimensions { display: flex; flex-direction: column; gap: 10px; }
+    .risk-dim { display: flex; align-items: center; gap: 10px; }
+    .risk-dim .dim-label { font-size: 12px; color: var(--muted); width: 110px; flex-shrink: 0; }
+    .risk-dim .dim-bar { flex: 1; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+    .risk-dim .dim-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+    .risk-dim .dim-val { font-family: var(--mono); font-size: 12px; font-weight: 600; width: 28px; text-align: right; }
+    .risk-low .dim-fill { background: var(--success); }
+    .risk-low .dim-val { color: var(--success); }
+    .risk-med .dim-fill { background: var(--accent); }
+    .risk-med .dim-val { color: var(--accent); }
+    .risk-high .dim-fill { background: var(--danger); }
+    .risk-high .dim-val { color: var(--danger); }
+
+    /* Liquidation Gauge */
+    .liquidation-section { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+    .gauge-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      text-align: center;
+    }
+    .gauge-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .gauge-card .gauge-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+    .gauge-svg { width: 200px; height: 120px; margin: 0 auto 20px; }
+    .gauge-track { fill: none; stroke: var(--surface-2); stroke-width: 12; stroke-linecap: round; }
+    .gauge-fill { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset 0.8s ease; }
+    .gauge-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: -8px; }
+    .health-meter { margin-top: 16px; }
+    .health-bar-wrap { background: var(--surface-2); border-radius: 6px; height: 12px; overflow: hidden; margin: 8px 0; }
+    .health-bar-fill { height: 100%; border-radius: 6px; transition: width 0.6s ease, background 0.3s; }
+    .health-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+    .collateral-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+    .collateral-inputs label { font-size: 12px; color: var(--muted); text-align: left; }
+    .collateral-inputs input {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 14px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      outline: none;
+      text-align: center;
+    }
+    .collateral-inputs input:focus { border-color: var(--primary); }
+    .liquidation-result { margin-top: 16px; padding: 14px; border-radius: 10px; font-family: var(--mono); font-size: 14px; font-weight: 600; }
+
+    /* TVL Chart */
+    .tvl-chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; position: relative; overflow: hidden; }
+    .tvl-svg { width: 100%; height: 300px; }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 20px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .tvl-events { position: absolute; top: 16px; right: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .event-tag {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .event-tag .event-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .risk-zones { position: absolute; top: 56px; left: 0; right: 0; height: 300px; pointer-events: none; display: flex; flex-direction: column; }
+
+    /* Audit Table */
+    .audit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .audit-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .audit-card:hover { border-color: var(--secondary); transform: translateY(-3px); }
+    .audit-card .protocol-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .audit-stats { display: flex; flex-direction: column; gap: 10px; }
+    .audit-stat { display: flex; justify-content: space-between; align-items: center; }
+    .audit-stat .audit-label { font-size: 13px; color: var(--muted); }
+    .audit-stat .audit-val { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+    .audit-expand {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      display: none;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .audit-card.expanded .audit-expand { display: block; }
+    .expand-btn { font-size: 12px; color: var(--primary); margin-top: 8px; cursor: pointer; }
+    .expand-btn:hover { text-decoration: underline; }
+
+    /* IL Calculator */
+    .il-calc { display: grid; grid-template-columns: 1fr 1.4fr; gap: 24px; align-items: start; }
+    .il-inputs { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
+    .il-results { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
+    .il-result-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .il-result-row:last-child { border-bottom: none; }
+    .il-result-row .il-label { font-size: 14px; color: var(--muted); }
+    .il-result-row .il-value { font-family: var(--mono); font-size: 18px; font-weight: 700; }
+    .il-value.danger { color: var(--danger); }
+    .il-value.success { color: var(--success); }
+    .il-value.primary { color: var(--primary); }
+    .il-chart-svg { width: 100%; height: 180px; margin-top: 20px; }
+    .il-pair-btns { display: flex; flex-direction: column; gap: 8px; }
+    .il-pair-btn {
+      padding: 10px 14px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: left;
+    }
+    .il-pair-btn:hover { border-color: var(--primary); color: var(--text); }
+    .il-pair-btn.active { border-color: var(--primary); background: rgba(0,255,200,0.08); color: var(--primary); }
+
+    /* Bridge Comparison */
+    .bridge-table-wrap { overflow-x: auto; }
+    .bridge-table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    .bridge-table th { text-align: left; padding: 12px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); border-bottom: 1px solid var(--border); }
+    .bridge-table td { padding: 16px; font-size: 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .bridge-table tr:last-child td { border-bottom: none; }
+    .bridge-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .bridge-name { font-weight: 700; font-size: 15px; }
+    .bridge-type-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .type-optimistic { background: rgba(245,158,11,0.15); color: var(--accent); border: 1px solid rgba(245,158,11,0.3); }
+    .type-zk { background: rgba(168,85,247,0.15); color: var(--secondary); border: 1px solid rgba(168,85,247,0.3); }
+    .type-multisig { background: rgba(0,255,200,0.1); color: var(--primary); border: 1px solid rgba(0,255,200,0.2); }
+    .type-hybrid { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
+    .bridge-exploit { font-size: 12px; padding: 3px 8px; border-radius: 4px; font-weight: 600; }
+    .no-exploit { background: rgba(34,197,94,0.1); color: var(--success); }
+    .had-exploit { background: rgba(239,68,68,0.1); color: var(--danger); }
+
+    /* Portfolio Risk Calculator */
+    .portfolio-calc { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; align-items: start; }
+    .portfolio-inputs { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
+    .portfolio-output { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; text-align: center; }
+    .portfolio-meter { margin: 24px 0; }
+    .portfolio-meter svg { width: 160px; height: 160px; }
+    .meter-bg { fill: none; stroke: var(--surface-2); stroke-width: 10; }
+    .meter-fill { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease, stroke 0.3s; }
+    .meter-center { text-anchor: middle; }
+    .portfolio-meter .meter-score { font-family: var(--mono); font-size: 36px; font-weight: 700; fill: var(--text); }
+    .portfolio-meter .meter-label { font-size: 12px; fill: var(--muted); }
+    .portfolio-table { margin-top: 16px; }
+    .portfolio-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .portfolio-row:last-child { border-bottom: none; }
+    .portfolio-row .p-name { color: var(--muted); }
+    .portfolio-row .p-pct { font-family: var(--mono); color: var(--primary); font-weight: 600; }
+    .portfolio-row .p-risk { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+    .portfolio-row .p-weighted { font-family: var(--mono); font-size: 13px; color: var(--secondary); }
+    .suggestion-box { margin-top: 20px; padding: 16px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.2); border-radius: 10px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* Glossary */
+    .glossary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+    .glossary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+    .glossary-card h4 { font-size: 15px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+    .glossary-card p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .faq-list { max-width: 720px; margin: 0 auto; }
+    .faq-item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+    .faq-q { padding: 18px 22px; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.15s; }
+    .faq-q:hover { background: var(--surface-2); }
+    .faq-q::after { content: '+'; font-size: 20px; color: var(--primary); transition: transform 0.2s; }
+    .faq-item.open .faq-q::after { transform: rotate(45deg); }
+    .faq-a { padding: 0 22px; max-height: 0; overflow: hidden; transition: all 0.3s; font-size: 14px; color: var(--muted); line-height: 1.7; }
+    .faq-item.open .faq-a { padding: 0 22px 18px; max-height: 300px; }
+
+    /* Section divider */
+    .section-divider { display: flex; align-items: center; gap: 16px; margin: 48px 0 32px; }
+    .section-divider h2 { font-size: 24px; font-weight: 700; white-space: nowrap; }
+    .section-divider h2 span { color: var(--primary); }
+    .section-divider .div-line { flex: 1; height: 1px; background: var(--border); }
+
+    /* Protocol link badges */
+    .protocol-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .protocol-links a { font-size: 12px; padding: 4px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; color: var(--muted); text-decoration: none; transition: all 0.15s; }
+    .protocol-links a:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* Mobile */
+    @media (max-width: 768px) {
+      .risk-matrix { grid-template-columns: 1fr; }
+      .il-calc { grid-template-columns: 1fr; }
+      .portfolio-calc { grid-template-columns: 1fr; }
+      .collateral-inputs { grid-template-columns: 1fr; }
+      .glossary-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+  <a href="index.html" class="nav-logo">DeFi<span>Scope</span></a>
+  <div class="nav-links">
+    <a href="index.html">Overview</a>
+    <a href="risk-dashboard.html" class="active">Risk Dashboard</a>
+    <a href="aave.html">Aave</a>
+    <a href="curve.html">Curve</a>
+    <a href="makerdao.html">MakerDAO</a>
+    <a href="lido.html">Lido</a>
+    <a href="bridges.html">Bridges</a>
+    <a href="mev.html">MEV</a>
+    <a href="aggregators.html">Aggregators</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="risk-hero page">
+  <div class="container">
+    <div class="hero-label"><span class="dot"></span> Live Risk Analytics</div>
+    <h1>DeFi <span class="grad">Risk Dashboard</span></h1>
+    <p>Comprehensive risk comparison across 10 major DeFi protocols. Evaluate smart contract, counterparty, liquidity, regulatory, and market risk — all in one place.</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a href="#protocol-matrix" class="hero-cta" style="background:var(--primary);color:var(--bg);">View Risk Matrix</a>
+      <a href="#il-calculator" class="hero-cta" style="background:var(--surface);border:1px solid var(--border);color:var(--text);">IL Calculator</a>
+      <a href="#portfolio-risk" class="hero-cta" style="background:var(--surface);border:1px solid var(--border);color:var(--text);">Portfolio Risk</a>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 1: Protocol Risk Matrix -->
+<section class="section" id="protocol-matrix">
+  <div class="container">
+    <div class="section-divider">
+      <div class="div-line"></div>
+      <h2>01 — Protocol <span>Risk Matrix</span></h2>
+      <div class="div-line"></div>
+    </div>
+    <p style="color:var(--muted);font-size:15px;margin-bottom:32px;">Risk scores 1–10 across 5 dimensions. <span style="color:var(--success)">■ Low (1–3)</span> &nbsp;<span style="color:var(--accent)">■ Medium (4–6)</span> &nbsp;<span style="color:var(--danger)">■ High (7–10)</span></p>
+
+    <div class="risk-matrix" id="riskMatrix">
+      <!-- Cards injected by JS -->
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 2: Liquidation Risk -->
+<section class="section" id="liquidation-risk">
+  <div class="container">
+    <div class="section-divider">
+      <div class="div-line"></div>
+      <h2>02 — Liquidation <span>Risk Comparator</span></h2>
+      <div class="div-line"></div>
+    </div>
+    <p style="color:var(--muted);font-size:15px;margin-bottom:32px;">Interactive health factor gauges for major lending protocols. Adjust collateral ratio to see distance to liquidation.</p>
+
+    <div class="liquidation-section">
+      <!-- Aave -->
+      <div class="gauge-card">
+        <h3>🦈 Aave V3</h3>
+        <div class="gauge-sub">Health Factor Analysis</div>
+        <svg class="gauge-svg" viewBox="0 0 200 120">
+          <path class="gauge-track" d="M 20 100 A 80 80 0 0 1 180 100" />
+          <path class="gauge-fill" id="aaveGaugeFill" d="M 20 100 A 80 80 0 0 1 180 100" stroke="var(--success)" stroke-dasharray="251" stroke-dashoffset="251" />
+        </svg>
+        <div class="gauge-labels"><span>Liquidate</span><span>Safe</span></div>
+        <div class="health-meter">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">Current Health Factor</div>
+          <div class="health-bar-wrap">
+            <div class="health-bar-fill" id="aaveHealthBar" style="width:80%;background:linear-gradient(90deg,var(--success),var(--primary));"></div>
+          </div>
+          <div class="health-labels"><span>1.0 (Danger)</span><span id="aaveHfVal" style="font-family:var(--mono);font-weight:700;color:var(--success);">2.0×</span></div>
+        </div>
+        <div class="collateral-inputs">
+          <div>
+            <label>Collateral ($)</label>
+            <input type="number" id="aaveCollateral" value="10000" oninput="updateAaveGauge()">
+          </div>
+          <div>
+            <label>Borrow ($)</label>
+            <input type="number" id="aaveBorrow" value="5000" oninput="updateAaveGauge()">
+          </div>
+        </div>
+        <div class="liquidation-result" id="aaveResult" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:var(--success);">
+          ✅ Health Factor: 2.0 — Safe position
+        </div>
+      </div>
+
+      <!-- Compound -->
+      <div class="gauge-card">
+        <h3>💰 Compound V3</h3>
+        <div class="gauge-sub">Health Factor Analysis</div>
+        <svg class="gauge-svg" viewBox="0 0 200 120">
+          <path class="gauge-track" d="M 20 100 A 80 80 0 0 1 180 100" />
+          <path class="gauge-fill" id="compoundGaugeFill" d="M 20 100 A 80 80 0 0 1 180 100" stroke="var(--success)" stroke-dasharray="251" stroke-dashoffset="251" />
+        </svg>
+        <div class="gauge-labels"><span>Liquidate</span><span>Safe</span></div>
+        <div class="health-meter">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">Current Health Factor</div>
+          <div class="health-bar-wrap">
+            <div class="health-bar-fill" id="compoundHealthBar" style="width:80%;background:linear-gradient(90deg,var(--success),var(--primary));"></div>
+          </div>
+          <div class="health-labels"><span>1.0 (Danger)</span><span id="compoundHfVal" style="font-family:var(--mono);font-weight:700;color:var(--success);">2.0×</span></div>
+        </div>
+        <div class="collateral-inputs">
+          <div>
+            <label>Collateral ($)</label>
+            <input type="number" id="compoundCollateral" value="10000" oninput="updateCompoundGauge()">
+          </div>
+          <div>
+            <label>Borrow ($)</label>
+            <input type="number" id="compoundBorrow" value="5000" oninput="updateCompoundGauge()">
+          </div>
+        </div>
+        <div class="liquidation-result" id="compoundResult" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:var(--success);">
+          ✅ Health Factor: 2.0 — Safe position
+        </div>
+      </div>
+
+      <!-- MakerDAO DSR -->
+      <div class="gauge-card">
+        <h3>🏛️ MakerDAO DSR</h3>
+        <div class="gauge-sub">DAI Debt Ceiling & DSR Rate</div>
+        <div style="margin:16px 0;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px;">
+            <span>DAI Supply Used</span>
+            <span style="font-family:var(--mono);color:var(--primary);" id="daiSupplyPct">62%</span>
+          </div>
+          <div class="health-bar-wrap" style="height:16px;">
+            <div class="health-bar-fill" id="daiSupplyBar" style="width:62%;background:linear-gradient(90deg,var(--primary),var(--secondary));"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px;">
+            <span>0</span><span id="daiCeiling">$3.6B ceiling</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
+          <div style="background:var(--surface-2);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">DSR Rate</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--primary);margin-top:4px;">5.0%</div>
+          </div>
+          <div style="background:var(--surface-2);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Annual Savings Rate</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--secondary);margin-top:4px;">8.0%</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:12px;background:rgba(0,255,200,0.05);border:1px solid rgba(0,255,200,0.15);border-radius:10px;font-size:13px;color:var(--muted);">
+          MakerDAO uses DSR ( Dai Savings Rate) instead of traditional health factors. Users earn yield on DAI holdings.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 3: TVL Over Time -->
+<section class="section" id="tvl-history">
+  <div class="container">
+    <div class="section-divider">
+      <div class="div-line"></div>
+      <h2>03 — TVL & Risk <span>Over Time</span></h2>
+      <div class="div-line"></div>
+    </div>
+    <p style="color:var(--muted);font-size:15px;margin-bottom:32px;">Total Value Locked trends for major DeFi protocols with annotated risk events. Approximate data for illustration.</p>
+
+    <div class="tvl-chart-wrap">
+      <div class="tvl-events">
+        <div class="event-tag"><span class="event-dot" style="background:var(--danger);"></span>Terra Collapse</div>
+        <div class="event-tag"><span class="event-dot" style="background:var(--danger);"></span>FTX Crash</div>
+        <div class="event-tag"><span class="event-dot" style="background:var(--accent);"></span>DeFi Summer</div>
+        <div class="event-tag"><span class="event-dot" style="background:var(--success);"></span>2024 Bull Run</div>
+      </div>
+      <svg class="tvl-svg" id="tvlChart" viewBox="0 0 900 300" preserveAspectRatio="none">
+        <!-- Grid lines -->
+        <g stroke="var(--border)" stroke-width="0.5">
+          <line x1="50" y1="30" x2="880" y2="30"/>
+          <line x1="50" y1="85" x2="880" y2="85"/>
+          <line x1="50" y1="140" x2="880" y2="140"/>
+          <line x1="50" y1="195" x2="880" y2="195"/>
+          <line x1="50" y1="250" x2="880" y2="250"/>
+        </g>
+        <!-- Risk zone bands -->
+        <rect x="50" y="30" width="200" height="220" fill="rgba(239,68,68,0.03)"/>
+        <rect x="250" y="30" width="300" height="220" fill="rgba(245,158,11,0.03)"/>
+        <rect x="550" y="30" width="330" height="220" fill="rgba(34,197,94,0.03)"/>
+        <!-- Y axis labels -->
+        <text x="45" y="34" font-size="10" fill="var(--muted)" text-anchor="end" font-family="JetBrains Mono,monospace">$50B</text>
+        <text x="45" y="89" font-size="10" fill="var(--muted)" text-anchor="end" font-family="JetBrains Mono,monospace">$37B</text>
+        <text x="45" y="144" font-size="10" fill="var(--muted)" text-anchor="end" font-family="JetBrains Mono,monospace">$25B</text>
+        <text x="45" y="199" font-size="10" fill="var(--muted)" text-anchor="end" font-family="JetBrains Mono,monospace">$12B</text>
+        <text x="45" y="254" font-size="10" fill="var(--muted)" text-anchor="end" font-family="JetBrains Mono,monospace">$0</text>
+        <!-- X axis labels -->
+        <text x="80" y="270" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="JetBrains Mono,monospace">2020</text>
+        <text x="220" y="270" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="JetBrains Mono,monospace">2021</text>
+        <text x="370" y="270" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="JetBrains Mono,monospace">2022</text>
+        <text x="520" y="270" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="JetBrains Mono,monospace">2023</text>
+        <text x="670" y="270" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="JetBrains Mono,monospace">2024</text>
+        <text x="810" y="270" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="JetBrains Mono,monospace">2025</text>
+        <!-- Event markers -->
+        <line x1="190" y1="30" x2="190" y2="250" stroke="var(--danger)" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+        <line x1="340" y1="30" x2="340" y2="250" stroke="var(--danger)" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+        <line x1="80" y1="30" x2="80" y2="250" stroke="var(--accent)" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+        <line x1="720" y1="30" x2="720" y2="250" stroke="var(--success)" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+        <!-- Lido line (largest, approx) -->
+        <path id="lidoLine" d="M 80 240 C 150 230 200 220 280 200 C 360 180 380 190 440 210 C 500 230 560 180 620 150 C 680 120 740 80 800 60 C 830 50 850 45 880 40" fill="none" stroke="var(--primary)" stroke-width="2.5" opacity="0.9"/>
+        <!-- Aave line -->
+        <path id="aaveLine" d="M 80 200 C 150 180 200 160 280 140 C 360 120 380 150 440 170 C 500 190 560 160 620 130 C 680 100 740 90 800 85 C 830 80 850 75 880 70" fill="none" stroke="var(--accent)" stroke-width="2.5" opacity="0.9"/>
+        <!-- Curve line -->
+        <path id="curveLine" d="M 80 220 C 150 200 200 170 280 130 C 360 90 380 130 440 160 C 500 190 560 140 620 110 C 680 80 740 95 800 100 C 830 100 850 100 880 98" fill="none" stroke="var(--secondary)" stroke-width="2.5" opacity="0.9"/>
+        <!-- MakerDAO line -->
+        <path id="makerLine" d="M 80 210 C 150 200 200 180 280 160 C 360 140 380 165 440 180 C 500 195 560 175 620 155 C 680 135 740 130 800 125 C 830 122 850 120 880 118" fill="none" stroke="#f97316" stroke-width="2.5" opacity="0.9"/>
+      </svg>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--primary);"></div>Lido</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent);"></div>Aave</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--secondary);"></div>Curve</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f97316;"></div>MakerDAO</div>
+        <div class="legend-item" style="margin-left:auto;"><span style="font-size:11px;">Zone:</span>&nbsp;<span style="color:var(--danger);font-size:11px;">High Risk</span>&nbsp;<span style="color:var(--accent);font-size:11px;">Caution</span>&nbsp;<span style="color:var(--success);font-size:11px;">Recovery</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 4: Smart Contract Risk -->
+<section class="section" id="sc-risk">
+  <div class="container">
+    <div class="section-divider">
+      <div class="div-line"></div>
+      <h2>04 — Smart Contract <span>Risk Deep Dive</span></h2>
+      <div class="div-line"></div>
+    </div>
+    <p style="color:var(--muted);font-size:15px;margin-bottom:32px;">Audit history, bug bounties, time in production, and insurance coverage across protocols. Click any card to expand.</p>
+
+    <div class="audit-grid" id="auditGrid">
+      <!-- JS populated -->
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 5: IL Calculator -->
+<section class="section" id="il-calculator">
+  <div class="container">
+    <div class="section-divider">
+      <div class="div-line"></div>
+      <h2>05 — Impermanent Loss <span>Calculator</span></h2>
+      <div class="div-line"></div>
+    </div>
+    <p style="color:var(--muted);font-size:15px;margin-bottom:32px;">Calculate impermanent loss for any LP position. Select a pair type and price movement to see your IL exposure.</p>
+
+    <div class="il-calc">
+      <div class="il-inputs">
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:20px;">Pair Configuration</h3>
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-size:13px;color:var(--muted);margin-bottom:8px;">Select Pool Type</label>
+          <div class="il-pair-btns">
+            <button class="il-pair-btn active" onclick="setIlPair('stable', this)">🪙 Stablecoin (USDC/USDT)</button>
+            <button class="il-pair-btn" onclick="setIlPair('ethbtc', this)">⟳ ETH/BTC Correlated</button>
+            <button class="il-pair-btn" onclick="setIlPair('ethstable', this)">⟳ ETH/USDC Volatile</button>
+            <button class="il-pair-btn" onclick="setIlPair('alteth', this)">🚀 Altcoin/ETH High Vol</button>
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Initial Investment ($)</label>
+          <input type="number" id="ilInvestment" value="10000" oninput="calculateIL()">
+        </div>
+        <div class="input-group">
+          <label>Price Change (%)</label>
+          <input type="number" id="ilPriceChange" value="-50" oninput="calculateIL()">
+        </div>
+        <div style="margin-top:12px;padding:12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;font-size:12px;color:var(--accent);">
+          💡 Negative % = price drop. Positive % = price rally.
+        </div>
+      </div>
+
+      <div class="il-results">
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:20px;">IL Analysis</h3>
+        <div class="il-result-row">
+          <span class="il-label">Impermanent Loss</span>
+          <span class="il-value danger" id="ilLoss">-5.72%</span>
+        </div>
+        <div class="il-result-row">
+          <span class="il-label">Loss on Investment</span>
+          <span class="il-value danger" id="ilLossDollar">-$572</span>
+        </div>
+        <div class="il-result-row">
+          <span class="il-label">Remaining Value</span>
+          <span class="il-value primary" id="ilRemaining">$9,428</span>
+        </div>
+        <div class="il-result-row">
+          <span class="il-label">HODL Value (no IL)</span>
+          <span class="il-value" id="ilHodl" style="color:var(--text);">$10,000</span>
+        </div>
+        <div class="il-result-row">
+          <span class="il-label">Fee APY Needed to Break Even</span>
+          <span class="il-value success" id="ilBreakEven">12.1%</span>
+        </div>
+        <svg class="il-chart-svg" id="ilChart" viewBox="0 0 400 160">
+          <!-- IL curve chart -->
+          <defs>
+            <linearGradient id="ilGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="var(--danger)"/>
+              <stop offset="50%" stop-color="var(--accent)"/>
+              <stop offset="100%" stop-color="var(--success)"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid -->
+          <g stroke="var(--border)" stroke-width="0.5">
+            <line x1="30" y1="20" x2="390" y2="20"/>
+            <line x1="30" y1="60" x2="390" y2="60"/>
+            <line x1="30" y1="100" x2="390" y2="100"/>
+            <line x1="30" y1="140" x2="390" y2="140"/>
+          </g>
+          <text x="25" y="24" font-size="9" fill="var(--muted)" text-anchor="end">0%</text>
+          <text x="25" y="64" font-size="9" fill="var(--muted)" text-anchor="end">-5%</text>
+          <text x="25" y="104" font-size="9" fill="var(--muted)" text-anchor="end">-10%</text>
+          <text x="25" y="144" font-size="9" fill="var(--muted)" text-anchor="end">-15%</text>
+          <text x="210" y="155" font-size="9" fill="var(--muted)" text-anchor="middle">Price Change %</text>
+          <text x="30" y="10" font-size="10" fill="var(--primary)" text-anchor="start">IL vs Price Change</text>
+          <!-- IL Curve: IL = 2*sqrt(r)/(1+r) - 1 where r = price ratio -->
+          <path id="ilCurvePath" d="" fill="none" stroke="url(#ilGrad)" stroke-width="2.5"/>
+          <!-- Current marker -->
+          <circle id="ilMarker" cx="210" cy="80" r="6" fill="var(--danger)"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 6: Bridge Risk Comparison -->
+<section class="section" id="bridge-risk">
+  <div class="container">
+    <div class="section-divider">
+      <div class="div-line"></div>
+      <h2>06 — Bridge Risk <span>Comparison</span></h2>
+      <div class="div-line"></div>
+    </div>
+    <p style="color:var(--muted);font-size:15px;margin-bottom:32px;">Security architecture, track record, and locked value for major cross-chain bridges.</p>
+
+    <div class="sandbox">
+      <div class="bridge-table-wrap">
+        <table class="bridge-table">
+          <thead>
+            <tr>
+              <th>Bridge</th>
+              <th>Type</th>
+              <th>Locked Value</th>
+              <th>Age</th>
+              <th>Security</th>
+              <th>Exploits</th>
+              <th>Risk Score</th>
+            </tr>
+          </thead>
+          <tbody id="bridgeTableBody">
+            <!-- JS populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 7: Portfolio Risk Calculator -->
+<section class="section" id="portfolio-risk">
+  <div class="container">
+    <div class="section-divider">
+      <div class="div-line"></div>
+      <h2>07 — DeFi Risk <span>Score Calculator</span></h2>
+      <div class="div-line"></div>
+    </div>
+    <p style="color:var(--muted);font-size:15px;margin-bottom:32px;">Input your portfolio allocation to get a personalized weighted risk score and diversification advice.</p>
+
+    <div class="portfolio-calc">
+      <div class="portfolio-inputs">
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:20px;">Your Portfolio Allocation</h3>
+        <div id="portfolioInputs">
+          <!-- JS populated -->
+        </div>
+        <div style="margin-top:20px;display:flex;gap:10px;">
+          <button onclick="resetPortfolio()" style="flex:1;padding:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px;cursor:pointer;">Reset</button>
+          <button onclick="calculatePortfolio()" style="flex:2;padding:10px;background:var(--primary);border:none;border-radius:8px;color:var(--bg);font-size:14px;font-weight:700;cursor:pointer;">Calculate Risk Score</button>
+        </div>
+      </div>
+
+      <div class="portfolio-output">
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:4px;">Portfolio Risk Score</h3>
+        <div class="portfolio-meter">
+          <svg viewBox="0 0 160 160">
+            <circle class="meter-bg" cx="80" cy="80" r="65"/>
+            <circle class="meter-fill" id="portfolioMeterFill" cx="80" cy="80" r="65" stroke="var(--accent)" stroke-dasharray="408" stroke-dashoffset="408" transform="rotate(-90 80 80)"/>
+            <g class="meter-center">
+              <text class="meter-score" id="portfolioScore" x="80" y="88">5.0</text>
+              <text class="meter-label" x="80" y="105">out of 10</text>
+            </g>
+          </svg>
+        </div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:16px;" id="portfolioRating">⚠️ Moderate Risk</div>
+        <div class="portfolio-table" id="portfolioBreakdown">
+          <!-- JS populated -->
+        </div>
+        <div class="suggestion-box" id="portfolioSuggestion">
+          💡 Your portfolio has high DeFi protocol concentration. Consider diversifying across liquid staking tokens and stablecoin DeFi to reduce smart contract risk.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 8: Glossary & FAQ -->
+<section class="section" id="glossary">
+  <div class="container">
+    <div class="section-divider">
+      <div class="div-line"></div>
+      <h2>08 — Risk Glossary <span>& FAQ</span></h2>
+      <div class="div-line"></div>
+    </div>
+
+    <div class="glossary-grid">
+      <div class="glossary-card">
+        <h4>🛡️ Smart Contract Risk</h4>
+        <p>The risk that a protocol's code contains bugs, vulnerabilities, or exploits that can lead to loss of funds. Mitigated by audits, bug bounties, and time in production.</p>
+      </div>
+      <div class="glossary-card">
+        <h4>👥 Counterparty Risk</h4>
+        <p>The risk that another party in a financial transaction defaults or behaves dishonestly. In DeFi, this applies to centralized bridges, custodians, and institutional counterparties.</p>
+      </div>
+      <div class="glossary-card">
+        <h4>💧 Liquidity Risk</h4>
+        <p>The risk of being unable to enter or exit a position at a fair price due to insufficient market depth. Higher in low-cap altcoin pools and newer protocols.</p>
+      </div>
+      <div class="glossary-card">
+        <h4>📋 Regulatory Risk</h4>
+        <p>The risk that regulations restrict or ban certain DeFi activities, token types, or protocols. Higher for privacy coins, mixers, and protocols without clear legal status.</p>
+      </div>
+      <div class="glossary-card">
+        <h4>📉 Market Risk</h4>
+        <p>Systemic risk from crypto market downturns, correlation across assets, and cascading liquidations. The primary cause of DeFi mega-liquidations in 2022.</p>
+      </div>
+      <div class="glossary-card">
+        <h4>⚖️ Health Factor</h4>
+        <p>The ratio of collateral value to borrowed value. Below 1.0 triggers liquidation on Aave/Compound. Higher = safer position. Aim for HF > 1.5 as a safety margin.</p>
+      </div>
+      <div class="glossary-card">
+        <h4>💸 Impermanent Loss</h4>
+        <p>Loss incurred by liquidity providers when the price of assets diverges from when they were deposited. "Impermanent" until the position is withdrawn. Stablecoin pools have near-zero IL.</p>
+      </div>
+      <div class="glossary-card">
+        <h4>🔗 Reentrancy Attack</h4>
+        <p>An exploit where a malicious contract recursively calls a vulnerable function before the state updates. Famous example: The DAO hack (2016). Mitigated by checks-effects-interactions pattern.</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:22px;font-weight:700;margin:48px 0 24px;text-align:center;">Frequently Asked Questions</h3>
+    <div class="faq-list">
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">What is the safest DeFi protocol?</div>
+        <div class="faq-a">No DeFi protocol is risk-free. However, Aave, MakerDAO, and Compound consistently rank highest in smart contract security due to extensive audits, bug bounties, and multi-year track records. Always DYOR and never invest more than you can afford to lose.</div>
+      </div>
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">How is overall risk score calculated?</div>
+        <div class="faq-a">The overall score is a weighted average of 5 risk dimensions: Smart Contract Risk (30%), Counterparty Risk (20%), Liquidity Risk (20%), Regulatory Risk (10%), and Market Risk (20%). Each dimension is scored 1–10, where 1 is lowest risk.</div>
+      </div>
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">What health factor should I maintain?</div>
+        <div class="faq-a">Most lending protocols liquidate positions below HF=1.0. We recommend maintaining HF > 1.5 as a safety margin to avoid liquidation during volatility. Some sophisticated users target HF > 2.0 for maximum safety.</div>
+      </div>
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">Are audits enough to guarantee safety?</div>
+        <div class="faq-a">Audits are important but not sufficient. They represent a point-in-time review. Protocols evolve, new attack vectors emerge, and dependencies (oracles, bridges) can be compromised. Look for protocols with ongoing bug bounties, multiple audits from reputable firms, and strong security teams.</div>
+      </div>
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">How do bridges compare on security?</div>
+        <div class="faq-a">ZK-based bridges (zkBridge, Succinct) generally offer stronger security guarantees than optimistic bridges, which rely on honest minority assumptions. Multisig bridges are simplest but concentrate trust in a small number of guardians. Always check the guardian set size and slashing conditions.</div>
+      </div>
+      <div class="faq-item" onclick="toggleFaq(this)">
+        <div class="faq-q">What was the biggest DeFi exploit?</div>
+        <div class="faq-a">The Ronin Bridge hack (March 2022) lost ~$625M. Other notable exploits: Wormhole ($320M), Poly Network ($611M), Euler Finance ($197M), and Mango Markets ($117M). Always use audited bridges and limit cross-chain exposure.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:48px;text-align:center;">
+      <h3 style="font-size:20px;font-weight:700;margin-bottom:16px;">Explore Individual Protocols</h3>
+      <div class="protocol-links" style="justify-content:center;">
+        <a href="aave.html">Aave</a>
+        <a href="curve.html">Curve</a>
+        <a href="makerdao.html">MakerDAO</a>
+        <a href="compound.html">Compound</a>
+        <a href="lido.html">Lido</a>
+        <a href="pendle.html">Pendle</a>
+        <a href="eigenlayer.html">EigenLayer</a>
+        <a href="mev.html">MEV Infrastructure</a>
+        <a href="bridges.html">Bridge Ecosystem</a>
+        <a href="aggregators.html">DEX Aggregators</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-links">
+      <a href="index.html">Overview</a>
+      <a href="risk-dashboard.html">Risk Dashboard</a>
+      <a href="aave.html">Aave</a>
+      <a href="mev.html">MEV</a>
+    </div>
+    <p>DeFi Risk Dashboard — Data for educational purposes only. Not financial advice. DYOR.</p>
+  </div>
+</footer>
+
+<script>
+// =====================================================
+// DATA
+// =====================================================
+
+const protocols = [
+  { name: 'Aave', icon: '🦈', cat: 'Lending', color: '#00ffc8',
+    scores: { sc: 3, cp: 2, liq: 2, reg: 3, mkt: 4 }, overall: 2.8,
+    tvl: '$14.2B' },
+  { name: 'Curve', icon: '📈', cat: 'AMM', color: '#a855f7',
+    scores: { sc: 4, cp: 5, liq: 3, reg: 3, mkt: 7 }, overall: 4.4,
+    tvl: '$3.8B' },
+  { name: 'MakerDAO', icon: '🏛️', cat: 'CDP/Lending', color: '#f97316',
+    scores: { sc: 3, cp: 2, liq: 4, reg: 4, mkt: 5 }, overall: 3.5,
+    tvl: '$5.9B' },
+  { name: 'Compound', icon: '💰', cat: 'Lending', color: '#00d4aa',
+    scores: { sc: 3, cp: 2, liq: 3, reg: 3, mkt: 4 }, overall: 3.0,
+    tvl: '$2.1B' },
+  { name: 'Lido', icon: '🌊', cat: 'Liquid Staking', color: '#626ad4',
+    scores: { sc: 4, cp: 4, liq: 2, reg: 5, mkt: 6 }, overall: 4.2,
+    tvl: '$18.7B' },
+  { name: 'Pendle', icon: '📊', cat: 'Yield Trading', color: '#f59e0b',
+    scores: { sc: 5, cp: 6, liq: 5, reg: 4, mkt: 6 }, overall: 5.3,
+    tvl: '$4.9B' },
+  { name: 'EigenLayer', icon: '🔐', cat: 'Restaking', color: '#8b5cf6',
+    scores: { sc: 6, cp: 6, liq: 5, reg: 6, mkt: 7 }, overall: 6.1,
+    tvl: '$13.8B' },
+  { name: 'MEV Infrastructure', icon: '⚡', cat: 'Infrastructure', color: '#fbbf24',
+    scores: { sc: 5, cp: 7, liq: 3, reg: 5, mkt: 4 }, overall: 4.8,
+    tvl: 'N/A' },
+  { name: 'Bridges', icon: '🌉', cat: 'Cross-Chain', color: '#ef4444',
+    scores: { sc: 7, cp: 8, liq: 6, reg: 6, mkt: 6 }, overall: 6.8,
+    tvl: '$8.2B' },
+  { name: 'DEX Aggregators', icon: '🔀', cat: 'Trading', color: '#06b6d4',
+    scores: { sc: 4, cp: 3, liq: 3, reg: 3, mkt: 4 }, overall: 3.4,
+    tvl: '$1.8B' },
+];
+
+const audits = [
+  { protocol: '🦈 Aave', color: '#00ffc8', audits: 7, auditors: 'Trail of Bits, OpenZeppelin, Quantstamp', bounty: '$250K', production: '5+ years', tvlSecured: '$14.2B', insurance: 'Nexus Mutual, InsurAce', expanded: 'Aave V3 passed 7 independent audits and implements a $250K bug bounty. The protocol has operated since 2020 with no critical exploits. Circuit breakers and isolation pools add additional safety layers.' },
+  { protocol: '📈 Curve', color: '#a855f7', audits: 4, auditors: 'Trail of Bits, OpenZeppelin', bounty: '$100K', production: '4 years', tvlSecured: '$3.8B', insurance: 'Nexus Mutual', expanded: 'Curve V2 has undergone 4 major audits. The 2023 Vyper exploit affected Curve pools due to a Vyper compiler bug (not Curve code). $100K bug bounty active. Gauge system enables permissionless pools.' },
+  { protocol: '🏛️ MakerDAO', color: '#f97316', audits: 9, auditors: 'Runtime Verification, Trail of Bits', bounty: '$500K', production: '6+ years', tvlSecured: '$5.9B', insurance: ' Nexus Mutual', expanded: 'MakerDAO has one of DeFi\'s strongest audit records with 9+ formal audits. DAI PSM (Peg Stability Module) is triple-audited. Endgame plan introduces even stronger governance safeguards.' },
+  { protocol: '💰 Compound', color: '#00d4aa', audits: 5, auditors: 'OpenZeppelin, Gauntlet', bounty: '$150K', production: '6+ years', tvlSecured: '$2.1B', insurance: 'Nexus Mutual', expanded: 'Compound pioneered the health factor model adopted across DeFi lending. CToken architecture is elegant and battle-tested. V3 introduces portal for cross-market capital efficiency.' },
+  { protocol: '🌊 Lido', color: '#626ad4', audits: 6, auditors: 'Sigma Prime, ChainSecurity', bounty: '$200K', production: '3+ years', tvlSecured: '$18.7B', insurance: 'Nexus Mutual', expanded: 'Lido V2 adds staking router architecture for modular validator selection. stETH is the most widely used liquid staking token with deep integration across DeFi. Node operator set is permissioned.' },
+  { protocol: '🔐 EigenLayer', color: '#8b5cf6', audits: 5, auditors: 'Trail of Bits, Runtime Verification', bounty: '$400K', production: '1 year', tvlSecured: '$13.8B', insurance: 'Limited', expanded: 'EigenLayer is relatively new (2023) with innovative restaking mechanics. Active slashing coverage is still maturing. TVL growth has been explosive but risk of intelligent slashing attacks on AVSs is non-trivial.' },
+  { protocol: '🌉 Bridges', color: '#ef4444', audits: 'Varies', auditors: 'Multiple', bounty: 'Up to $10M', production: '1–4 years', tvlSecured: '$8.2B', insurance: 'Varies', expanded: 'Bridge security varies dramatically. ZK bridges (zkBridge, Succinct) offer cryptographic proofs but are newer. Optimistic bridges (Optimism, Arbitrum) rely on fraud proofs and honest validators. Always check total Guardian set and timelock delays.' },
+  { protocol: '🔀 DEX Aggregators', color: '#06b6d4', audits: 3, auditors: 'OpenZeppelin, Sherlock', bounty: '$50K–$200K', production: '3–5 years', tvlSecured: '$1.8B', insurance: 'Sherlock, Nexus', expanded: 'DEX aggregators (1inch, 0x, Paraswap) route orders to multiple DEXs. Smart contract risk is moderate — they don\'t hold user funds long. Main risks are oracle manipulation and routing algorithm exploits.' },
+];
+
+const bridges = [
+  { name: 'Wormhole', type: 'Hybrid', locked: '$1.2B', age: '3 years', security: 'Guardian Network (19 validators)', exploits: 'Yes — $320M (2022)', risk: 7.5, note: 'Recovered from exploit; now run by Jump Crypto' },
+  { name: 'Stargate', type: 'Multisig', locked: '$340M', age: '2 years', security: 'DeltaBridge algorithm + multisig', exploits: 'No', risk: 5.0, note: 'Uses LayerZero messaging' },
+  { name: 'zkBridge', type: 'ZK', locked: '$180M', age: '1 year', security: 'ZK proofs + permissioned relayers', exploits: 'No', risk: 3.5, note: 'First generation ZK light client bridge' },
+  { name: 'Optimism Bridge', type: 'Optimistic', locked: '$2.1B', age: '3 years', security: 'Single-tx fraud proof + multisig', exploits: 'No', risk: 4.0, note: 'Official bridge for Optimism mainnet' },
+  { name: 'Arbitrum Bridge', type: 'Optimistic', locked: '$3.2B', age: '3 years', security: 'Multi-round fraud proof system', exploits: 'No', risk: 4.0, note: 'Largest optimistic bridge by TVL' },
+  { name: 'Ronin Bridge', type: 'Multisig', locked: '$0 (relaunched)', age: '3 years', security: 'Increased from 5 to 9 validators', exploits: 'Yes — $625M (2022)', risk: 8.0, note: 'Major redesign post-hack; one of DeFi\'s largest losses' },
+  { name: 'Hop Bridge', type: 'Optimistic', locked: '$120M', age: '2 years', security: 'Canonical AMM + autoconfessors', exploits: 'No', risk: 4.5, note: 'Fast withdrawals using canonical tokens' },
+  { name: 'Across Protocol', type: 'Optimistic', locked: '$210M', age: '2 years', security: 'UMA Optimistic Oracle + relayers', exploits: 'No', risk: 4.2, note: 'Intent-based bridging model' },
+];
+
+const portfolioProtocols = [
+  { name: 'Aave', riskScore: 2.8, defaultPct: 20 },
+  { name: 'Lido', riskScore: 4.2, defaultPct: 15 },
+  { name: 'MakerDAO', riskScore: 3.5, defaultPct: 15 },
+  { name: 'Curve', riskScore: 4.4, defaultPct: 10 },
+  { name: 'Compound', riskScore: 3.0, defaultPct: 10 },
+  { name: 'EigenLayer', riskScore: 6.1, defaultPct: 10 },
+  { name: 'Pendle', riskScore: 5.3, defaultPct: 10 },
+  { name: 'Bridges', riskScore: 6.8, defaultPct: 5 },
+  { name: 'DEX Aggs', riskScore: 3.4, defaultPct: 5 },
+];
+
+// =====================================================
+// RENDER FUNCTIONS
+// =====================================================
+
+function getScoreClass(score) {
+  if (score <= 3) return 'score-low';
+  if (score <= 6) return 'score-med';
+  return 'score-high';
+}
+
+function getDimClass(score) {
+  if (score <= 3) return 'risk-low';
+  if (score <= 6) return 'risk-med';
+  return 'risk-high';
+}
+
+function renderRiskMatrix() {
+  const container = document.getElementById('riskMatrix');
+  protocols.forEach((p, i) => {
+    const oc = p.overall <= 3 ? 'score-low' : p.overall <= 5.5 ? 'score-med' : 'score-high';
+    const dims = [
+      { label: 'Smart Contract', val: p.scores.sc },
+      { label: 'Counterparty', val: p.scores.cp },
+      { label: 'Liquidity', val: p.scores.liq },
+      { label: 'Regulatory', val: p.scores.reg },
+      { label: 'Market', val: p.scores.mkt },
+    ];
+    const dimRows = dims.map(d => {
+      const dc = getDimClass(d.val);
+      return `<div class="risk-dim ${dc}">
+        <span class="dim-label">${d.label}</span>
+        <div class="dim-bar"><div class="dim-fill" style="width:${d.val * 10}%"></div></div>
+        <span class="dim-val">${d.val}</span>
+      </div>`;
+    }).join('');
+
+    container.innerHTML += `
+      <div class="protocol-card" style="animation: fadeInUp 0.5s ease ${i * 0.05}s both;">
+        <div class="protocol-card-header">
+          <div class="protocol-icon-sm" style="background:${p.color}22;border:1px solid ${p.color}44;">${p.icon}</div>
+          <div>
+            <h3>${p.name}</h3>
+            <span class="protocol-cat">${p.cat}</span>
+          </div>
+          <div class="overall-score ${oc}">${p.overall.toFixed(1)}</div>
+        </div>
+        <div class="risk-dimensions">${dimRows}</div>
+      </div>`;
+  });
+}
+
+function renderAuditGrid() {
+  const grid = document.getElementById('auditGrid');
+  audits.forEach((a, i) => {
+    grid.innerHTML += `
+      <div class="audit-card" id="auditCard${i}" onclick="toggleAudit(${i})">
+        <div class="protocol-badge" style="color:${a.color};">${a.protocol}</div>
+        <div class="audit-stats">
+          <div class="audit-stat"><span class="audit-label">Audits</span><span class="audit-val" style="color:${a.color};">${a.audits}</span></div>
+          <div class="audit-stat"><span class="audit-label">Bug Bounty</span><span class="audit-val" style="color:var(--success);">${a.bounty}</span></div>
+          <div class="audit-stat"><span class="audit-label">In Production</span><span class="audit-val">${a.production}</span></div>
+          <div class="audit-stat"><span class="audit-label">TVL Secured</span><span class="audit-val" style="color:var(--primary);">${a.tvlSecured}</span></div>
+          <div class="audit-stat"><span class="audit-label">Insurance</span><span class="audit-val">${a.insurance}</span></div>
+        </div>
+        <div class="expand-btn">▼ Show details</div>
+        <div class="audit-expand">${a.expanded}</div>
+      </div>`;
+  });
+}
+
+function toggleAudit(i) {
+  document.getElementById('auditCard' + i).classList.toggle('expanded');
+}
+
+function renderBridgeTable() {
+  const tbody = document.getElementById('bridgeTableBody');
+  bridges.forEach(b => {
+    const typeClass = b.type === 'ZK' ? 'type-zk' : b.type === 'Optimistic' ? 'type-optimistic' : b.type === 'Multisig' ? 'type-multisig' : 'type-hybrid';
+    const exploitClass = b.exploits === 'No' ? 'no-exploit' : 'had-exploit';
+    const riskClass = b.risk <= 4 ? 'score-low' : b.risk <= 6 ? 'score-med' : 'score-high';
+    tbody.innerHTML += `
+      <tr>
+        <td>
+          <div class="bridge-name">${b.name}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${b.note}</div>
+        </td>
+        <td><span class="bridge-type-badge ${typeClass}">${b.type}</span></td>
+        <td style="font-family:var(--mono);font-weight:600;">${b.locked}</td>
+        <td style="font-family:var(--mono);">${b.age}</td>
+        <td style="font-size:13px;color:var(--muted);max-width:200px;">${b.security}</td>
+        <td><span class="bridge-exploit ${exploitClass}">${b.exploits}</span></td>
+        <td><span class="overall-score ${riskClass}">${b.risk.toFixed(1)}</span></td>
+      </tr>`;
+  });
+}
+
+function renderPortfolioInputs() {
+  const container = document.getElementById('portfolioInputs');
+  portfolioProtocols.forEach(p => {
+    container.innerHTML += `
+      <div class="input-group" style="margin-bottom:12px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;">
+          <span>${p.name}</span>
+          <span style="font-family:var(--mono);color:var(--primary);" id="pct_${p.name.replace(/\s/g,'')}">${p.defaultPct}%</span>
+        </label>
+        <input type="range" min="0" max="100" value="${p.defaultPct}" id="range_${p.name.replace(/\s/g,'')}" oninput="updatePortfolioPct('${p.name.replace(/\s/g,'')}', this.value)" style="margin-top:6px;">
+      </div>`;
+  });
+}
+
+function updatePortfolioPct(name, val) {
+  document.getElementById('pct_' + name).textContent = val + '%';
+}
+
+// =====================================================
+// LIQUIDATION GAUGE
+// =====================================================
+
+function updateAaveGauge() {
+  const collateral = parseFloat(document.getElementById('aaveCollateral').value) || 0;
+  const borrow = parseFloat(document.getElementById('aaveBorrow').value) || 0;
+  if (borrow <= 0) {
+    document.getElementById('aaveHfVal').textContent = '∞';
+    document.getElementById('aaveHfVal').style.color = 'var(--success)';
+    return;
+  }
+  const hf = (collateral * 0.83) / borrow; // Aave liquidation at ~83% collateral value
+  const pct = Math.min(100, (hf / 3) * 100);
+  const dashOffset = 251 - (pct / 100) * 251;
+  const fill = document.getElementById('aaveGaugeFill');
+  fill.setAttribute('stroke-dashoffset', dashOffset);
+  fill.setAttribute('stroke', hf < 1.0 ? 'var(--danger)' : hf < 1.3 ? 'var(--accent)' : 'var(--success)');
+  document.getElementById('aaveHfVal').textContent = hf.toFixed(2) + '×';
+  document.getElementById('aaveHfVal').style.color = hf < 1.0 ? 'var(--danger)' : hf < 1.3 ? 'var(--accent)' : 'var(--success)';
+  document.getElementById('aaveHealthBar').style.width = Math.min(100, pct) + '%';
+  document.getElementById('aaveHealthBar').style.background = hf < 1.0 ? 'var(--danger)' : hf < 1.3 ? 'var(--accent)' : 'linear-gradient(90deg,var(--success),var(--primary))';
+  const result = document.getElementById('aaveResult');
+  if (hf < 1.0) {
+    result.className = 'liquidation-result';
+    result.style.cssText = 'background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:var(--danger);';
+    result.textContent = '🚨 Liquidated! HF < 1.0 — position will be liquidated';
+  } else if (hf < 1.3) {
+    result.className = 'liquidation-result';
+    result.style.cssText = 'background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:var(--accent);';
+    result.textContent = '⚠️ At Risk! HF ' + hf.toFixed(2) + ' — add collateral or reduce borrow';
+  } else {
+    result.className = 'liquidation-result';
+    result.style.cssText = 'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:var(--success);';
+    result.textContent = '✅ Health Factor: ' + hf.toFixed(2) + ' — Safe position';
+  }
+}
+
+function updateCompoundGauge() {
+  const collateral = parseFloat(document.getElementById('compoundCollateral').value) || 0;
+  const borrow = parseFloat(document.getElementById('compoundBorrow').value) || 0;
+  if (borrow <= 0) {
+    document.getElementById('compoundHfVal').textContent = '∞';
+    return;
+  }
+  const hf = (collateral * 0.80) / borrow; // Compound liquidation at ~80%
+  const pct = Math.min(100, (hf / 3) * 100);
+  const dashOffset = 251 - (pct / 100) * 251;
+  const fill = document.getElementById('compoundGaugeFill');
+  fill.setAttribute('stroke-dashoffset', dashOffset);
+  fill.setAttribute('stroke', hf < 1.0 ? 'var(--danger)' : hf < 1.3 ? 'var(--accent)' : 'var(--success)');
+  document.getElementById('compoundHfVal').textContent = hf.toFixed(2) + '×';
+  document.getElementById('compoundHfVal').style.color = hf < 1.0 ? 'var(--danger)' : hf < 1.3 ? 'var(--accent)' : 'var(--success)';
+  document.getElementById('compoundHealthBar').style.width = Math.min(100, pct) + '%';
+  document.getElementById('compoundHealthBar').style.background = hf < 1.0 ? 'var(--danger)' : hf < 1.3 ? 'var(--accent)' : 'linear-gradient(90deg,var(--success),var(--primary))';
+  const result = document.getElementById('compoundResult');
+  if (hf < 1.0) {
+    result.className = 'liquidation-result';
+    result.style.cssText = 'background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:var(--danger);';
+    result.textContent = '🚨 Liquidated! HF < 1.0 — position will be liquidated';
+  } else if (hf < 1.3) {
+    result.className = 'liquidation-result';
+    result.style.cssText = 'background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:var(--accent);';
+    result.textContent = '⚠️ At Risk! HF ' + hf.toFixed(2) + ' — add collateral or reduce borrow';
+  } else {
+    result.className = 'liquidation-result';
+    result.style.cssText = 'background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:var(--success);';
+    result.textContent = '✅ Health Factor: ' + hf.toFixed(2) + ' — Safe position';
+  }
+}
+
+// =====================================================
+// IL CALCULATOR
+// =====================================================
+
+let currentIlPair = 'stable';
+
+function setIlPair(pair, btn) {
+  currentIlPair = pair;
+  document.querySelectorAll('.il-pair-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  calculateIL();
+}
+
+function calculateIL() {
+  const investment = parseFloat(document.getElementById('ilInvestment').value) || 10000;
+  const priceChange = parseFloat(document.getElementById('ilPriceChange').value) || -50;
+
+  // IL formula: IL = 2*sqrt(priceRatio)/(1+priceRatio) - 1
+  // priceRatio = 1 + (priceChange/100)
+  const priceRatio = 1 + (priceChange / 100);
+  const ratio = Math.max(0.001, priceRatio);
+  const il = 2 * Math.sqrt(ratio) / (1 + ratio) - 1; // negative = loss
+  const ilPct = il * 100;
+  const lossDollar = Math.abs(il) * investment;
+  const remaining = investment - lossDollar;
+  const hodl = investment;
+  const feeApy = Math.abs(ilPct) * 3; // rough estimate: need 3x IL in fees to break even annually
+
+  document.getElementById('ilLoss').textContent = ilPct.toFixed(2) + '%';
+  document.getElementById('ilLossDollar').textContent = '-$' + lossDollar.toFixed(0);
+  document.getElementById('ilRemaining').textContent = '$' + remaining.toFixed(0);
+  document.getElementById('ilHodl').textContent = '$' + hodl.toFixed(0);
+  document.getElementById('ilBreakEven').textContent = feeApy.toFixed(1) + '%';
+
+  // Update IL curve
+  drawILCurve(priceChange);
+}
+
+function drawILCurve(currentPriceChange) {
+  const path = document.getElementById('ilCurvePath');
+  const marker = document.getElementById('ilMarker');
+  const points = [];
+  for (let pc = -95; pc <= 500; pc += 5) {
+    const pr = 1 + pc / 100;
+    const il = 2 * Math.sqrt(pr) / (1 + pr) - 1;
+    const x = 30 + ((pc + 95) / 595) * 360;
+    const y = 130 - (il * -1000); // invert: more negative IL = lower y
+    points.push({ x, y: Math.min(140, Math.max(20, y)) });
+  }
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) d += ` L ${points[i].x} ${points[i].y}`;
+  path.setAttribute('d', d);
+
+  // Marker position
+  const pr = 1 + currentPriceChange / 100;
+  const il = 2 * Math.sqrt(pr) / (1 + pr) - 1;
+  const mx = 30 + ((currentPriceChange + 95) / 595) * 360;
+  const my = Math.min(140, Math.max(20, 130 - il * -1000));
+  marker.setAttribute('cx', mx);
+  marker.setAttribute('cy', my);
+  marker.setAttribute('fill', il < -0.05 ? 'var(--danger)' : il < 0 ? 'var(--accent)' : 'var(--success)');
+}
+
+// =====================================================
+// PORTFOLIO RISK CALCULATOR
+// =====================================================
+
+function resetPortfolio() {
+  portfolioProtocols.forEach(p => {
+    const input = document.getElementById('range_' + p.name.replace(/\s/g, ''));
+    if (input) { input.value = p.defaultPct; document.getElementById('pct_' + p.name.replace(/\s/g, '')).textContent = p.defaultPct + '%'; }
+  });
+  calculatePortfolio();
+}
+
+function calculatePortfolio() {
+  let totalPct = 0;
+  let weightedRisk = 0;
+  const breakdown = document.getElementById('portfolioBreakdown');
+  breakdown.innerHTML = '';
+
+  portfolioProtocols.forEach(p => {
+    const pct = parseFloat(document.getElementById('range_' + p.name.replace(/\s/g, '')).value) || 0;
+    totalPct += pct;
+    const weighted = (pct / 100) * p.riskScore;
+    weightedRisk += weighted;
+    breakdown.innerHTML += `
+      <div class="portfolio-row">
+        <span class="p-name">${p.name}</span>
+        <span class="p-pct">${pct}%</span>
+        <span class="p-risk" style="color:${p.riskScore <= 3 ? 'var(--success)' : p.riskScore <= 5.5 ? 'var(--accent)' : 'var(--danger)'};">${p.riskScore.toFixed(1)}</span>
+        <span class="p-weighted">${weighted.toFixed(2)}</span>
+      </div>`;
+  });
+
+  // Animate meter
+  const meter = document.getElementById('portfolioMeterFill');
+  const circumference = 408;
+  const offset = circumference - (weightedRisk / 10) * circumference;
+  const color = weightedRisk <= 3.5 ? 'var(--success)' : weightedRisk <= 5.5 ? 'var(--accent)' : 'var(--danger)';
+  meter.setAttribute('stroke-dashoffset', offset);
+  meter.setAttribute('stroke', color);
+
+  document.getElementById('portfolioScore').textContent = weightedRisk.toFixed(1);
+  document.getElementById('portfolioScore').setAttribute('fill', color);
+  document.getElementById('portfolioRating').textContent =
+    weightedRisk <= 3.5 ? '✅ Low Risk' :
+    weightedRisk <= 5.5 ? '⚠️ Moderate Risk' :
+    '🔴 High Risk';
+  document.getElementById('portfolioRating').style.color = color;
+
+  // Suggestion
+  const suggestion = document.getElementById('portfolioSuggestion');
+  if (totalPct > 110 || totalPct < 90) {
+    suggestion.innerHTML = '⚠️ Your allocations sum to ' + totalPct + '%. Adjust to 100% for accurate results.';
+  } else if (weightedRisk > 5.5) {
+    suggestion.innerHTML = '💡 High concentration in risky protocols. Consider moving some allocation to Aave, MakerDAO, or Compound for lower-risk DeFi exposure.';
+  } else if (weightedRisk < 3.5) {
+    suggestion.innerHTML = '💡 Well-diversified low-risk portfolio. Consider whether you\'re optimizing for yield vs. safety based on your goals.';
+  } else {
+    suggestion.innerHTML = '💡 Good balance of risk and diversification. Monitor your high-risk allocations (EigenLayer, Bridges) regularly.';
+  }
+}
+
+// =====================================================
+// FAQ
+// =====================================================
+
+function toggleFaq(el) {
+  el.classList.toggle('open');
+}
+
+// =====================================================
+// TVL CHART ANIMATION
+// =====================================================
+
+function animateTvlLines() {
+  const lines = ['lidoLine', 'aaveLine', 'curveLine', 'makerLine'];
+  lines.forEach((id, i) => {
+    const el = document.getElementById(id);
+    const len = el.getTotalLength ? el.getTotalLength() : 1000;
+    el.style.strokeDasharray = len;
+    el.style.strokeDashoffset = len;
+    gsap.to(el, {
+      strokeDashoffset: 0,
+      duration: 2,
+      delay: i * 0.3,
+      ease: 'power2.out',
+      scrollTrigger: { trigger: '#tvlChart', start: 'top 80%', toggleActions: 'play none none none' }
+    });
+  });
+}
+
+// =====================================================
+// GSAP ANIMATIONS
+// =====================================================
+
+function initGSAP() {
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Risk matrix cards
+  gsap.utils.toArray('.protocol-card').forEach((card, i) => {
+    gsap.from(card, {
+      scrollTrigger: { trigger: card, start: 'top 85%', toggleActions: 'play none none none' },
+      y: 30, opacity: 0, duration: 0.5, delay: i * 0.04, ease: 'power2.out'
+    });
+  });
+
+  // Risk dimension bars
+  gsap.utils.toArray('.risk-dim .dim-fill').forEach(bar => {
+    gsap.from(bar, {
+      scrollTrigger: { trigger: bar, start: 'top 90%', toggleActions: 'play none none none' },
+      width: 0, duration: 0.8, ease: 'power2.out'
+    });
+  });
+
+  // Section dividers
+  gsap.utils.toArray('.section-divider').forEach(div => {
+    gsap.from(div, {
+      scrollTrigger: { trigger: div, start: 'top 85%', toggleActions: 'play none none none' },
+      y: 20, opacity: 0, duration: 0.6, ease: 'power2.out'
+    });
+  });
+
+  // Audit cards
+  gsap.utils.toArray('.audit-card').forEach((card, i) => {
+    gsap.from(card, {
+      scrollTrigger: { trigger: card, start: 'top 88%', toggleActions: 'play none none none' },
+      y: 25, opacity: 0, duration: 0.4, delay: i * 0.05, ease: 'power2.out'
+    });
+  });
+
+  // Gauge cards
+  gsap.utils.toArray('.gauge-card').forEach((card, i) => {
+    gsap.from(card, {
+      scrollTrigger: { trigger: card, start: 'top 85%', toggleActions: 'play none none none' },
+      y: 30, opacity: 0, duration: 0.5, delay: i * 0.1, ease: 'power2.out'
+    });
+  });
+
+  // Bridge table rows
+  gsap.utils.toArray('.bridge-table tr').forEach((row, i) => {
+    gsap.from(row, {
+      scrollTrigger: { trigger: row, start: 'top 90%', toggleActions: 'play none none none' },
+      x: -20, opacity: 0, duration: 0.3, delay: i * 0.03, ease: 'power2.out'
+    });
+  });
+
+  // IL section
+  gsap.from('.il-calc > div', {
+    scrollTrigger: { trigger: '.il-calc', start: 'top 80%', toggleActions: 'play none none none' },
+    y: 30, opacity: 0, duration: 0.6, stagger: 0.15, ease: 'power2.out'
+  });
+
+  // Portfolio section
+  gsap.from('.portfolio-calc > div', {
+    scrollTrigger: { trigger: '.portfolio-calc', start: 'top 80%', toggleActions: 'play none none none' },
+    y: 30, opacity: 0, duration: 0.6, stagger: 0.15, ease: 'power2.out'
+  });
+
+  // Glossary cards
+  gsap.utils.toArray('.glossary-card').forEach((card, i) => {
+    gsap.from(card, {
+      scrollTrigger: { trigger: card, start: 'top 88%', toggleActions: 'play none none none' },
+      y: 20, opacity: 0, duration: 0.4, delay: i * 0.04, ease: 'power2.out'
+    });
+  });
+
+  // FAQ items
+  gsap.utils.toArray('.faq-item').forEach((item, i) => {
+    gsap.from(item, {
+      scrollTrigger: { trigger: item, start: 'top 90%', toggleActions: 'play none none none' },
+      y: 15, opacity: 0, duration: 0.3, delay: i * 0.05, ease: 'power2.out'
+    });
+  });
+}
+
+// =====================================================
+// INIT
+// =====================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderRiskMatrix();
+  renderAuditGrid();
+  renderBridgeTable();
+  renderPortfolioInputs();
+  calculateIL();
+  calculatePortfolio();
+  initGSAP();
+
+  // Delay TVL animation until visible
+  ScrollTrigger.create({
+    trigger: '#tvlChart',
+    start: 'top 80%',
+    onEnter: () => setTimeout(animateTvlLines, 300)
+  });
+
+  // Nav active state
+  document.querySelectorAll('.nav-links a').forEach(a => {
+    if (a.href.includes('risk-dashboard')) a.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

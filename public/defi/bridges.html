@@ -1,0 +1,2903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cross-Chain Bridges – DeFi Visualizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/MotionPathPlugin.min.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "What is a cross-chain bridge in DeFi?", "acceptedAnswer": {"@type": "Answer", "text": "A cross-chain bridge is a protocol that allows users to transfer assets or data between different blockchain networks. For example, bridging ETH from Ethereum to Arbitrum lets users benefit from Layer 2's lower fees while still being pegged to Ethereum's security."}},
+      {"@type": "Question", "name": "Are cross-chain bridges safe?", "acceptedAnswer": {"@type": "Answer", "text": "Bridges have historically been the most exploited DeFi infrastructure, with losses exceeding $2B. Risks include: smart contract bugs, liquidity pool insolvency, validator/relayer compromise, and canonical bridge failure. Canonical bridges (like Optimism's or Arbitrum's official bridges) are generally more secure than third-party token bridges."}},
+      {"@type": "Question", "name": "What is the difference between canonical and third-party bridges?", "acceptedAnswer": {"@type": "Answer", "text": "Canonical bridges are built by the Layer 2 team itself and use the L2's native mechanism (like Optimism's Bedrock bridge or Arbitrum's Nitro bridge). Third-party bridges (like Stargate, Across, Hop) use their own smart contracts and liquidity pools, offering faster withdrawals but requiring additional trust assumptions."}},
+      {"@type": "Question", "name": "What is a wrapped asset in cross-chain DeFi?", "acceptedAnswer": {"@type": "Answer", "text": "When you bridge an asset to another chain that doesn't natively support it, a wrapped version is minted (e.g., Wrapped BTC on Ethereum). The original asset is locked in a bridge contract and the wrapped version is backed 1:1. Wrapped assets carry custodial risk of the bridge contract."}},
+      {"@type": "Question", "name": "Why do bridge withdrawals take so long on Optimistic Rollups?", "acceptedAnswer": {"@type": "Answer", "text": "On Optimistic Rollups (Arbitrum, Optimism, Base), withdrawals to Ethereum take ~7 days because of the fraud proof window. During this time, anyone can challenge the correctness of the batch. Instant bridges (Across, Hop) work around this by having liquidity providers front the withdrawal immediately, taking on the 7-day risk themselves for a fee."}}
+    ]
+  }
+  </script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface-2: #1a1a24;
+      --border: #1e1e2e;
+      --primary: #00ffc8;
+      --secondary: #a855f7;
+      --accent: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      line-height: 1.6;
+    }
+
+    .bridges-hero { background: linear-gradient(135deg, rgba(0,255,200,0.05) 0%, rgba(168,85,247,0.05) 100%); }
+
+    /* Chain Icons */
+    .chain-icon { width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .chain-eth { background: rgba(98,126,234,0.2); border: 1px solid rgba(98,126,234,0.4); }
+    .chain-arb { background: rgba(40,160,240,0.2); border: 1px solid rgba(40,160,240,0.4); }
+    .chain-op { background: rgba(255,4,32,0.15); border: 1px solid rgba(255,4,32,0.3); }
+    .chain-poly { background: rgba(130,71,229,0.2); border: 1px solid rgba(130,71,229,0.4); }
+    .chain-base { background: rgba(0,82,255,0.15); border: 1px solid rgba(0,82,255,0.3); }
+    .chain-avax { background: rgba(232,65,65,0.15); border: 1px solid rgba(232,65,65,0.3); }
+    .chain-sol { background: rgba(153,153,255,0.15); border: 1px solid rgba(153,153,255,0.3); }
+
+    /* Back link */
+    .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; margin-bottom: 32px; transition: color 0.15s; }
+    .back-link:hover { color: var(--primary); }
+
+    /* Protocol hero */
+    .protocol-hero { border-radius: 16px; padding: 48px; margin-bottom: 48px; border: 1px solid var(--border); }
+    .protocol-icon { font-size: 56px; margin-bottom: 16px; }
+    .protocol-hero h1 { font-size: 40px; font-weight: 800; margin-bottom: 8px; }
+    .tagline { font-size: 18px; color: var(--muted); margin-bottom: 32px; }
+    .protocol-meta { display: flex; gap: 32px; flex-wrap: wrap; }
+    .meta-item .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .meta-item .value { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--primary); }
+
+    /* Sandbox */
+    .sandbox { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px; margin-bottom: 32px; }
+    .sandbox-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+    .sandbox-title .num { background: var(--primary); color: var(--bg); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; flex-shrink: 0; }
+
+    /* ======================================
+       CROSS-CHAIN FLOW DIAGRAM (Section 1)
+       ====================================== */
+    #flowDiagram { position: relative; margin: 32px 0; }
+    #flowSvg { width: 100%; height: 260px; overflow: visible; }
+    .flow-node { cursor: pointer; transition: filter 0.2s; }
+    .flow-node:hover { filter: brightness(1.2); }
+    .flow-node.dimmed { opacity: 0.3; }
+    .flow-node.active { filter: drop-shadow(0 0 12px var(--primary)); }
+    .flow-particle { opacity: 0; pointer-events: none; }
+    .flow-path { fill: none; stroke: var(--border); stroke-width: 2; stroke-dasharray: 8 4; }
+    .flow-path.active { stroke: var(--primary); stroke-dasharray: none; }
+
+    /* Chain selector pills in flow */
+    .flow-chain-row { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .flow-chain-pill { background: var(--surface-2); border: 1px solid var(--border); border-radius: 20px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; color: var(--muted); }
+    .flow-chain-pill:hover { border-color: var(--primary); color: var(--text); }
+    .flow-chain-pill.selected-a, .flow-chain-pill.selected-b { border-color: var(--primary); color: var(--primary); background: rgba(0,255,200,0.08); }
+
+    /* ======================================
+       BRIDGE COMPARISON MATRIX (Section 2)
+       ====================================== */
+    .matrix-table-wrap { overflow-x: auto; margin: 20px 0; }
+    .matrix-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .matrix-table th { text-align: left; padding: 12px 16px; background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); position: sticky; top: 0; }
+    .matrix-table td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .matrix-table tr { transition: all 0.2s; cursor: pointer; }
+    .matrix-table tr:hover td { background: rgba(0,255,200,0.04); }
+    .matrix-table tr.selected td { background: rgba(0,255,200,0.08); border-color: rgba(0,255,200,0.2); }
+    .matrix-table tr.dim { opacity: 0.35; }
+    .matrix-bridge-cell { display: flex; align-items: center; gap: 10px; }
+    .matrix-bridge-logo { font-size: 20px; }
+    .matrix-bridge-name { font-weight: 700; font-size: 14px; }
+    .matrix-bridge-sub { font-size: 11px; color: var(--muted); }
+    .matrix-score { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+    .matrix-bar-bg { width: 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .matrix-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+    .badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 4px; }
+    .badge.green { background: rgba(34,197,94,0.15); color: var(--success); }
+    .badge.yellow { background: rgba(245,158,11,0.15); color: var(--accent); }
+    .badge.red { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .badge.purple { background: rgba(168,85,247,0.15); color: var(--secondary); }
+    .badge.cyan { background: rgba(0,255,200,0.15); color: var(--primary); }
+
+    .matrix-highlight-panel { margin-top: 16px; background: var(--surface-2); border: 1px solid var(--primary); border-radius: 12px; padding: 20px; display: none; }
+    .matrix-highlight-panel.visible { display: block; }
+    .matrix-hl-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .matrix-hl-logo { font-size: 32px; }
+    .matrix-hl-name { font-size: 18px; font-weight: 700; }
+    .matrix-hl-desc { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 16px; }
+    .matrix-hl-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 12px; }
+    .matrix-hl-stat { background: var(--surface); border-radius: 8px; padding: 12px; text-align: center; }
+    .matrix-hl-stat .mhs-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .matrix-hl-stat .mhs-val { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+    .matrix-hl-proscons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .matrix-hl-pros, .matrix-hl-cons { background: var(--surface); border-radius: 8px; padding: 12px; font-size: 12px; }
+    .matrix-hl-pros { border-left: 3px solid var(--success); }
+    .matrix-hl-cons { border-left: 3px solid var(--danger); }
+    .matrix-hl-pros .mhpc-title { font-weight: 700; color: var(--success); margin-bottom: 4px; font-size: 11px; text-transform: uppercase; }
+    .matrix-hl-cons .mhpc-title { font-weight: 700; color: var(--danger); margin-bottom: 4px; font-size: 11px; text-transform: uppercase; }
+    .matrix-hl-pros li, .matrix-hl-cons li { margin-left: 14px; color: var(--muted); line-height: 1.5; }
+
+    /* ======================================
+       RISK SIMULATOR (Section 3)
+       ====================================== */
+    .risk-sim { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+    .risk-sliders { display: flex; flex-direction: column; gap: 24px; }
+    .risk-slider-group { background: var(--surface-2); border-radius: 12px; padding: 20px; }
+    .risk-slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .rsl-name { font-size: 13px; font-weight: 600; }
+    .rsl-value { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--primary); }
+    .risk-slider { -webkit-appearance: none; width: 100%; height: 6px; background: var(--border); border-radius: 3px; outline: none; cursor: pointer; }
+    .risk-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); cursor: pointer; box-shadow: 0 0 10px rgba(0,255,200,0.4); transition: transform 0.15s; }
+    .risk-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    .risk-slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--primary); cursor: pointer; border: none; }
+    .risk-slider-track { position: relative; margin-top: 6px; display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+    .risk-meter-wrap { display: flex; flex-direction: column; gap: 20px; }
+    .risk-meter-card { background: var(--surface-2); border-radius: 12px; padding: 20px; }
+    .risk-meter-title { font-size: 13px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .risk-meter-display { position: relative; height: 120px; display: flex; align-items: center; justify-content: center; }
+    .risk-meter-svg { width: 160px; height: 80px; overflow: visible; }
+    .risk-meter-bg { fill: none; stroke: var(--border); stroke-width: 12; stroke-linecap: round; }
+    .risk-meter-fill { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset 0.5s cubic-bezier(0.34,1.56,0.64,1), stroke 0.3s; }
+    .risk-meter-glow { fill: none; stroke-width: 16; stroke-linecap: round; opacity: 0.3; filter: blur(4px); }
+    .risk-meter-score { position: absolute; text-align: center; }
+    .risk-meter-score .rms-num { font-family: var(--mono); font-size: 36px; font-weight: 800; line-height: 1; }
+    .risk-meter-score .rms-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .risk-meter-label { text-align: center; font-size: 12px; font-weight: 600; margin-top: 8px; }
+    .risk-meter-label.safe { color: var(--success); }
+    .risk-meter-label.caution { color: var(--accent); }
+    .risk-meter-label.danger { color: var(--danger); }
+    .risk-meter-label.critical { color: var(--danger); text-shadow: 0 0 10px rgba(239,68,68,0.5); }
+
+    .risk-factor-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .risk-chip { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+    .risk-chip.high { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .risk-chip.medium { background: rgba(245,158,11,0.15); color: var(--accent); }
+    .risk-chip.low { background: rgba(34,197,94,0.15); color: var(--success); }
+
+    /* ======================================
+       TRANSFER TIME CALCULATOR (Section 4)
+       ====================================== */
+    .calc-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; }
+    .calc-controls { display: flex; flex-direction: column; gap: 20px; }
+    .calc-slider-group { background: var(--surface-2); border-radius: 12px; padding: 16px; }
+    .calc-slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px; }
+    .calc-slider-label .csl-name { color: var(--muted); }
+    .calc-slider-label .csl-val { font-family: var(--mono); font-weight: 700; color: var(--primary); }
+    .calc-slider { -webkit-appearance: none; width: 100%; height: 6px; background: var(--border); border-radius: 3px; outline: none; cursor: pointer; }
+    .calc-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); cursor: pointer; box-shadow: 0 0 8px rgba(0,255,200,0.4); }
+    .calc-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--primary); cursor: pointer; border: none; }
+    .calc-chain-select { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .calc-chain-btn { background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); padding: 8px 4px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.15s; text-align: center; }
+    .calc-chain-btn:hover { border-color: var(--primary); color: var(--text); }
+    .calc-chain-btn.selected { background: rgba(0,255,200,0.1); border-color: var(--primary); color: var(--primary); }
+    .calc-chain-btn .calc-chain-icon { font-size: 16px; margin-bottom: 2px; display: block; }
+    .calc-chain-label { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+    .calc-results { display: flex; flex-direction: column; gap: 10px; }
+    .calc-result-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; transition: all 0.3s; cursor: default; }
+    .calc-result-card:hover { border-color: rgba(0,255,200,0.3); transform: translateX(4px); }
+    .calc-result-card.best { border-color: var(--primary); background: rgba(0,255,200,0.05); }
+    .calc-result-card .crc-left { display: flex; align-items: center; gap: 10px; }
+    .calc-result-card .crc-logo { font-size: 20px; }
+    .calc-result-card .crc-name { font-weight: 700; font-size: 13px; }
+    .calc-result-card .crc-type { font-size: 11px; color: var(--muted); }
+    .calc-result-card .crc-right { text-align: right; }
+    .calc-result-card .crc-time { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--primary); }
+    .calc-result-card .crc-fee { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .calc-result-card .crc-best-badge { background: var(--primary); color: var(--bg); font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; margin-left: 6px; }
+    .calc-result-card .crc-rate { font-family: var(--mono); font-size: 11px; color: var(--success); margin-top: 2px; }
+    .calc-result-card.best .crc-time { color: var(--primary); }
+
+    /* Route visualization */
+    .route-viz { margin-top: 16px; position: relative; }
+    .route-track { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; position: relative; overflow: hidden; min-height: 80px; }
+    .route-chain-label { position: absolute; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; color: white; }
+    .route-mid-dot { position: absolute; top: 50%; transform: translate(-50%,-50%); width: 12px; height: 12px; border-radius: 50%; background: var(--secondary); border: 2px solid var(--surface-2); box-shadow: 0 0 8px rgba(168,85,247,0.5); }
+    .route-path-line { position: absolute; top: 50%; left: 0; right: 0; height: 3px; background: var(--border); transform: translateY(-50%); border-radius: 2px; overflow: hidden; }
+    .route-path-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), var(--secondary)); border-radius: 2px; transition: width 0.6s ease; }
+    .route-time-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: var(--surface-2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 11px; color: var(--secondary); font-weight: 600; white-space: nowrap; }
+
+    /* ======================================
+       TVL FLOW VISUALIZATION (Section 5)
+       ====================================== */
+    .tvl-flow-wrap { position: relative; }
+    #tvlFlowSvg { width: 100%; height: 320px; overflow: visible; }
+    .tvl-chain-node { cursor: pointer; transition: transform 0.2s; }
+    .tvl-chain-node:hover { transform: scale(1.05); }
+    .tvl-chain-node.dim { opacity: 0.2; }
+    .tvl-flow-particle { opacity: 0; }
+    .tvl-conn-line { stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 6 4; fill: none; transition: stroke 0.3s; }
+    .tvl-conn-line.active { stroke: var(--primary); stroke-dasharray: none; }
+    .tvl-conn-line.dim { opacity: 0.15; }
+    .tvl-flow-dot { opacity: 0; }
+    .tvl-chain-tvl { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+    .tvl-chain-name { font-size: 12px; font-weight: 700; }
+    .tvl-chain-bar-bg { fill: var(--border); rx: 4; }
+    .tvl-chain-bar-fill { transition: width 0.6s ease; }
+    .tvl-flow-controls { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tvl-flow-btn { background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; }
+    .tvl-flow-btn:hover { border-color: var(--primary); color: var(--text); }
+    .tvl-flow-btn.active { border-color: var(--primary); color: var(--primary); background: rgba(0,255,200,0.08); }
+    .tvl-flow-legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--muted); }
+    .tvl-flow-legend-item { display: flex; align-items: center; gap: 6px; }
+    .tvl-flow-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* ======================================
+       FEE COMPARISON CHART (Section 6)
+       ====================================== */
+    .fee-chart-wrap { margin: 20px 0; }
+    .fee-chart { display: flex; flex-direction: column; gap: 10px; }
+    .fee-bar-row { display: grid; grid-template-columns: 120px 1fr 80px; gap: 16px; align-items: center; background: var(--surface-2); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: all 0.2s; border: 1px solid var(--border); }
+    .fee-bar-row:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    .fee-bar-row.expanded { border-color: var(--primary); background: rgba(0,255,200,0.05); grid-template-columns: 120px 1fr 80px; }
+    .fee-bar-left { display: flex; align-items: center; gap: 8px; }
+    .fee-bar-logo { font-size: 18px; }
+    .fee-bar-name { font-weight: 700; font-size: 13px; }
+    .fee-bar-type { font-size: 10px; color: var(--muted); }
+    .fee-bar-track { height: 24px; background: var(--border); border-radius: 6px; overflow: hidden; position: relative; }
+    .fee-bar-fill { height: 100%; border-radius: 6px; transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1); position: relative; }
+    .fee-bar-fill::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15)); }
+    .fee-bar-pct { font-family: var(--mono); font-size: 13px; font-weight: 700; text-align: right; color: var(--primary); }
+    .fee-bar-expanded { display: none; grid-column: 1 / -1; background: var(--surface); border-radius: 8px; padding: 14px; margin-top: 8px; }
+    .fee-bar-row.expanded .fee-bar-expanded { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px,1fr)); gap: 12px; }
+    .fee-detail-stat { text-align: center; }
+    .fee-detail-stat .fds-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .fee-detail-stat .fds-val { font-family: var(--mono); font-size: 14px; font-weight: 700; }
+    .fee-savings-badge { display: inline-block; background: rgba(34,197,94,0.15); color: var(--success); font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
+
+    /* ======================================
+       LEGACY / ORIGINAL STYLES
+       ====================================== */
+    .arch-flow { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; margin: 40px 0; }
+    .arch-node { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; text-align: center; min-width: 160px; transition: all 0.3s; }
+    .arch-node:hover { border-color: var(--primary); transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,255,200,0.12); }
+    .arch-node .a-icon { font-size: 28px; margin-bottom: 10px; }
+    .arch-node .a-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .arch-node .a-val { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+    .arch-node.primary { border-color: var(--primary); }
+    .arch-node.secondary { border-color: var(--secondary); }
+    .arch-node.accent { border-color: var(--accent); }
+    .arch-arrow { font-size: 24px; color: var(--primary); margin: 0 8px; animation: flowPulse 1.5s infinite; }
+    @keyframes flowPulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+    .sim-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+    .sim-controls { display: flex; flex-direction: column; gap: 20px; }
+    .chain-select-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
+    .chain-select-label { font-size: 12px; color: var(--muted); text-align: center; }
+    .chain-btn-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .chain-btn { background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); padding: 10px 8px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .chain-btn:hover { border-color: var(--primary); color: var(--text); }
+    .chain-btn.selected { background: rgba(0,255,200,0.1); border-color: var(--primary); color: var(--primary); }
+    .chain-btn .chain-name { font-size: 11px; }
+    .swap-btn { background: var(--surface-2); border: 1px solid var(--border); width: 40px; height: 40px; border-radius: 50%; color: var(--muted); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; align-self: center; }
+    .swap-btn:hover { border-color: var(--primary); color: var(--primary); transform: rotate(180deg); }
+    .sim-output-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .sim-stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+    .sim-stat .s-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .sim-stat .s-value { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--primary); }
+    .sim-stat .s-value.sub { font-size: 13px; color: var(--muted); }
+    .sim-stat.highlight { border-color: rgba(0,255,200,0.3); background: rgba(0,255,200,0.05); }
+    .sim-stat .s-value.warning { color: var(--accent); }
+    .sim-stat .s-value.danger { color: var(--danger); }
+    .sim-stat .s-value.success { color: var(--success); }
+
+    .transfer-viz { margin-top: 24px; position: relative; }
+    .transfer-track { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; position: relative; overflow: hidden; min-height: 120px; }
+    .transfer-track::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: var(--border); transform: translateY(-50%); }
+    .transfer-particle { position: absolute; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 14px; opacity: 0; box-shadow: 0 0 16px rgba(0,255,200,0.6); }
+    .transfer-particle.animating { animation: bridgeTravel 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+    @keyframes bridgeTravel { 0%{left:5%;opacity:0;transform:translateY(-50%) scale(0.5)} 10%{opacity:1;transform:translateY(-50%) scale(1)} 85%{opacity:1;transform:translateY(-50%) scale(1)} 95%{opacity:0;transform:translateY(-50%) scale(0.5)} 100%{left:90%;opacity:0;transform:translateY(-50%) scale(0.5)} }
+    .transfer-label { position: absolute; font-size: 11px; color: var(--muted); }
+    .transfer-label.from { bottom: 8px; left: 8px; }
+    .transfer-label.to { bottom: 8px; right: 8px; }
+    .transfer-mid { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--secondary); font-weight: 600; background: var(--surface-2); padding: 2px 10px; border-radius: 10px; border: 1px solid var(--border); opacity: 0; transition: opacity 0.3s; }
+    .transfer-mid.visible { opacity: 1; }
+    .sim-note { font-size: 12px; color: var(--muted); margin-top: 12px; padding: 10px 14px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.2); border-radius: 8px; }
+
+    .risk-matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .risk-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: all 0.2s; cursor: pointer; }
+    .risk-card:hover { border-color: var(--primary); transform: translateY(-3px); }
+    .risk-card.selected { border-color: var(--primary); box-shadow: 0 0 20px rgba(0,255,200,0.15); }
+    .risk-card .r-logo { font-size: 28px; margin-bottom: 10px; }
+    .risk-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .risk-card .r-sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .risk-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .risk-row:last-of-type { border-bottom: none; }
+    .risk-row .rr-label { color: var(--muted); }
+    .risk-row .rr-val { font-family: var(--mono); font-weight: 600; }
+
+    .liquidity-viz { background: var(--surface-2); border-radius: 12px; padding: 32px; margin: 24px 0; text-align: center; }
+    .migration-chains { display: flex; justify-content: center; align-items: flex-end; gap: 24px; flex-wrap: wrap; margin-bottom: 32px; }
+    .mig-chain { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.2s; }
+    .mig-chain:hover { transform: translateY(-4px); }
+    .mig-bar-wrap { height: 120px; display: flex; align-items: flex-end; }
+    .mig-bar { width: 48px; border-radius: 6px 6px 0 0; transition: height 0.6s ease; }
+    .mig-chain .mig-name { font-size: 13px; font-weight: 600; }
+    .mig-chain .mig-tvl { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .mig-chain .mig-apy { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+    .mig-chain .mig-apy.high { color: var(--success); }
+    .mig-chain .mig-apy.low { color: var(--danger); }
+    .migration-arrows { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .mig-arrow { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 11px; color: var(--accent); font-weight: 600; display: flex; align-items: center; gap: 4px; animation: float 2s ease-in-out infinite; cursor: pointer; transition: all 0.2s; }
+    .mig-arrow:hover { border-color: var(--accent); background: rgba(245,158,11,0.08); }
+    @keyframes float { 0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)} }
+
+    .tvl-chart-wrap { background: var(--surface-2); border-radius: 12px; padding: 24px; margin: 24px 0; }
+    .tvl-chart { display: flex; align-items: flex-end; gap: 12px; height: 200px; padding-top: 20px; }
+    .tvl-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end; cursor: pointer; transition: transform 0.2s; }
+    .tvl-col:hover { transform: translateY(-4px); }
+    .tvl-bar { width: 100%; border-radius: 4px 4px 0 0; transition: height 0.5s ease; min-height: 4px; }
+    .tvl-label { font-size: 11px; color: var(--muted); margin-top: auto; }
+    .tvl-val { font-family: var(--mono); font-size: 10px; color: var(--primary); margin-bottom: 4px; }
+
+    .lz-flow { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; margin: 32px 0; }
+    .lz-node { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; text-align: center; min-width: 140px; cursor: pointer; transition: all 0.2s; }
+    .lz-node:hover { border-color: var(--primary); transform: translateY(-3px); }
+    .lz-node.dvn { border-color: rgba(168,85,247,0.4); background: rgba(168,85,247,0.05); }
+    .lz-node .lz-icon { font-size: 26px; margin-bottom: 8px; }
+    .lz-node .lz-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .lz-node .lz-val { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+    .dvns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 16px 0; }
+    .dvn-badge { background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.3); color: var(--secondary); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; font-family: var(--mono); cursor: pointer; transition: all 0.2s; }
+    .dvn-badge:hover { background: rgba(168,85,247,0.2); }
+    .affiliate-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .aff-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-decoration: none; color: inherit; transition: all 0.2s; display: block; cursor: pointer; }
+    .aff-card:hover { border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+
+    .glossary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .glossary-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.2s; }
+    .glossary-item:hover { border-color: var(--primary); transform: translateY(-2px); }
+    .glossary-item .g-term { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 6px; }
+    .glossary-item .g-def { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .risk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .risk-card2 { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; }
+    .risk-card2:hover { border-color: var(--primary); transform: translateY(-2px); }
+    .risk-card2.high { border-color: rgba(239,68,68,0.3); }
+    .risk-card2.medium { border-color: rgba(245,158,11,0.3); }
+    .risk-card2.low { border-color: rgba(34,197,94,0.3); }
+    .risk-card2 .r-icon { font-size: 28px; margin-bottom: 10px; }
+    .risk-card2 h4 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+    .risk-card2 p { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+    .risk-card2 .r-level { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 3px 8px; border-radius: 4px; }
+    .risk-card2.high .r-level { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .risk-card2.medium .r-level { background: rgba(245,158,11,0.15); color: var(--accent); }
+    .risk-card2.low .r-level { background: rgba(34,197,94,0.15); color: var(--success); }
+    .section-divider { border: none; border-top: 1px solid var(--border); margin: 60px 0; }
+
+    /* Nav */
+    .nav { background: rgba(10,10,15,0.95); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 32px; height: 60px; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px); }
+    .nav-logo { font-size: 18px; font-weight: 800; color: var(--text); text-decoration: none; }
+    .nav-logo span { color: var(--primary); }
+    .nav-links { display: flex; gap: 4px; flex-wrap: wrap; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px; transition: all 0.15s; }
+    .nav-links a:hover { color: var(--text); background: var(--surface-2); }
+    .nav-links a.active { color: var(--primary); background: rgba(0,255,200,0.08); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+    .footer { text-align: center; padding: 40px; border-top: 1px solid var(--border); margin-top: 60px; }
+    .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 12px; }
+    .footer-links a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color 0.15s; }
+    .footer-links a:hover { color: var(--primary); }
+    .footer p { font-size: 13px; color: var(--muted); }
+
+    .page { padding-bottom: 80px; }
+
+    /* Slider group reuse */
+    .slider-group label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: var(--muted); }
+    .slider-group input[type=range] { -webkit-appearance: none; width: 100%; height: 6px; background: var(--border); border-radius: 3px; outline: none; cursor: pointer; }
+    .slider-group input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); cursor: pointer; box-shadow: 0 0 8px rgba(0,255,200,0.4); }
+
+    @media (max-width: 768px) {
+      .risk-sim, .calc-grid { grid-template-columns: 1fr; }
+      .sim-panel { grid-template-columns: 1fr; }
+      .chain-select-grid { grid-template-columns: 1fr; gap: 8px; }
+      .swap-btn { align-self: center; }
+      .sim-output-grid { grid-template-columns: 1fr 1fr; }
+      .matrix-hl-proscons { grid-template-columns: 1fr; }
+      .protocol-meta { gap: 16px; }
+      .protocol-hero { padding: 24px; }
+      .sandbox { padding: 24px; }
+      .fee-bar-row { grid-template-columns: 80px 1fr 60px; }
+      .fee-bar-name { font-size: 11px; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-logo">DeFi<span>Viz</span></a>
+  <div class="nav-links">
+    <a href="index.html">Protocols</a>
+    <a href="aave.html">Aave</a>
+    <a href="curve.html">Curve</a>
+    <a href="makerdao.html">MakerDAO</a>
+    <a href="compound.html">Compound</a>
+    <a href="lido.html">Lido</a>
+    <a href="pendle.html">Pendle</a>
+    <a href="eigenlayer.html">EigenLayer</a>
+    <a href="mev.html">MEV</a>
+    <a href="aggregators.html">Aggregators</a>
+    <a href="bridges.html" class="active">Bridges</a>
+  </div>
+</nav>
+
+<div class="page container">
+
+  <a href="index.html" class="back-link">← Back to Protocols</a>
+
+  <!-- Hero -->
+  <div class="protocol-hero bridges-hero">
+    <div class="protocol-icon">🌉</div>
+    <h1>Cross-Chain Bridges</h1>
+    <p class="tagline">Moving Value Across Blockchains</p>
+    <div class="protocol-meta">
+      <div class="meta-item">
+        <div class="label">Total Bridge TVL</div>
+        <div class="value">~$14.2B</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">Monthly Volume</div>
+        <div class="value">~$28B</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">Active Bridges</div>
+        <div class="value">50+</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">Chains Connected</div>
+        <div class="value">100+</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SECTION 1: CROSS-CHAIN FLOW DIAGRAM (NEW)
+       ============================================================ -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">1</span>Cross-Chain Bridge Flow — Animated</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">Select a source and destination chain to see the complete bridge pipeline animate in real-time. Watch tokens lock, travel through the bridge layer, and mint on the destination.</p>
+
+    <div class="flow-chain-row" id="flowChainRow">
+      <button class="flow-chain-pill selected-a" data-chain="ethereum" id="flowSrcA">Ethereum</button>
+      <button class="flow-chain-pill" data-chain="arbitrum" id="flowSrcB">Arbitrum</button>
+      <button class="flow-chain-pill" data-chain="optimism" id="flowSrcC">Optimism</button>
+      <button class="flow-chain-pill" data-chain="polygon" id="flowSrcD">Polygon</button>
+      <button class="flow-chain-pill" data-chain="base" id="flowSrcE">Base</button>
+      <button class="flow-chain-pill" data-chain="avalanche" id="flowSrcF">Avalanche</button>
+      <button class="flow-chain-pill" data-chain="solana" id="flowSrcG">Solana</button>
+    </div>
+
+    <div id="flowDiagram">
+      <svg id="flowSvg" viewBox="0 0 900 260">
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+          <marker id="arrowHead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#1e1e2e"/>
+          </marker>
+          <marker id="arrowHeadActive" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#00ffc8"/>
+          </marker>
+        </defs>
+
+        <!-- Source Chain Node -->
+        <g id="flowNodeSrc" class="flow-node" transform="translate(40,100)">
+          <rect x="0" y="0" width="120" height="70" rx="12" fill="#12121a" stroke="#627eea" stroke-width="2"/>
+          <text x="60" y="28" text-anchor="middle" font-size="22">Ξ</text>
+          <text x="60" y="46" text-anchor="middle" font-size="11" fill="#64748b">Source</text>
+          <text x="60" y="60" text-anchor="middle" font-size="13" font-weight="700" fill="#e2e8f0" id="flowSrcName">Ethereum</text>
+        </g>
+
+        <!-- Lock Contract -->
+        <g id="flowNodeLock" class="flow-node" transform="translate(210,100)">
+          <rect x="0" y="0" width="100" height="70" rx="12" fill="#12121a" stroke="#1e1e2e" stroke-width="2"/>
+          <text x="50" y="28" text-anchor="middle" font-size="22">🔐</text>
+          <text x="50" y="46" text-anchor="middle" font-size="11" fill="#64748b">Lock</text>
+          <text x="50" y="60" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">Escrow</text>
+        </g>
+
+        <!-- Bridge Layer -->
+        <g id="flowNodeBridge" class="flow-node" transform="translate(380,100)">
+          <rect x="0" y="0" width="140" height="70" rx="12" fill="#12121a" stroke="#a855f7" stroke-width="2"/>
+          <text x="70" y="28" text-anchor="middle" font-size="22">🌐</text>
+          <text x="70" y="46" text-anchor="middle" font-size="11" fill="#a855f7">Bridge Layer</text>
+          <text x="70" y="60" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0" id="flowBridgeName">LayerZero</text>
+        </g>
+
+        <!-- Verify -->
+        <g id="flowNodeVerify" class="flow-node" transform="translate(560,100)">
+          <rect x="0" y="0" width="100" height="70" rx="12" fill="#12121a" stroke="#1e1e2e" stroke-width="2"/>
+          <text x="50" y="28" text-anchor="middle" font-size="22">🔍</text>
+          <text x="50" y="46" text-anchor="middle" font-size="11" fill="#64748b">Verify</text>
+          <text x="50" y="60" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">DVN Set</text>
+        </g>
+
+        <!-- Mint -->
+        <g id="flowNodeMint" class="flow-node" transform="translate(700,100)">
+          <rect x="0" y="0" width="100" height="70" rx="12" fill="#12121a" stroke="#1e1e2e" stroke-width="2"/>
+          <text x="50" y="28" text-anchor="middle" font-size="22">🏦</text>
+          <text x="50" y="46" text-anchor="middle" font-size="11" fill="#64748b">Mint</text>
+          <text x="50" y="60" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">Unwrap</text>
+        </g>
+
+        <!-- Dest Chain Node -->
+        <g id="flowNodeDest" class="flow-node" transform="translate(840,100)">
+          <rect x="-40" y="0" width="120" height="70" rx="12" fill="#12121a" stroke="#28a0f0" stroke-width="2"/>
+          <text x="20" y="28" text-anchor="middle" font-size="22">A</text>
+          <text x="20" y="46" text-anchor="middle" font-size="11" fill="#64748b">Dest</text>
+          <text x="20" y="60" text-anchor="middle" font-size="13" font-weight="700" fill="#e2e8f0" id="flowDestName">Arbitrum</text>
+        </g>
+
+        <!-- Path: Src -> Lock -->
+        <path id="flowPath1" class="flow-path" d="M 160 135 C 185 135 185 135 210 135" stroke="#1e1e2e" stroke-width="2" fill="none" marker-end="url(#arrowHead)"/>
+        <!-- Path: Lock -> Bridge -->
+        <path id="flowPath2" class="flow-path" d="M 310 135 C 335 135 345 135 380 135" stroke="#1e1e2e" stroke-width="2" fill="none" marker-end="url(#arrowHead)"/>
+        <!-- Path: Bridge -> Verify -->
+        <path id="flowPath3" class="flow-path" d="M 520 135 C 535 135 545 135 560 135" stroke="#1e1e2e" stroke-width="2" fill="none" marker-end="url(#arrowHead)"/>
+        <!-- Path: Verify -> Mint -->
+        <path id="flowPath4" class="flow-path" d="M 660 135 C 685 135 690 135 700 135" stroke="#1e1e2e" stroke-width="2" fill="none" marker-end="url(#arrowHead)"/>
+        <!-- Path: Mint -> Dest -->
+        <path id="flowPath5" class="flow-path" d="M 800 135 C 810 135 815 135 840 135" stroke="#1e1e2e" stroke-width="2" fill="none" marker-end="url(#arrowHead)"/>
+
+        <!-- Particles -->
+        <circle id="flowP1" class="flow-particle" cx="160" cy="135" r="7" fill="#00ffc8" filter="url(#glow)"/>
+        <circle id="flowP2" class="flow-particle" cx="160" cy="135" r="7" fill="#00ffc8" filter="url(#glow)"/>
+        <circle id="flowP3" class="flow-particle" cx="160" cy="135" r="7" fill="#a855f7" filter="url(#glow)"/>
+        <circle id="flowP4" class="flow-particle" cx="160" cy="135" r="7" fill="#a855f7" filter="url(#glow)"/>
+        <circle id="flowP5" class="flow-particle" cx="160" cy="135" r="7" fill="#00ffc8" filter="url(#glow)"/>
+        <circle id="flowP6" class="flow-particle" cx="160" cy="135" r="7" fill="#00ffc8" filter="url(#glow)"/>
+
+        <!-- Token amount label -->
+        <text id="flowAmountLabel" x="450" y="30" text-anchor="middle" font-size="13" fill="#64748b">1.0 ETH → Arbitrum</text>
+        <text id="flowTimeLabel" x="450" y="48" text-anchor="middle" font-size="11" fill="#a855f7">~3 min · $4.20 fee</text>
+      </svg>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;">
+      <button onclick="runFlowAnimation()" id="flowPlayBtn" style="background:var(--primary);color:var(--bg);border:none;padding:10px 24px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:8px;">
+        ▶ <span id="flowPlayText">Play Flow Animation</span>
+      </button>
+      <button onclick="resetFlow()" style="background:var(--surface-2);color:var(--muted);border:1px solid var(--border);padding:10px 24px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;transition:all 0.2s;">Reset</button>
+      <button onclick="setFlowSpeed('slow')" id="speedSlow" style="background:var(--surface-2);color:var(--muted);border:1px solid var(--border);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">0.5×</button>
+      <button onclick="setFlowSpeed('normal')" id="speedNormal" style="background:rgba(0,255,200,0.1);color:var(--primary);border:1px solid var(--primary);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">1×</button>
+      <button onclick="setFlowSpeed('fast')" id="speedFast" style="background:var(--surface-2);color:var(--muted);border:1px solid var(--border);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;">2×</button>
+    </div>
+
+    <div style="margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+      <div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:20px;margin-bottom:4px;">🔐</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">Step 1</div>
+        <div style="font-size:12px;font-weight:700;">Lock / Escrow</div>
+      </div>
+      <div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:20px;margin-bottom:4px;">🌐</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">Step 2</div>
+        <div style="font-size:12px;font-weight:700;">Bridge Transport</div>
+      </div>
+      <div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:20px;margin-bottom:4px;">🔍</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">Step 3</div>
+        <div style="font-size:12px;font-weight:700;">Verification</div>
+      </div>
+      <div style="background:var(--surface-2);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:20px;margin-bottom:4px;">🏦</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:2px;">Step 4</div>
+        <div style="font-size:12px;font-weight:700;">Mint / Release</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ============================================================
+       SECTION 2: BRIDGE COMPARISON MATRIX (NEW)
+       ============================================================ -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">2</span>Bridge Comparison Matrix</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">Click any bridge row to see its detailed profile. The matrix updates to highlight your selection.</p>
+
+    <div class="matrix-table-wrap">
+      <table class="matrix-table" id="matrixTable">
+        <thead>
+          <tr>
+            <th>Bridge</th>
+            <th>Mechanism</th>
+            <th>TVL</th>
+            <th>Security Score</th>
+            <th>Speed</th>
+            <th>Fee (per $1K)</th>
+            <th>Chains</th>
+            <th>Risk</th>
+          </tr>
+        </thead>
+        <tbody id="matrixBody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="matrix-highlight-panel" id="matrixHlPanel">
+      <div class="matrix-hl-header">
+        <div class="matrix-hl-logo" id="mhlLogo">🌀</div>
+        <div>
+          <div class="matrix-hl-name" id="mhlName">LayerZero</div>
+          <div style="font-size:12px;color:var(--muted);" id="mhlType">Omnichain Messaging</div>
+        </div>
+        <div id="mhlBadge" style="margin-left:auto;"></div>
+      </div>
+      <div class="matrix-hl-desc" id="mhlDesc">Description goes here.</div>
+      <div class="matrix-hl-stats" id="mhlStats"></div>
+      <div class="matrix-hl-proscons">
+        <div class="matrix-hl-pros">
+          <div class="mhpc-title">✓ Pros</div>
+          <ul id="mhlPros"></ul>
+        </div>
+        <div class="matrix-hl-cons">
+          <div class="mhpc-title">✗ Cons</div>
+          <ul id="mhlCons"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ============================================================
+       SECTION 3: BRIDGE RISK SIMULATOR (NEW)
+       ============================================================ -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">3</span>Bridge Risk Simulator</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">Adjust the risk factors below to see how a bridge's overall risk score changes in real-time. Each meter springs to its new value.</p>
+
+    <div class="risk-sim">
+      <div class="risk-sliders">
+
+        <div class="risk-slider-group">
+          <div class="risk-slider-label">
+            <span class="rsl-name">📅 Time Since Last Audit</span>
+            <span class="rsl-value" id="auditVal">12 months</span>
+          </div>
+          <input type="range" class="risk-slider" id="auditSlider" min="0" max="36" step="1" value="12">
+          <div class="risk-slider-track">
+            <span>Just audited</span><span>3+ years</span>
+          </div>
+        </div>
+
+        <div class="risk-slider-group">
+          <div class="risk-slider-label">
+            <span class="rsl-name">💰 TVL (Billions USD)</span>
+            <span class="rsl-value" id="tvlRiskVal">$2.0B</span>
+          </div>
+          <input type="range" class="risk-slider" id="tvlRiskSlider" min="0.05" max="10" step="0.05" value="2">
+          <div class="risk-slider-track">
+            <span>$50M</span><span>$10B+</span>
+          </div>
+        </div>
+
+        <div class="risk-slider-group">
+          <div class="risk-slider-label">
+            <span class="rsl-name">⚔️ Slash Events History</span>
+            <span class="rsl-value" id="slashVal">0 events</span>
+          </div>
+          <input type="range" class="risk-slider" id="slashSlider" min="0" max="10" step="1" value="0">
+          <div class="risk-slider-track">
+            <span>Clean record</span><span>10+ events</span>
+          </div>
+        </div>
+
+        <div class="risk-slider-group">
+          <div class="risk-slider-label">
+            <span class="rsl-name">🔗 Validator Set Size</span>
+            <span class="rsl-value" id="validatorVal">50 validators</span>
+          </div>
+          <input type="range" class="risk-slider" id="validatorSlider" min="3" max="200" step="1" value="50">
+          <div class="risk-slider-track">
+            <span>3 (risky)</span><span>200+ (strong)</span>
+          </div>
+        </div>
+
+        <div class="risk-slider-group">
+          <div class="risk-slider-label">
+            <span class="rsl-name">📜 Contract Age</span>
+            <span class="rsl-value" id="contractAgeVal">18 months</span>
+          </div>
+          <input type="range" class="risk-slider" id="contractAgeSlider" min="1" max="60" step="1" value="18">
+          <div class="risk-slider-track">
+            <span>1 month</span><span>5+ years</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="risk-meter-wrap">
+
+        <div class="risk-meter-card">
+          <div class="risk-meter-title">🎯 Overall Risk Score</div>
+          <div class="risk-meter-display">
+            <svg class="risk-meter-svg" viewBox="0 0 160 80">
+              <path class="risk-meter-bg" d="M 10 75 A 65 65 0 0 1 150 75"/>
+              <path class="risk-meter-glow" id="meterGlow" d="M 10 75 A 65 65 0 0 1 150 75" stroke="var(--success)" stroke-dasharray="204" stroke-dashoffset="204"/>
+              <path class="risk-meter-fill" id="meterFill" d="M 10 75 A 65 65 0 0 1 150 75" stroke="var(--success)" stroke-dasharray="204" stroke-dashoffset="204"/>
+            </svg>
+            <div class="risk-meter-score">
+              <div class="rms-num" id="meterScoreNum" style="color:var(--success)">85</div>
+              <div class="rms-label">/ 100</div>
+            </div>
+          </div>
+          <div class="risk-meter-label safe" id="meterScoreLabel">Low Risk</div>
+          <div class="risk-factor-chips" id="riskFactorChips"></div>
+        </div>
+
+        <div class="risk-meter-card">
+          <div class="risk-meter-title">📜 Smart Contract Risk</div>
+          <div class="risk-meter-display">
+            <svg class="risk-meter-svg" viewBox="0 0 160 80">
+              <path class="risk-meter-bg" d="M 10 75 A 65 65 0 0 1 150 75"/>
+              <path class="risk-meter-fill" id="meterSCFill" d="M 10 75 A 65 65 0 0 1 150 75" stroke="var(--accent)" stroke-dasharray="204" stroke-dashoffset="80"/>
+            </svg>
+            <div class="risk-meter-score">
+              <div class="rms-num" id="meterSCNum" style="color:var(--accent)">60</div>
+              <div class="rms-label">/ 100</div>
+            </div>
+          </div>
+          <div class="risk-meter-label caution" id="meterSCLabel">Medium</div>
+        </div>
+
+        <div class="risk-meter-card">
+          <div class="risk-meter-title">👥 Validator / Oracle Risk</div>
+          <div class="risk-meter-display">
+            <svg class="risk-meter-svg" viewBox="0 0 160 80">
+              <path class="risk-meter-bg" d="M 10 75 A 65 65 0 0 1 150 75"/>
+              <path class="risk-meter-fill" id="meterValFill" d="M 10 75 A 65 65 0 0 1 150 75" stroke="var(--success)" stroke-dasharray="204" stroke-dashoffset="140"/>
+            </svg>
+            <div class="risk-meter-score">
+              <div class="rms-num" id="meterValNum" style="color:var(--success)">30</div>
+              <div class="rms-label">/ 100</div>
+            </div>
+          </div>
+          <div class="risk-meter-label safe" id="meterValLabel">Low</div>
+        </div>
+
+        <div class="risk-meter-card">
+          <div class="risk-meter-title">⏱️ Liquidity / Timing Risk</div>
+          <div class="risk-meter-display">
+            <svg class="risk-meter-svg" viewBox="0 0 160 80">
+              <path class="risk-meter-bg" d="M 10 75 A 65 65 0 0 1 150 75"/>
+              <path class="risk-meter-fill" id="meterLiqFill" d="M 10 75 A 65 65 0 0 1 150 75" stroke="var(--primary)" stroke-dasharray="204" stroke-dashoffset="110"/>
+            </svg>
+            <div class="risk-meter-score">
+              <div class="rms-num" id="meterLiqNum" style="color:var(--primary)">45</div>
+              <div class="rms-label">/ 100</div>
+            </div>
+          </div>
+          <div class="risk-meter-label caution" id="meterLiqLabel">Medium</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ============================================================
+       SECTION 4: TRANSFER TIME CALCULATOR (NEW)
+       ============================================================ -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">4</span>Transfer Time Calculator</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">Set your transfer amount and chains. See real-time fee and time estimates for every major bridge routing between them.</p>
+
+    <div class="calc-grid">
+      <div class="calc-controls">
+
+        <div class="calc-slider-group">
+          <div class="calc-slider-label">
+            <span class="csl-name">Amount (ETH)</span>
+            <span class="csl-val" id="calcAmountVal">5.0 ETH</span>
+          </div>
+          <input type="range" class="calc-slider" id="calcAmount" min="0.1" max="1000" step="0.1" value="5">
+        </div>
+
+        <div style="background:var(--surface-2);border-radius:12px;padding:16px;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;">Source Chain</div>
+          <div class="calc-chain-select" id="calcSrcChains">
+            <button class="calc-chain-btn selected" data-chain="ethereum" onclick="setCalcChain('src','ethereum')">
+              <span class="calc-chain-icon chain-icon chain-eth" style="width:28px;height:28px;font-size:14px;">Ξ</span>
+              <span>Ethereum</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="arbitrum" onclick="setCalcChain('src','arbitrum')">
+              <span class="calc-chain-icon chain-icon chain-arb" style="width:28px;height:28px;font-size:14px;">A</span>
+              <span>Arbitrum</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="optimism" onclick="setCalcChain('src','optimism')">
+              <span class="calc-chain-icon chain-icon chain-op" style="width:28px;height:28px;font-size:14px;">OP</span>
+              <span>Optimism</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="polygon" onclick="setCalcChain('src','polygon')">
+              <span class="calc-chain-icon chain-icon chain-poly" style="width:28px;height:28px;font-size:14px;">M</span>
+              <span>Polygon</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="base" onclick="setCalcChain('src','base')">
+              <span class="calc-chain-icon chain-icon chain-base" style="width:28px;height:28px;font-size:14px;">B</span>
+              <span>Base</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="avalanche" onclick="setCalcChain('src','avalanche')">
+              <span class="calc-chain-icon chain-icon chain-avax" style="width:28px;height:28px;font-size:14px;">❄</span>
+              <span>Avalanche</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="background:var(--surface-2);border-radius:12px;padding:16px;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;">Destination Chain</div>
+          <div class="calc-chain-select" id="calcDstChains">
+            <button class="calc-chain-btn selected" data-chain="arbitrum" onclick="setCalcChain('dst','arbitrum')">
+              <span class="calc-chain-icon chain-icon chain-arb" style="width:28px;height:28px;font-size:14px;">A</span>
+              <span>Arbitrum</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="ethereum" onclick="setCalcChain('dst','ethereum')">
+              <span class="calc-chain-icon chain-icon chain-eth" style="width:28px;height:28px;font-size:14px;">Ξ</span>
+              <span>Ethereum</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="optimism" onclick="setCalcChain('dst','optimism')">
+              <span class="calc-chain-icon chain-icon chain-op" style="width:28px;height:28px;font-size:14px;">OP</span>
+              <span>Optimism</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="polygon" onclick="setCalcChain('dst','polygon')">
+              <span class="calc-chain-icon chain-icon chain-poly" style="width:28px;height:28px;font-size:14px;">M</span>
+              <span>Polygon</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="base" onclick="setCalcChain('dst','base')">
+              <span class="calc-chain-icon chain-icon chain-base" style="width:28px;height:28px;font-size:14px;">B</span>
+              <span>Base</span>
+            </button>
+            <button class="calc-chain-btn" data-chain="avalanche" onclick="setCalcChain('dst','avalanche')">
+              <span class="calc-chain-icon chain-icon chain-avax" style="width:28px;height:28px;font-size:14px;">❄</span>
+              <span>Avalanche</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <div>
+        <div class="calc-results" id="calcResults">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="route-viz">
+          <div class="route-track" id="routeTrack">
+            <span class="route-chain-label" id="routeSrcLabel" style="left:12px;top:12px;background:#627eea;">Ethereum</span>
+            <div class="route-path-line"><div class="route-path-fill" id="routePathFill"></div></div>
+            <div class="route-mid-dot" id="routeMidDot"></div>
+            <span class="route-chain-label" id="routeDstLabel" style="right:12px;bottom:12px;background:#28a0f0;">Arbitrum</span>
+            <div class="route-time-badge" id="routeTimeBadge">Best: LayerZero ~3 min</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ============================================================
+       SECTION 5: TVL FLOW VISUALIZATION (NEW)
+       ============================================================ -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">5</span>TVL Flow Visualization — Live Capital Migration</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">Watch liquidity animate between chains. Click a chain to see all its connections light up, or click "Flow" to watch particles move capital in real-time.</p>
+
+    <div class="tvl-flow-controls" id="tvlFlowControls">
+      <button class="tvl-flow-btn active" onclick="tvlFlowSetMode('all')" id="tvlModeAll">All Flows</button>
+      <button class="tvl-flow-btn" onclick="tvlFlowSetMode('eth')" id="tvlModeEth">Ethereum Focus</button>
+      <button class="tvl-flow-btn" onclick="tvlFlowSetMode('l2')" id="tvlModeL2">L2 Only</button>
+      <button class="tvl-flow-btn" onclick="runTvlFlowAnimation()" id="tvlFlowPlayBtn">▶ Play Flow Animation</button>
+    </div>
+
+    <div class="tvl-flow-wrap">
+      <svg id="tvlFlowSvg" viewBox="0 0 900 320">
+        <defs>
+          <filter id="flowGlow">
+            <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <linearGradient id="tvlGradEth" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#627eea"/>
+            <stop offset="100%" style="stop-color:#28a0f0"/>
+          </linearGradient>
+          <linearGradient id="tvlGradL2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#28a0f0"/>
+            <stop offset="100%" style="stop-color:#a855f7"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Connection lines -->
+        <line id="tvlLineEthArb" class="tvl-conn-line" x1="160" y1="160" x2="360" y2="80"/>
+        <line id="tvlLineEthOp"  class="tvl-conn-line" x1="160" y1="160" x2="360" y2="160"/>
+        <line id="tvlLineEthBase"class="tvl-conn-line" x1="160" y1="160" x2="360" y2="240"/>
+        <line id="tvlLineEthPoly" class="tvl-conn-line" x1="160" y1="160" x2="540" y2="260"/>
+        <line id="tvlLineEthAvax" class="tvl-conn-line" x1="160" y1="160" x2="720" y2="260"/>
+        <line id="tvlLineArbOp"   class="tvl-conn-line" x1="360" y1="80"  x2="540" y2="160"/>
+        <line id="tvlLineArbBase" class="tvl-conn-line" x1="360" y1="80"  x2="540" y2="240"/>
+        <line id="tvlLineOpBase"  class="tvl-conn-line" x1="360" y1="160" x2="540" y2="240"/>
+
+        <!-- Chain nodes -->
+        <g id="tvlNodeEth" class="tvl-chain-node" data-chain="ethereum" transform="translate(60,110)">
+          <rect x="0" y="0" width="120" height="100" rx="12" fill="#12121a" stroke="#627eea" stroke-width="2"/>
+          <text x="60" y="28" text-anchor="middle" font-size="24">Ξ</text>
+          <text x="60" y="50" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">Ethereum</text>
+          <rect x="10" y="58" width="100" height="6" rx="3" class="tvl-chain-bar-bg"/>
+          <rect id="tvlBarEth" class="tvl-chain-bar-fill" x="10" y="58" width="100" height="6" rx="3" fill="#627eea"/>
+          <text x="60" y="80" text-anchor="middle" class="tvl-chain-tvl">$5.2B TVL</text>
+          <text x="60" y="94" text-anchor="middle" font-size="10" fill="#22c55e">4.2% APY</text>
+        </g>
+
+        <g id="tvlNodeArb" class="tvl-chain-node" data-chain="arbitrum" transform="translate(240,20)">
+          <rect x="0" y="0" width="120" height="100" rx="12" fill="#12121a" stroke="#28a0f0" stroke-width="2"/>
+          <text x="60" y="28" text-anchor="middle" font-size="24">A</text>
+          <text x="60" y="50" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">Arbitrum</text>
+          <rect x="10" y="58" width="100" height="6" rx="3" class="tvl-chain-bar-bg"/>
+          <rect id="tvlBarArb" class="tvl-chain-bar-fill" x="10" y="58" width="60" height="6" rx="3" fill="#28a0f0"/>
+          <text x="60" y="80" text-anchor="middle" class="tvl-chain-tvl">$2.8B TVL</text>
+          <text x="60" y="94" text-anchor="middle" font-size="10" fill="#22c55e">6.8% APY</text>
+        </g>
+
+        <g id="tvlNodeOp" class="tvl-chain-node" data-chain="optimism" transform="translate(420,110)">
+          <rect x="0" y="0" width="120" height="100" rx="12" fill="#12121a" stroke="#ff0420" stroke-width="2"/>
+          <text x="60" y="28" text-anchor="middle" font-size="24">OP</text>
+          <text x="60" y="50" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">Optimism</text>
+          <rect x="10" y="58" width="100" height="6" rx="3" class="tvl-chain-bar-bg"/>
+          <rect id="tvlBarOp" class="tvl-chain-bar-fill" x="10" y="58" width="40" height="6" rx="3" fill="#ff0420"/>
+          <text x="60" y="80" text-anchor="middle" class="tvl-chain-tvl">$1.8B TVL</text>
+          <text x="60" y="94" text-anchor="middle" font-size="10" fill="#ef4444">5.1% APY</text>
+        </g>
+
+        <g id="tvlNodeBase" class="tvl-chain-node" data-chain="base" transform="translate(420,210)">
+          <rect x="0" y="0" width="120" height="100" rx="12" fill="#12121a" stroke="#0052ff" stroke-width="2"/>
+          <text x="60" y="28" text-anchor="middle" font-size="24">B</text>
+          <text x="60" y="50" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">Base</text>
+          <rect x="10" y="58" width="100" height="6" rx="3" class="tvl-chain-bar-bg"/>
+          <rect id="tvlBarBase" class="tvl-chain-bar-fill" x="10" y="58" width="50" height="6" rx="3" fill="#0052ff"/>
+          <text x="60" y="80" text-anchor="middle" class="tvl-chain-tvl">$2.1B TVL</text>
+          <text x="60" y="94" text-anchor="middle" font-size="10" fill="#22c55e">7.5% APY</text>
+        </g>
+
+        <g id="tvlNodePoly" class="tvl-chain-node" data-chain="polygon" transform="translate(620,210)">
+          <rect x="0" y="0" width="120" height="100" rx="12" fill="#12121a" stroke="#8247e5" stroke-width="2"/>
+          <text x="60" y="28" text-anchor="middle" font-size="24">M</text>
+          <text x="60" y="50" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">Polygon</text>
+          <rect x="10" y="58" width="100" height="6" rx="3" class="tvl-chain-bar-bg"/>
+          <rect id="tvlBarPoly" class="tvl-chain-bar-fill" x="10" y="58" width="30" height="6" rx="3" fill="#8247e5"/>
+          <text x="60" y="80" text-anchor="middle" class="tvl-chain-tvl">$1.2B TVL</text>
+          <text x="60" y="94" text-anchor="middle" font-size="10" fill="#ef4444">4.8% APY</text>
+        </g>
+
+        <g id="tvlNodeAvax" class="tvl-chain-node" data-chain="avalanche" transform="translate(780,210)">
+          <rect x="0" y="0" width="120" height="100" rx="12" fill="#12121a" stroke="#e84141" stroke-width="2"/>
+          <text x="60" y="28" text-anchor="middle" font-size="24">❄</text>
+          <text x="60" y="50" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">Avalanche</text>
+          <rect x="10" y="58" width="100" height="6" rx="3" class="tvl-chain-bar-bg"/>
+          <rect id="tvlBarAvax" class="tvl-chain-bar-fill" x="10" y="58" width="25" height="6" rx="3" fill="#e84141"/>
+          <text x="60" y="80" text-anchor="middle" class="tvl-chain-tvl">$0.9B TVL</text>
+          <text x="60" y="94" text-anchor="middle" font-size="10" fill="#ef4444">4.5% APY</text>
+        </g>
+
+        <!-- Flow particles (one per connection) -->
+        <circle id="tvlDot0" class="tvl-flow-dot" cx="160" cy="160" r="5" fill="#00ffc8" filter="url(#flowGlow)"/>
+        <circle id="tvlDot1" class="tvl-flow-dot" cx="160" cy="160" r="5" fill="#00ffc8" filter="url(#flowGlow)"/>
+        <circle id="tvlDot2" class="tvl-flow-dot" cx="160" cy="160" r="5" fill="#00ffc8" filter="url(#flowGlow)"/>
+        <circle id="tvlDot3" class="tvl-flow-dot" cx="160" cy="160" r="5" fill="#a855f7" filter="url(#flowGlow)"/>
+        <circle id="tvlDot4" class="tvl-flow-dot" cx="160" cy="160" r="5" fill="#a855f7" filter="url(#flowGlow)"/>
+        <circle id="tvlDot5" class="tvl-flow-dot" cx="160" cy="160" r="5" fill="#28a0f0" filter="url(#flowGlow)"/>
+        <circle id="tvlDot6" class="tvl-flow-dot" cx="160" cy="160" r="5" fill="#28a0f0" filter="url(#flowGlow)"/>
+        <circle id="tvlDot7" class="tvl-flow-dot" cx="160" cy="160" r="5" fill="#28a0f0" filter="url(#flowGlow)"/>
+
+        <!-- Direction labels -->
+        <text x="260" y="105" font-size="10" fill="#64748b" id="tvlFlowLabel0">+$280M/mo</text>
+        <text x="260" y="175" font-size="10" fill="#64748b" id="tvlFlowLabel1">+$190M/mo</text>
+        <text x="260" y="240" font-size="10" fill="#64748b" id="tvlFlowLabel2">+$240M/mo</text>
+        <text x="350" y="245" font-size="10" fill="#64748b" id="tvlFlowLabel3">+$120M/mo</text>
+        <text x="440" y="225" font-size="10" fill="#64748b" id="tvlFlowLabel4">+$85M/mo</text>
+        <text x="450" y="130" font-size="10" fill="#64748b" id="tvlFlowLabel5">+$160M/mo</text>
+        <text x="450" y="195" font-size="10" fill="#64748b" id="tvlFlowLabel6">+$210M/mo</text>
+        <text x="480" y="195" font-size="10" fill="#64748b" id="tvlFlowLabel7">+$95M/mo</text>
+      </svg>
+    </div>
+
+    <div class="tvl-flow-legend">
+      <div class="tvl-flow-legend-item"><div class="tvl-flow-legend-dot" style="background:#627eea;"></div> Ethereum</div>
+      <div class="tvl-flow-legend-item"><div class="tvl-flow-legend-dot" style="background:#28a0f0;"></div> Arbitrum</div>
+      <div class="tvl-flow-legend-item"><div class="tvl-flow-legend-dot" style="background:#ff0420;"></div> Optimism</div>
+      <div class="tvl-flow-legend-item"><div class="tvl-flow-legend-dot" style="background:#0052ff;"></div> Base</div>
+      <div class="tvl-flow-legend-item"><div class="tvl-flow-legend-dot" style="background:#8247e5;"></div> Polygon</div>
+      <div class="tvl-flow-legend-item"><div class="tvl-flow-legend-dot" style="background:#e84141;"></div> Avalanche</div>
+      <div class="tvl-flow-legend-item"><div class="tvl-flow-legend-dot" style="background:#00ffc8;"></div> Active flow</div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ============================================================
+       SECTION 6: FEE COMPARISON CHART (NEW)
+       ============================================================ -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">6</span>Fee Comparison Chart</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px;">Compare bridge fees across major protocols for a standard $1,000 transfer. Click any bar to expand detailed fee breakdowns.</p>
+
+    <div class="fee-chart-wrap">
+      <div class="fee-chart" id="feeChart">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ============================================================
+       ORIGINAL SECTIONS (7-13, streamlined)
+       ============================================================ -->
+
+  <!-- Section 7: What are Bridge Routers? -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">7</span>What are Bridge Routers?</div>
+    <p style="color:var(--muted);line-height:1.8;font-size:15px;margin-bottom:16px;">Blockchains are inherently <strong style="color:var(--text);">siloed environments</strong>. Ethereum knows about Ethereum; Arbitrum knows about Arbitrum. They can't natively read each other's state or transfer assets between them.</p>
+    <p style="color:var(--muted);line-height:1.8;font-size:15px;margin-bottom:16px;">A bridge router performs three functions: it <strong style="color:var(--text);">locks or burns assets</strong> on the source chain, <strong style="color:var(--text);">verifies the transaction occurred</strong> through some consensus mechanism, and then <strong style="color:var(--text);">mints or releases assets</strong> on the destination chain.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:20px;">
+      <div style="background:var(--surface-2);border-radius:10px;padding:16px;border-left:3px solid var(--primary);">
+        <div style="font-size:16px;margin-bottom:6px;">🔒</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;">Lock-and-Mint</div>
+        <div style="font-size:12px;color:var(--muted);">Lock assets, mint wrapped tokens. WBTC, canonical L2 bridges.</div>
+      </div>
+      <div style="background:var(--surface-2);border-radius:10px;padding:16px;border-left:3px solid var(--secondary);">
+        <div style="font-size:16px;margin-bottom:6px;">🔥</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;">Burn-and-Mint</div>
+        <div style="font-size:12px;color:var(--muted);">Burn on source, mint on dest. LayerZero OFT, Axelar GMP.</div>
+      </div>
+      <div style="background:var(--surface-2);border-radius:10px;padding:16px;border-left:3px solid var(--accent);">
+        <div style="font-size:16px;margin-bottom:6px;">⚡</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;">Atomic Swaps</div>
+        <div style="font-size:12px;color:var(--muted);">Trustless cross-chain exchange. Both succeed or both revert.</div>
+      </div>
+      <div style="background:var(--surface-2);border-radius:10px;padding:16px;border-left:3px solid var(--success);">
+        <div style="font-size:16px;margin-bottom:6px;">💧</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;">Liquidity Networks</div>
+        <div style="font-size:12px;color:var(--muted);">AMM-style pools across chains. Stargate, Curve cross-chain.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Section 8: Bridge Architecture -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">8</span>Bridge Architecture — How Bridges Actually Work</div>
+
+    <div class="arch-flow">
+      <div class="arch-node">
+        <div class="a-icon">👤</div><div class="a-label">Source Chain</div><div class="a-val" style="color:var(--primary)">User locks ETH</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node secondary">
+        <div class="a-icon">🔐</div><div class="a-label">Source Contract</div><div class="a-val">Asset Locked</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node accent">
+        <div class="a-icon">📡</div><div class="a-label">Relayer / Oracle</div><div class="a-val">tx proof sent</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node secondary">
+        <div class="a-icon">🔍</div><div class="a-label">Verification</div><div class="a-val">Validator set</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node primary">
+        <div class="a-icon">🏦</div><div class="a-label">Dest Contract</div><div class="a-val">Mint wrapped</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node">
+        <div class="a-icon">🎉</div><div class="a-label">Destination</div><div class="a-val" style="color:var(--primary)">User receives</div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:12px;padding:24px;margin-top:8px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;text-align:center;">
+        <div><div style="font-size:28px;margin-bottom:8px;">🔐</div><div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Lock / Burn</div><div style="font-size:13px;font-weight:600;">Assets escrowed in smart contract on origin chain</div></div>
+        <div><div style="font-size:28px;margin-bottom:8px;">📡</div><div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Relayer / Oracle</div><div style="font-size:13px;font-weight:600;">Validators or oracles pick up the transaction proof</div></div>
+        <div><div style="font-size:28px;margin-bottom:8px;">🔍</div><div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Verification</div><div style="font-size:13px;font-weight:600;">Validators confirm tx using source chain consensus</div></div>
+        <div><div style="font-size:28px;margin-bottom:8px;">💰</div><div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Mint / Release</div><div style="font-size:13px;font-weight:600;">Destination contract mints equivalent tokens</div></div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Section 9: Interactive Bridge Simulator -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">9</span>Interactive Bridge Simulator</div>
+
+    <div class="sim-panel">
+      <div class="sim-controls">
+        <div>
+          <div class="slider-group">
+            <label><span>Amount (ETH)</span><span id="simAmount">1.0 ETH</span></label>
+            <input type="range" id="bridgeAmount" min="0.01" max="100" step="0.01" value="1">
+          </div>
+        </div>
+        <div>
+          <div class="chain-select-label">Source Chain</div>
+          <div class="chain-btn-group" id="sourceBtns">
+            <button class="chain-btn selected" data-chain="ethereum" onclick="selectChain('source','ethereum')"><span class="chain-icon chain-eth">Ξ</span><span class="chain-name">Ethereum</span></button>
+            <button class="chain-btn" data-chain="arbitrum" onclick="selectChain('source','arbitrum')"><span class="chain-icon chain-arb">A</span><span class="chain-name">Arbitrum</span></button>
+            <button class="chain-btn" data-chain="optimism" onclick="selectChain('source','optimism')"><span class="chain-icon chain-op">OP</span><span class="chain-name">Optimism</span></button>
+            <button class="chain-btn" data-chain="polygon" onclick="selectChain('source','polygon')"><span class="chain-icon chain-poly">M</span><span class="chain-name">Polygon</span></button>
+            <button class="chain-btn" data-chain="base" onclick="selectChain('source','base')"><span class="chain-icon chain-base">B</span><span class="chain-name">Base</span></button>
+            <button class="chain-btn" data-chain="avalanche" onclick="selectChain('source','avalanche')"><span class="chain-icon chain-avax">❄</span><span class="chain-name">Avalanche</span></button>
+          </div>
+        </div>
+        <div style="text-align:center;">
+          <button class="swap-btn" onclick="swapChains()" title="Swap source & destination">⇄</button>
+        </div>
+        <div>
+          <div class="chain-select-label">Destination Chain</div>
+          <div class="chain-btn-group" id="destBtns">
+            <button class="chain-btn selected" data-chain="arbitrum" onclick="selectChain('dest','arbitrum')"><span class="chain-icon chain-arb">A</span><span class="chain-name">Arbitrum</span></button>
+            <button class="chain-btn" data-chain="ethereum" onclick="selectChain('dest','ethereum')"><span class="chain-icon chain-eth">Ξ</span><span class="chain-name">Ethereum</span></button>
+            <button class="chain-btn" data-chain="optimism" onclick="selectChain('dest','optimism')"><span class="chain-icon chain-op">OP</span><span class="chain-name">Optimism</span></button>
+            <button class="chain-btn" data-chain="polygon" onclick="selectChain('dest','polygon')"><span class="chain-icon chain-poly">M</span><span class="chain-name">Polygon</span></button>
+            <button class="chain-btn" data-chain="base" onclick="selectChain('dest','base')"><span class="chain-icon chain-base">B</span><span class="chain-name">Base</span></button>
+            <button class="chain-btn" data-chain="avalanche" onclick="selectCalcChain('dest','avalanche')"><span class="chain-icon chain-avax">❄</span><span class="chain-name">Avalanche</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sim-output-grid" id="simOutput">
+          <div class="sim-stat"><div class="s-label">You Send</div><div class="s-value" id="youSend">1.000 ETH</div></div>
+          <div class="sim-stat"><div class="s-label">Bridge Fee</div><div class="s-value warning" id="bridgeFee">~$4.20</div></div>
+          <div class="sim-stat"><div class="s-label">Gas on Dest.</div><div class="s-value sub" id="gasDest">~$0.50</div></div>
+          <div class="sim-stat highlight"><div class="s-label">You Receive</div><div class="s-value success" id="youReceive">0.9958 ETH</div></div>
+          <div class="sim-stat"><div class="s-label">Processing Time</div><div class="s-value" id="procTime">~3 min</div></div>
+          <div class="sim-stat"><div class="s-label">Slippage</div><div class="s-value sub" id="slippage">0.0%</div></div>
+        </div>
+        <div class="transfer-viz">
+          <div class="transfer-track" id="transferTrack">
+            <span class="transfer-label from" id="fromLabel">Ethereum</span>
+            <span class="transfer-mid" id="transferMid">Crossing via LayerZero</span>
+            <span class="transfer-label to" id="toLabel">Arbitrum</span>
+            <div class="transfer-particle" id="transferParticle">Ξ</div>
+          </div>
+          <button onclick="runTransfer()" id="transferBtn" style="margin-top:16px;width:100%;background:var(--primary);color:var(--bg);border:none;padding:12px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;">▶ Simulate Bridge Transfer</button>
+        </div>
+        <div class="sim-note">💡 <strong>Tip:</strong> LayerZero transactions are typically faster than canonical bridges but may have higher fees for large amounts.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Section 10: Bridge Risk Comparison -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">10</span>Bridge Risk Comparison Matrix</div>
+    <div class="risk-matrix" id="riskMatrix">
+      <div class="risk-card" onclick="selectRiskCard(this)">
+        <div class="r-logo">🌀</div><h4>LayerZero</h4><div class="r-sub">Omnichain Messaging</div>
+        <div class="risk-row"><span class="rr-label">TVL</span><span class="rr-val" style="color:var(--primary)">~$5.8B</span></div>
+        <div class="risk-row"><span class="rr-label">Mechanism</span><span class="badge cyan">DVN</span></div>
+        <div class="risk-row"><span class="rr-label">Audit</span><span class="badge green">Audited</span></div>
+        <div class="risk-row"><span class="rr-label">Hack History</span><span class="badge green">None</span></div>
+        <div class="risk-row"><span class="rr-label">Risk</span><span class="badge yellow">Medium</span></div>
+      </div>
+      <div class="risk-card" onclick="selectRiskCard(this)">
+        <div class="r-logo">🐛</div><h4>Wormhole</h4><div class="r-sub">Cross-Chain Messaging</div>
+        <div class="risk-row"><span class="rr-label">TVL</span><span class="rr-val" style="color:var(--primary)">~$3.2B</span></div>
+        <div class="risk-row"><span class="rr-label">Mechanism</span><span class="badge purple">Guardian</span></div>
+        <div class="risk-row"><span class="rr-label">Audit</span><span class="badge green">Audited</span></div>
+        <div class="risk-row"><span class="rr-label">Hack History</span><span class="badge red">$320M (2022)</span></div>
+        <div class="risk-row"><span class="rr-label">Risk</span><span class="badge yellow">Medium</span></div>
+      </div>
+      <div class="risk-card" onclick="selectRiskCard(this)">
+        <div class="r-logo">🔷</div><h4>Axelar</h4><div class="r-sub">Proof-of-Stake Routing</div>
+        <div class="risk-row"><span class="rr-label">TVL</span><span class="rr-val" style="color:var(--primary)">~$780M</span></div>
+        <div class="risk-row"><span class="rr-label">Mechanism</span><span class="badge purple">PoS Validators</span></div>
+        <div class="risk-row"><span class="rr-label">Audit</span><span class="badge green">Audited</span></div>
+        <div class="risk-row"><span class="rr-label">Hack History</span><span class="badge green">None</span></div>
+        <div class="risk-row"><span class="rr-label">Risk</span><span class="badge yellow">Medium</span></div>
+      </div>
+      <div class="risk-card" onclick="selectRiskCard(this)">
+        <div class="r-logo">⚡</div><h4>Stargate</h4><div class="r-sub">LayerZero Liquidity</div>
+        <div class="risk-row"><span class="rr-label">TVL</span><span class="rr-val" style="color:var(--primary)">~$890M</span></div>
+        <div class="risk-row"><span class="rr-label">Mechanism</span><span class="badge cyan">Liquidity Pool</span></div>
+        <div class="risk-row"><span class="rr-label">Audit</span><span class="badge green">Audited</span></div>
+        <div class="risk-row"><span class="rr-label">Hack History</span><span class="badge green">None</span></div>
+        <div class="risk-row"><span class="rr-label">Risk</span><span class="badge green">Low-Medium</span></div>
+      </div>
+      <div class="risk-card" onclick="selectRiskCard(this)">
+        <div class="r-logo">🛸</div><h4>Hyperlane</h4><div class="r-sub">Modular Interoperability</div>
+        <div class="risk-row"><span class="rr-label">TVL</span><span class="rr-val" style="color:var(--primary)">~$140M</span></div>
+        <div class="risk-row"><span class="rr-label">Mechanism</span><span class="badge purple">Sovereign</span></div>
+        <div class="risk-row"><span class="rr-label">Audit</span><span class="badge yellow">Partial</span></div>
+        <div class="risk-row"><span class="rr-label">Hack History</span><span class="badge green">None</span></div>
+        <div class="risk-row"><span class="rr-label">Risk</span><span class="badge yellow">Medium</span></div>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding:16px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:10px;font-size:13px;color:var(--muted);">
+      <strong style="color:var(--accent);">⚠️ Important:</strong> Bridge hack history is critical. Wormhole lost $320M (2022). Ronin lost $625M. Nomad drained $190M. Always assess track record, not just TVL.
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Section 11: Liquidity Migration -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">11</span>Liquidity Migration — Capital Seeking Yield</div>
+    <div class="liquidity-viz">
+      <div class="migration-chains" id="migrationChains"></div>
+      <div class="migration-arrows" id="migrationArrows"></div>
+    </div>
+    <div style="background:var(--surface-2);border-radius:10px;padding:20px;margin-top:8px;font-size:13px;color:var(--muted);line-height:1.7;">
+      <strong style="color:var(--text);">How this works:</strong> Liquidity providers deposit assets into bridge pools. When yields on Arbitrum spike, arbitrageurs bridge USDC from Ethereum → Arbitrum. <strong style="color:var(--primary);">Bridges are the arteries of cross-chain capital flow.</strong>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Section 12: TVL Chart -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">12</span>Bridge TVL Over Time</div>
+    <div class="tvl-chart-wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-size:14px;font-weight:600;">Total Bridge TVL (Billions USD)</div>
+        <div style="font-size:12px;color:var(--muted);">Jan 2021 → Jan 2025</div>
+      </div>
+      <div class="tvl-chart" id="tvlChart"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:16px;">
+      <div style="background:var(--surface-2);border-radius:10px;padding:16px;text-align:center;"><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--primary);">2021</div><div style="font-size:12px;color:var(--muted);">~$1.2B — Early bridges</div></div>
+      <div style="background:var(--surface-2);border-radius:10px;padding:16px;text-align:center;"><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--secondary);">2022 Peak</div><div style="font-size:12px;color:var(--muted);">~$32B — Pre-FTX crash</div></div>
+      <div style="background:var(--surface-2);border-radius:10px;padding:16px;text-align:center;"><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent);">2023</div><div style="font-size:12px;color:var(--muted);">~$8B — Post-hack contraction</div></div>
+      <div style="background:var(--surface-2);border-radius:10px;padding:16px;text-align:center;"><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--primary);">2024-25</div><div style="font-size:12px;color:var(--muted);">~$14B — Stargate, LayerZero</div></div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Section 13: LayerZero Deep Dive -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">13</span>LayerZero Deep Dive — How Omnichain Messaging Works</div>
+    <p style="color:var(--muted);line-height:1.8;font-size:15px;margin-bottom:16px;">LayerZero is a <strong style="color:var(--text);">messaging protocol</strong> — infrastructure that any application uses to send arbitrary data between chains. The core innovation is the <strong style="color:var(--text);">Decentralized Verifier Network (DVN)</strong> model.</p>
+
+    <div class="lz-flow">
+      <div class="lz-node"><div class="lz-icon">📱</div><div class="lz-label">User App</div><div class="lz-val">Sends tx on Chain A</div></div>
+      <div class="arch-arrow">→</div>
+      <div class="lz-node"><div class="lz-icon">🛰️</div><div class="lz-label">Endpoint</div><div class="lz-val">LayerZero on-chain</div></div>
+      <div class="arch-arrow">→</div>
+      <div class="lz-node dvn"><div class="lz-icon">🔍</div><div class="lz-label">DVN 1</div><div class="lz-val">Confirms tx</div></div>
+      <div class="arch-arrow" style="color:var(--secondary)">↔</div>
+      <div class="lz-node dvn"><div class="lz-icon">🔍</div><div class="lz-label">DVN 2</div><div class="lz-val">Confirms tx</div></div>
+      <div class="arch-arrow" style="color:var(--secondary)">↔</div>
+      <div class="lz-node dvn"><div class="lz-icon">🔍</div><div class="lz-label">DVN 3</div><div class="lz-val">Confirms tx</div></div>
+      <div class="arch-arrow">→</div>
+      <div class="lz-node"><div class="lz-icon">📱</div><div class="lz-label">Dest App</div><div class="lz-val">Receives message</div></div>
+    </div>
+
+    <p style="color:var(--muted);font-size:14px;margin-bottom:12px;">Default DVNs for LayerZero:</p>
+    <div class="dvns">
+      <span class="dvn-badge">Google Cloud</span>
+      <span class="dvn-badge">Chainlink</span>
+      <span class="dvn-badge">RPC3</span>
+      <span class="dvn-badge">Axelar</span>
+      <span class="dvn-badge">Celer</span>
+      <span class="dvn-badge">LayerZero Labs</span>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:12px;padding:24px;margin-top:20px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;text-align:center;">
+        <div><div style="font-size:28px;margin-bottom:8px;">📨</div><div style="font-size:13px;font-weight:600;margin-bottom:4px;">Ultra Light Nodes</div><div style="font-size:13px;color:var(--muted);">Trustless verification without full sync</div></div>
+        <div><div style="font-size:28px;margin-bottom:8px;">⚡</div><div style="font-size:13px;font-weight:600;margin-bottom:4px;">OApp</div><div style="font-size:13px;color:var(--muted);">Any app can build with custom security</div></div>
+        <div><div style="font-size:28px;margin-bottom:8px;">🛡️</div><div style="font-size:13px;font-weight:600;margin-bottom:4px;">OFT</div><div style="font-size:13px;color:var(--muted);">Native omnichain tokens, no wrapping</div></div>
+        <div><div style="font-size:28px;margin-bottom:8px;">🔗</div><div style="font-size:13px;font-weight:600;margin-bottom:4px;">50+ Chains</div><div style="font-size:13px;color:var(--muted);">Ethereum, all major L2s, 40+ appchains</div></div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Section 14: Risks -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">14</span>Bridge Risk Assessment</div>
+    <div class="risk-grid">
+      <div class="risk-card2 high"><div class="r-icon">📜</div><h4>Smart Contract Risk</h4><p>Bridges are complex multi-contract systems. Bugs can lead to total fund loss.</p><span class="r-level">High</span></div>
+      <div class="risk-card2 high"><div class="r-icon">👥</div><h4>Validator/Oracle Risk</h4><p>A cartel of validators could certify fraudulent transactions.</p><span class="r-level">High</span></div>
+      <div class="risk-card2 medium"><div class="r-icon">💱</div><h4>Canonical Bridging Risk</h4><p>Canonical bridges are secure but slower than third-party alternatives.</p><span class="r-level">Medium</span></div>
+      <div class="risk-card2 medium"><div class="r-icon">💧</div><h4>Liquidity Risk</h4><p>Large transfers may slip or fail if pool depth is insufficient.</p><span class="r-level">Medium</span></div>
+      <div class="risk-card2 medium"><div class="r-icon">⚖️</div><h4>Regulatory Risk</h4><p>Bridges facilitate cross-border transfer and are regulatory targets.</p><span class="r-level">Medium</span></div>
+      <div class="risk-card2 low"><div class="r-icon">⏱️</div><h4>Timing Risk</h4><p>Price movements during the settlement window can erode value.</p><span class="r-level">Low-Medium</span></div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Section 15: Glossary -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">15</span>Glossary</div>
+    <div class="glossary-grid">
+      <div class="glossary-item"><div class="g-term">Bridge Router</div><div class="g-def">A protocol enabling asset or data transfer between distinct blockchain networks.</div></div>
+      <div class="glossary-item"><div class="g-term">Lock-and-Mint</div><div class="g-def">Bridge pattern: lock on Chain A, mint wrapped tokens on Chain B.</div></div>
+      <div class="glossary-item"><div class="g-term">Burn-and-Mint</div><div class="g-def">Bridge pattern: burn on Chain A, mint equivalent on Chain B.</div></div>
+      <div class="glossary-item"><div class="g-term">Atomic Swap</div><div class="g-def">Trustless cross-chain exchange where both transactions succeed or both revert.</div></div>
+      <div class="glossary-item"><div class="g-term">Liquidity Network</div><div class="g-def">AMM-style bridge model: LPs fund pools on multiple chains, routing takes a fee.</div></div>
+      <div class="glossary-item"><div class="g-term">DVN</div><div class="g-def">Decentralized Verifier Network — LayerZero's multi-party verification model.</div></div>
+      <div class="glossary-item"><div class="g-term">LayerZero</div><div class="g-def">Omnichain messaging protocol providing trustless delivery for cross-chain data.</div></div>
+      <div class="glossary-item"><div class="g-term">Canonical Bridge</div><div class="g-def">Bridge using the native chain-recognized mechanism for cross-chain communication.</div></div>
+      <div class="glossary-item"><div class="g-term">Wrapped Token</div><div class="g-def">Token representing an asset from another chain 1:1. WETH is the canonical example.</div></div>
+      <div class="glossary-item"><div class="g-term">Relayer</div><div class="g-def">Off-chain actor delivering transaction proofs between chains, compensated with bridge fees.</div></div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Section 16: Affiliate -->
+  <div class="sandbox">
+    <div class="sandbox-title"><span class="num">16</span>Use Bridges — Supported by DeFiViz</div>
+    <div class="affiliate-cards">
+      <a href="#" class="aff-card"><div class="a-logo">⚡</div><h4>Stargate</h4><p>Liquidity-first bridge powered by LayerZero. Deep pools, instant finality.</p><span class="a-tag">LayerZero Ecosystem</span></a>
+      <a href="#" class="aff-card"><div class="a-logo">🌀</div><h4>LayerZero</h4><p>Omnichain infrastructure powering the next generation of cross-chain apps.</p><span class="a-tag">Infrastructure</span></a>
+      <a href="#" class="aff-card"><div class="a-logo">🔷</div><h4>Axelar</h4><p>Proof-of-stake cross-chain routing. Connect to 40+ chains with GMP.</p><span class="a-tag">PoS Verified</span></a>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-links">
+      <a href="https://layerzero.network" target="_blank">LayerZero</a>
+      <a href="https://stargate.finance" target="_blank">Stargate</a>
+      <a href="https://axelar.network" target="_blank">Axelar</a>
+    </div>
+    <p>Built as a DeFi education tool · Not financial advice · DYOR</p>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// BRIDGE DATA
+// ============================================================
+const ETH_PRICE = 2500;
+
+const CHAINS = {
+  ethereum:  { name: 'Ethereum',   color: '#627eea', short: 'Ξ',   lzFee: 0.0012, gasDest: 0.0002, time: '~15 min', type: 'canonical' },
+  arbitrum:  { name: 'Arbitrum',   color: '#28a0f0', short: 'A',   lzFee: 0.0008, gasDest: 0.0001, time: '~3 min',  type: 'liquidity' },
+  optimism:  { name: 'Optimism',   color: '#ff0420', short: 'OP',  lzFee: 0.0009, gasDest: 0.0001, time: '~7 min',  type: 'canonical' },
+  polygon:   { name: 'Polygon',    color: '#8247e5', short: 'M',   lzFee: 0.0005, gasDest: 0.00005,time: '~8 min',  type: 'liquidity' },
+  base:      { name: 'Base',       color: '#0052ff', short: 'B',   lzFee: 0.0007, gasDest: 0.00008,time: '~2 min',  type: 'liquidity' },
+  avalanche: { name: 'Avalanche', color: '#e84141', short: '❄',  lzFee: 0.0010, gasDest: 0.0003, time: '~5 min',  type: 'liquidity' },
+  solana:    { name: 'Solana',     color: '#9999ff', short: 'S',   lzFee: 0.0002, gasDest: 0.00001,time: '~1 min',  type: 'liquidity' }
+};
+
+const BRIDGES = [
+  { id: 'lz', logo: '🌀', name: 'LayerZero', type: 'Messaging', tvl: 5.8, security: 82, speed: 88, feePerK: 0.42, chains: 50, risk: 'Medium', riskVal: 60,
+    desc: 'Omnichain messaging protocol. Not a bridge itself — infrastructure for building cross-chain apps. DVN model allows apps to configure their own security.',
+    pros: ['Application-level security', '50+ chains supported', 'No hack history', 'OFT standard is elegant'],
+    cons: ['Indirect TVL (via OApps)', 'DVN model complex', 'Not fully decentralized'] },
+  { id: 'wh', logo: '🐛', name: 'Wormhole', type: 'Messaging', tvl: 3.2, security: 55, speed: 75, feePerK: 0.58, chains: 30, risk: 'Medium', riskVal: 75,
+    desc: 'Cross-chain messaging used by many major protocols. Lost $320M in Feb 2022 due to signature verification bug. Recovered and re-launched with improved security.',
+    pros: ['Massive ecosystem adoption', '30+ chains', 'Canonical token bridge', 'Strong after hack'],
+    cons: ['$320M hack in 2022', 'Complex guardian set', 'Some centralization concerns'] },
+  { id: 'ax', logo: '🔷', name: 'Axelar', type: 'PoS Routing', tvl: 0.78, security: 78, speed: 70, feePerK: 0.65, chains: 45, risk: 'Medium', riskVal: 55,
+    desc: 'Proof-of-stake cross-chain routing. Validators stake AXL token to secure cross-chain messages. Generalised Message Passing (GMP) enables any-to-any calls.',
+    pros: ['PoS security model', '45 chains', 'No hack history', 'GMP is very flexible'],
+    cons: ['AXL token dependency', 'Smaller TVL than LZ', 'Audit concerns in past'] },
+  { id: 'st', logo: '⚡', name: 'Stargate', type: 'Liquidity Pool', tvl: 0.89, security: 88, speed: 92, feePerK: 0.35, chains: 25, risk: 'Low', riskVal: 35,
+    desc: 'Liquidity-first bridge built on LayerZero. Combines unified liquidity pools with LayerZero messaging for instant finality. Users get exposure to dst gas instantly.',
+    pros: ['Instant finality', ' Unified liquidity across chains', 'No hack history', 'Delta algorithm is novel'],
+    cons: ['Limited to supported assets', 'TVL concentration risk', '25 chains only'] },
+  { id: 'hl', logo: '🛸', name: 'Hyperlane', type: 'Modular', tvl: 0.14, security: 65, speed: 60, feePerK: 0.80, chains: 35, risk: 'Medium', riskVal: 70,
+    desc: 'Modular interoperability framework. Sovereign consensus lets any chain customize its security model. Unique "interchain security modules" approach.',
+    pros: ['Sovereign security model', 'Any-to-any chains', 'ISM customization', 'Growing ecosystem'],
+    cons: ['Smaller TVL', 'Partial audits', 'Newer, less battle-tested'] },
+  { id: 'cb', logo: '🌉', name: 'Celer cBridge', type: 'Liquidity Pool', tvl: 0.45, security: 75, speed: 82, feePerK: 0.45, chains: 40, risk: 'Low-Med', riskVal: 45,
+    desc: 'State guardian network + liquidity pools. Provides fast cross-chain transfers for users while liquidity providers earn yields. Strong track record.',
+    pros: ['State guardian security', '40 chains', 'No major hacks', 'Good liquidity'],
+    cons: ['Smaller than LZ/Stargate', 'CELR token dependency', 'Complexity in LP management'] }
+];
+
+// ============================================================
+// SECTION 1: FLOW DIAGRAM
+// ============================================================
+let flowSpeed = 1;
+let flowAnimating = false;
+let flowSrc = 'ethereum';
+let flowDest = 'arbitrum';
+
+function setFlowChain(chain) {
+  flowSrc = chain;
+  const pills = document.querySelectorAll('.flow-chain-pill');
+  pills.forEach(p => {
+    p.classList.remove('selected-a', 'selected-b');
+    if (p.dataset.chain === flowSrc) p.classList.add('selected-a');
+    if (p.dataset.chain === flowDest) p.classList.add('selected-b');
+  });
+  updateFlowLabels();
+  // Animate node color change
+  gsap.to('#flowNodeSrc', { duration: 0.3, attr: { transform: 'translate(40,100)' } });
+}
+
+function updateFlowLabels() {
+  const srcChain = CHAINS[flowSrc] || CHAINS.ethereum;
+  const dstChain = CHAINS[flowDest] || CHAINS.arbitrum;
+  document.getElementById('flowSrcName').textContent = srcChain.name;
+  document.getElementById('flowDestName').textContent = dstChain.name;
+  document.getElementById('flowBridgeName').textContent = 'LayerZero';
+  document.getElementById('flowAmountLabel').textContent = `1.0 ETH → ${dstChain.name}`;
+  const fee = (1 * 0.0004 * ETH_PRICE).toFixed(2);
+  const time = flowSrc === 'ethereum' || flowDest === 'ethereum' ? '~15 min' : '~3 min';
+  document.getElementById('flowTimeLabel').textContent = `${time} · $${fee} fee`;
+
+  // Update node border colors
+  gsap.to('#flowNodeSrc rect', { duration: 0.3, stroke: srcChain.color });
+  gsap.to('#flowNodeDest rect', { duration: 0.3, stroke: dstChain.color });
+}
+
+document.querySelectorAll('.flow-chain-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.classList.contains('selected-a')) {
+      // Switch dest
+      document.querySelectorAll('.flow-chain-pill.selected-b')[0]?.classList.remove('selected-b');
+      flowDest = btn.dataset.chain;
+      btn.classList.add('selected-b');
+    } else if (btn.classList.contains('selected-b')) {
+      // Switch src
+      document.querySelectorAll('.flow-chain-pill.selected-a')[0]?.classList.remove('selected-a');
+      flowSrc = btn.dataset.chain;
+      btn.classList.add('selected-a');
+    } else {
+      // Both selected: pick src first then dest
+      if (!document.querySelector('.flow-chain-pill.selected-a')) {
+        btn.classList.add('selected-a');
+        flowSrc = btn.dataset.chain;
+      } else if (!document.querySelector('.flow-chain-pill.selected-b')) {
+        btn.classList.add('selected-b');
+        flowDest = btn.dataset.chain;
+      } else {
+        // Reset and pick src
+        document.querySelectorAll('.flow-chain-pill').forEach(p => p.classList.remove('selected-a','selected-b'));
+        btn.classList.add('selected-a');
+        flowSrc = btn.dataset.chain;
+      }
+    }
+    updateFlowLabels();
+  });
+});
+
+function setFlowSpeed(mode) {
+  flowSpeed = mode === 'slow' ? 0.5 : mode === 'fast' ? 2 : 1;
+  ['speedSlow','speedNormal','speedFast'].forEach(id => {
+    const el = document.getElementById(id);
+    const active = (id === 'speedSlow' && mode === 'slow') || (id === 'speedNormal' && mode === 'normal') || (id === 'speedFast' && mode === 'fast');
+    el.style.background = active ? 'rgba(0,255,200,0.1)' : 'var(--surface-2)';
+    el.style.color = active ? 'var(--primary)' : 'var(--muted)';
+    el.style.borderColor = active ? 'var(--primary)' : 'var(--border)';
+  });
+}
+
+function runFlowAnimation() {
+  if (flowAnimating) return;
+  flowAnimating = true;
+  const btn = document.getElementById('flowPlayBtn');
+  const text = document.getElementById('flowPlayText');
+  btn.style.background = 'var(--muted)';
+  text.textContent = 'Animating...';
+
+  // Highlight paths
+  const paths = ['flowPath1','flowPath2','flowPath3','flowPath4','flowPath5'];
+  const particles = ['flowP1','flowP2','flowP3','flowP4','flowP5','flowP6'];
+
+  // Path positions for animation
+  const pathData = [
+    { x1: 160, y1: 135, x2: 210, y2: 135 },
+    { x1: 310, y1: 135, x2: 380, y2: 135 },
+    { x1: 520, y1: 135, x2: 560, y2: 135 },
+    { x1: 660, y1: 135, x2: 700, y2: 135 },
+    { x1: 800, y1: 135, x2: 840, y2: 135 }
+  ];
+
+  // Activate paths progressively
+  paths.forEach((pid, i) => {
+    setTimeout(() => {
+      gsap.to('#' + pid, { duration: 0.2, stroke: '#00ffc8', strokeWidth: 3, attr: { 'marker-end': 'url(#arrowHeadActive)' } });
+    }, i * (600 / flowSpeed));
+  });
+
+  // Animate particles
+  particles.forEach((pid, i) => {
+    const pData = pathData[Math.min(Math.floor(i / 2), pathData.length - 1)];
+    const delay = i * (400 / flowSpeed);
+
+    setTimeout(() => {
+      const el = document.getElementById(pid);
+      el.setAttribute('cx', pData.x1);
+      el.setAttribute('cy', pData.y1);
+      gsap.to(el, { opacity: 1, duration: 0.15 });
+      gsap.to(el, {
+        motionPath: { path: `M ${pData.x1} ${pData.y1} L ${pData.x2} ${pData.y2}`, curviness: 0 },
+        duration: 0.5 / flowSpeed,
+        ease: 'power2.inOut',
+        onComplete: () => {
+          gsap.to(el, { opacity: 0, duration: 0.2 });
+        }
+      });
+    }, delay);
+  });
+
+  // Complete
+  const totalTime = (particles.length * 400 + 500) / flowSpeed;
+  setTimeout(() => {
+    flowAnimating = false;
+    btn.style.background = 'var(--primary)';
+    text.textContent = 'Play Flow Animation';
+    paths.forEach((pid, i) => {
+      setTimeout(() => {
+        gsap.to('#' + pid, { duration: 0.3, stroke: '#1e1e2e', strokeWidth: 2, attr: { 'marker-end': 'url(#arrowHead)' } });
+      }, i * 100);
+    });
+  }, totalTime);
+}
+
+function resetFlow() {
+  gsap.killTweensOf(['#flowP1','#flowP2','#flowP3','#flowP4','#flowP5','#flowP6']);
+  ['flowP1','flowP2','flowP3','flowP4','flowP5','flowP6'].forEach(pid => {
+    gsap.set('#' + pid, { opacity: 0 });
+  });
+  ['flowPath1','flowPath2','flowPath3','flowPath4','flowPath5'].forEach(pid => {
+    gsap.set('#' + pid, { stroke: '#1e1e2e', strokeWidth: 2 });
+  });
+  flowAnimating = false;
+  document.getElementById('flowPlayText').textContent = 'Play Flow Animation';
+  document.getElementById('flowPlayBtn').style.background = 'var(--primary)';
+}
+
+// ============================================================
+// SECTION 2: BRIDGE COMPARISON MATRIX
+// ============================================================
+let selectedBridge = null;
+
+function buildMatrix() {
+  const tbody = document.getElementById('matrixBody');
+  tbody.innerHTML = '';
+  BRIDGES.forEach(b => {
+    const tr = document.createElement('tr');
+    tr.dataset.bridgeId = b.id;
+    tr.addEventListener('click', () => selectBridgeRow(b.id));
+    tr.addEventListener('mouseenter', () => { if (!selectedBridge) tr.style.background = 'rgba(0,255,200,0.04)'; });
+    tr.addEventListener('mouseleave', () => { if (!selectedBridge || selectedBridge !== b.id) tr.style.background = ''; });
+
+    const riskColor = b.risk === 'Low' ? 'var(--success)' : b.risk === 'Medium' ? 'var(--accent)' : 'var(--danger)';
+    const riskBadge = b.risk === 'Low' ? 'green' : b.risk === 'Medium' ? 'yellow' : 'red';
+    const secColor = b.security > 80 ? 'var(--success)' : b.security > 65 ? 'var(--accent)' : 'var(--danger)';
+
+    tr.innerHTML = `
+      <td>
+        <div class="matrix-bridge-cell">
+          <span class="matrix-bridge-logo">${b.logo}</span>
+          <div>
+            <div class="matrix-bridge-name">${b.name}</div>
+            <div class="matrix-bridge-sub">${b.type}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="badge cyan">${b.type}</span></td>
+      <td><span style="font-family:var(--mono);font-weight:600;color:var(--primary);">$${b.tvl}B</span></td>
+      <td>
+        <span class="matrix-score" style="color:${secColor}">${b.security}</span>
+        <div class="matrix-bar-bg" style="margin-top:4px;">
+          <div class="matrix-bar-fill" style="width:${b.security}%;background:${secColor};"></div>
+        </div>
+      </td>
+      <td><span class="badge cyan">${b.speed}/100</span></td>
+      <td><span style="font-family:var(--mono);font-weight:600;">$${b.feePerK}</span></td>
+      <td><span style="font-family:var(--mono);font-weight:600;">${b.chains}</span></td>
+      <td><span class="badge ${riskBadge}">${b.risk}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function selectBridgeRow(id) {
+  selectedBridge = id;
+  const b = BRIDGES.find(b => b.id === id);
+  const rows = document.querySelectorAll('#matrixBody tr');
+  rows.forEach(r => {
+    r.classList.remove('selected', 'dim');
+    if (r.dataset.bridgeId === id) r.classList.add('selected');
+    else r.classList.add('dim');
+  });
+
+  const panel = document.getElementById('matrixHlPanel');
+  panel.classList.add('visible');
+
+  const riskBadge = b.risk === 'Low' ? 'badge green' : b.risk === 'Medium' ? 'badge yellow' : 'badge red';
+  document.getElementById('mhlLogo').textContent = b.logo;
+  document.getElementById('mhlName').textContent = b.name;
+  document.getElementById('mhlType').textContent = b.type;
+  document.getElementById('mhlBadge').innerHTML = `<span class="${riskBadge}">${b.risk} Risk</span>`;
+  document.getElementById('mhlDesc').textContent = b.desc;
+
+  document.getElementById('mhlStats').innerHTML = `
+    <div class="matrix-hl-stat"><div class="mhs-label">TVL</div><div class="mhs-val" style="color:var(--primary)">$${b.tvl}B</div></div>
+    <div class="matrix-hl-stat"><div class="mhs-label">Security</div><div class="mhs-val">${b.security}/100</div></div>
+    <div class="matrix-hl-stat"><div class="mhs-label">Speed</div><div class="mhs-val">${b.speed}/100</div></div>
+    <div class="matrix-hl-stat"><div class="mhs-label">Fee/$1K</div><div class="mhs-val">$${b.feePerK}</div></div>
+    <div class="matrix-hl-stat"><div class="mhs-label">Chains</div><div class="mhs-val">${b.chains}</div></div>
+    <div class="matrix-hl-stat"><div class="mhs-label">Risk Score</div><div class="mhs-val" style="color:${b.riskVal > 65 ? 'var(--danger)' : b.riskVal > 45 ? 'var(--accent)' : 'var(--success)'}">${b.riskVal}/100</div></div>
+  `;
+
+  document.getElementById('mhlPros').innerHTML = b.pros.map(p => `<li>${p}</li>`).join('');
+  document.getElementById('mhlCons').innerHTML = b.cons.map(c => `<li>${c}</li>`).join('');
+
+  gsap.from('#matrixHlPanel', { duration: 0.3, y: 10, opacity: 0 });
+}
+
+// ============================================================
+// SECTION 3: RISK SIMULATOR
+// ============================================================
+let riskState = {
+  auditMonths: 12,
+  tvl: 2.0,
+  slashEvents: 0,
+  validators: 50,
+  contractAge: 18
+};
+
+function calcRiskScores() {
+  const auditRisk = Math.min(100, Math.max(0, riskState.auditMonths * 2.8));
+  const tvlRisk = Math.min(100, Math.max(0, (riskState.tvl > 5 ? 0 : 30 - riskState.tvl * 4)));
+  const slashRisk = Math.min(100, riskState.slashEvents * 10);
+  const validatorRisk = Math.min(100, Math.max(0, 80 - riskState.validators * 0.4));
+  const ageRisk = Math.min(100, Math.max(0, 60 - riskState.contractAge * 0.8));
+
+  const scRisk = Math.round(auditRisk * 0.4 + tvlRisk * 0.3 + ageRisk * 0.3);
+  const valRisk = Math.round(validatorRisk * 0.7 + slashRisk * 0.3);
+  const liqRisk = Math.round(tvlRisk * 0.5 + slashRisk * 0.3 + auditRisk * 0.2);
+  const overall = Math.round(scRisk * 0.35 + valRisk * 0.30 + liqRisk * 0.35);
+
+  return { overall, scRisk, valRisk, liqRisk };
+}
+
+function updateRiskMeters() {
+  const { overall, scRisk, valRisk, liqRisk } = calcRiskScores();
+  const arcLen = 204;
+
+  function meterColor(v) {
+    if (v < 35) return 'var(--success)';
+    if (v < 60) return 'var(--accent)';
+    if (v < 80) return 'var(--danger)';
+    return '#ff0000';
+  }
+  function meterLabel(v) {
+    if (v < 35) return { text: 'Low', cls: 'safe' };
+    if (v < 60) return { text: 'Medium', cls: 'caution' };
+    if (v < 80) return { text: 'High', cls: 'danger' };
+    return { text: 'Critical', cls: 'critical' };
+  }
+
+  function animateMeter(fillId, glowId, scoreId, labelId, value) {
+    const offset = arcLen - (value / 100) * arcLen;
+    const color = meterColor(value);
+    gsap.to('#' + fillId, { duration: 0.5, stroke: color, strokeDashoffset: offset, ease: 'elastic.out(1, 0.5)' });
+    if (glowId) gsap.to('#' + glowId, { duration: 0.5, stroke: color, strokeDashoffset: offset });
+    const lm = meterLabel(value);
+    gsap.to('#' + scoreId, { duration: 0.3, color: color });
+    document.getElementById(scoreId).textContent = value;
+    document.getElementById(labelId).textContent = lm.text;
+    document.getElementById(labelId).className = 'risk-meter-label ' + lm.cls;
+  }
+
+  animateMeter('meterFill', 'meterGlow', 'meterScoreNum', 'meterScoreLabel', overall);
+  animateMeter('meterSCFill', null, 'meterSCNum', 'meterSCLabel', scRisk);
+  animateMeter('meterValFill', null, 'meterValNum', 'meterValLabel', valRisk);
+  animateMeter('meterLiqFill', null, 'meterLiqNum', 'meterLiqLabel', liqRisk);
+
+  // Factor chips
+  const chips = [];
+  if (riskState.auditMonths > 24) chips.push({ label: '⚠️ Stale audit', cls: 'high' });
+  if (riskState.slashEvents > 0) chips.push({ label: `⚔️ ${riskState.slashEvents} slash events`, cls: 'high' });
+  if (riskState.validators < 10) chips.push({ label: '👥 Small validator set', cls: 'medium' });
+  if (riskState.contractAge < 6) chips.push({ label: '📜 New contract', cls: 'medium' });
+  if (overall > 70) chips.push({ label: '🚨 High overall risk', cls: 'high' });
+  if (chips.length === 0) chips.push({ label: '✓ Risk factors look good', cls: 'low' });
+
+  document.getElementById('riskFactorChips').innerHTML = chips.map(c => `<span class="risk-chip ${c.cls}">${c.label}</span>`).join('');
+}
+
+// Slider event listeners
+document.getElementById('auditSlider').addEventListener('input', e => {
+  riskState.auditMonths = parseInt(e.target.value);
+  document.getElementById('auditVal').textContent = riskState.auditMonths + ' months';
+  updateRiskMeters();
+});
+
+document.getElementById('tvlRiskSlider').addEventListener('input', e => {
+  riskState.tvl = parseFloat(e.target.value);
+  document.getElementById('tvlRiskVal').textContent = '$' + riskState.tvl.toFixed(1) + 'B';
+  updateRiskMeters();
+});
+
+document.getElementById('slashSlider').addEventListener('input', e => {
+  riskState.slashEvents = parseInt(e.target.value);
+  document.getElementById('slashVal').textContent = riskState.slashEvents + ' event' + (riskState.slashEvents !== 1 ? 's' : '');
+  updateRiskMeters();
+});
+
+document.getElementById('validatorSlider').addEventListener('input', e => {
+  riskState.validators = parseInt(e.target.value);
+  document.getElementById('validatorVal').textContent = riskState.validators + ' validators';
+  updateRiskMeters();
+});
+
+document.getElementById('contractAgeSlider').addEventListener('input', e => {
+  riskState.contractAge = parseInt(e.target.value);
+  document.getElementById('contractAgeVal').textContent = riskState.contractAge + ' months';
+  updateRiskMeters();
+});
+
+// ============================================================
+// SECTION 4: TRANSFER TIME CALCULATOR
+// ============================================================
+let calcState = {
+  amount: 5,
+  src: 'ethereum',
+  dst: 'arbitrum'
+};
+
+const BRIDGE_CALC = [
+  { id: 'lz', logo: '🌀', name: 'LayerZero', type: 'Messaging', speed: 88, feeRate: 0.00042 },
+  { id: 'st', logo: '⚡', name: 'Stargate', type: 'Liquidity', speed: 92, feeRate: 0.00035 },
+  { id: 'cb', logo: '🌉', name: 'cBridge', type: 'Liquidity', speed: 82, feeRate: 0.00045 },
+  { id: 'wh', logo: '🐛', name: 'Wormhole', type: 'Messaging', speed: 75, feeRate: 0.00058 },
+  { id: 'ax', logo: '🔷', name: 'Axelar', type: 'PoS', speed: 70, feeRate: 0.00065 },
+  { id: 'hl', logo: '🛸', name: 'Hyperlane', type: 'Modular', speed: 60, feeRate: 0.00080 }
+];
+
+function setCalcChain(role, chain) {
+  if (role === 'src') {
+    calcState.src = chain;
+    document.querySelectorAll('#calcSrcChains .calc-chain-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.chain === chain);
+    });
+  } else {
+    calcState.dst = chain;
+    document.querySelectorAll('#calcDstChains .calc-chain-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.chain === chain);
+    });
+  }
+  // Update route viz labels
+  const srcC = CHAINS[calcState.src];
+  const dstC = CHAINS[calcState.dst];
+  const srcEl = document.getElementById('routeSrcLabel');
+  const dstEl = document.getElementById('routeDstLabel');
+  gsap.to(srcEl, { duration: 0.3, background: srcC.color, textContent: srcC.name });
+  gsap.to(dstEl, { duration: 0.3, background: dstC.color, textContent: dstC.name });
+  srcEl.textContent = srcC.name;
+  srcEl.style.background = srcC.color;
+  dstEl.textContent = dstC.name;
+  dstEl.style.background = dstC.color;
+
+  updateCalcResults();
+}
+
+document.getElementById('calcAmount').addEventListener('input', e => {
+  calcState.amount = parseFloat(e.target.value);
+  document.getElementById('calcAmountVal').textContent = calcState.amount.toFixed(1) + ' ETH';
+  updateCalcResults();
+});
+
+function updateCalcResults() {
+  const container = document.getElementById('calcResults');
+  const amountEth = calcState.amount;
+  const amountUsd = amountEth * ETH_PRICE;
+
+  const withBridge = BRIDGE_CALC.map(b => {
+    let fee = amountEth * b.feeRate;
+    // Time depends on src/dst
+    let time;
+    if (calcState.src === 'ethereum' || calcState.dst === 'ethereum') {
+      time = calcState.src === 'ethereum' ? '~15 min' : '~10 min';
+    } else {
+      time = '~3 min';
+    }
+    // Adjust speed based on route
+    let adjSpeed = b.speed;
+    if (calcState.src !== 'ethereum' && calcState.dst !== 'ethereum') adjSpeed += 10;
+    return { ...b, fee, time, adjSpeed };
+  });
+
+  // Sort by fee
+  withBridge.sort((a, b) => a.fee - b.fee);
+  const best = withBridge[0];
+
+  container.innerHTML = withBridge.map(b => {
+    const isBest = b.id === best.id;
+    return `
+      <div class="calc-result-card ${isBest ? 'best' : ''}" onclick="this.classList.toggle('expanded')">
+        <div class="crc-left">
+          <span class="crc-logo">${b.logo}</span>
+          <div>
+            <div class="crc-name">${b.name} ${isBest ? '<span class="crc-best-badge">BEST</span>' : ''}</div>
+            <div class="crc-type">${b.type} · ${b.adjSpeed}/100 speed</div>
+          </div>
+        </div>
+        <div class="crc-right">
+          <div class="crc-time">${b.time}</div>
+          <div class="crc-fee">~$${(b.fee * ETH_PRICE).toFixed(2)} fee</div>
+          <div class="crc-rate">${(b.feeRate * 100).toFixed(3)}% rate</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('routeTimeBadge').textContent = `Best: ${best.name} ${best.time}`;
+
+  // Animate path fill
+  gsap.to('#routePathFill', { width: '100%', duration: 1.5, ease: 'power2.out' });
+  setTimeout(() => gsap.to('#routePathFill', { width: '0%', duration: 0.3 }), 3000);
+}
+
+// ============================================================
+// SECTION 5: TVL FLOW VISUALIZATION
+// ============================================================
+let tvlFlowMode = 'all';
+let tvlFlowing = false;
+
+const TVL_CONNECTIONS = [
+  { id: 'tvlLineEthArb', from: 'eth', to: 'arb', dot: 'tvlDot0', label: 'tvlFlowLabel0', amount: 280, color: '#00ffc8' },
+  { id: 'tvlLineEthOp',  from: 'eth', to: 'op',  dot: 'tvlDot1', label: 'tvlFlowLabel1', amount: 190, color: '#00ffc8' },
+  { id: 'tvlLineEthBase',from: 'eth', to: 'base',dot: 'tvlDot2', label: 'tvlFlowLabel2', amount: 240, color: '#00ffc8' },
+  { id: 'tvlLineEthPoly',from: 'eth', to: 'poly',dot: 'tvlDot3', label: 'tvlFlowLabel3', amount: 120, color: '#a855f7' },
+  { id: 'tvlLineEthAvax',from: 'eth', to: 'avax',dot: 'tvlDot4', label: 'tvlFlowLabel4', amount: 85,  color: '#a855f7' },
+  { id: 'tvlLineArbOp',  from: 'arb', to: 'op',   dot: 'tvlDot5', label: 'tvlFlowLabel5', amount: 160, color: '#28a0f0' },
+  { id: 'tvlLineArbBase',from: 'arb', to: 'base', dot: 'tvlDot6', label: 'tvlFlowLabel6', amount: 210, color: '#28a0f0' },
+  { id: 'tvlLineOpBase', from: 'op',  to: 'base', dot: 'tvlDot7', label: 'tvlFlowLabel7', amount: 95,  color: '#28a0f0' }
+];
+
+const NODE_COORDS = {
+  eth:   { x: 160, y: 160 },
+  arb:   { x: 360, y: 70  },
+  op:    { x: 540, y: 160 },
+  base:  { x: 540, y: 240 },
+  poly:  { x: 720, y: 260 },
+  avax:  { x: 840, y: 260 }
+};
+
+function tvlFlowSetMode(mode) {
+  tvlFlowMode = mode;
+  ['tvlModeAll','tvlModeEth','tvlModeL2'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.toggle('active', el.id === 'tvlMode' + mode.charAt(0).toUpperCase() + mode.slice(1));
+  });
+
+  // Dim/highlight connections
+  TVL_CONNECTIONS.forEach(conn => {
+    const line = document.getElementById(conn.id);
+    const label = document.getElementById(conn.label);
+    let dim = false;
+    if (mode === 'eth') dim = conn.from !== 'eth';
+    else if (mode === 'l2') dim = conn.from === 'eth' || conn.to === 'eth';
+    line.classList.toggle('dim', dim);
+    line.classList.toggle('active', !dim);
+    label.style.opacity = dim ? 0.2 : 1;
+  });
+
+  // Dim/highlight nodes
+  ['eth','arb','op','base','poly','avax'].forEach(n => {
+    const node = document.getElementById('tvlNode' + n.charAt(0).toUpperCase() + n.slice(1));
+    let dim = false;
+    if (mode === 'eth') dim = n !== 'eth';
+    else if (mode === 'l2') dim = n === 'eth';
+    node.classList.toggle('dim', dim);
+  });
+}
+
+document.querySelectorAll('.tvl-chain-node').forEach(node => {
+  node.addEventListener('click', () => {
+    const chain = node.dataset.chain;
+    // Toggle all connections involving this chain
+    TVL_CONNECTIONS.forEach(conn => {
+      const active = conn.from === chain || conn.to === chain;
+      document.getElementById(conn.id).classList.toggle('active', active);
+      document.getElementById(conn.id).classList.toggle('dim', !active);
+      document.getElementById(conn.label).style.opacity = active ? 1 : 0.2;
+    });
+    // Dim all nodes except connected ones
+    ['eth','arb','op','base','poly','avax'].forEach(n => {
+      const nd = document.getElementById('tvlNode' + n.charAt(0).toUpperCase() + n.slice(1));
+      const connected = TVL_CONNECTIONS.some(c => (c.from === chain && c.to === n) || (c.from === n && c.to === chain));
+      nd.classList.toggle('dim', !connected && n !== chain);
+    });
+  });
+});
+
+function runTvlFlowAnimation() {
+  if (tvlFlowing) return;
+  tvlFlowing = true;
+  const btn = document.getElementById('tvlFlowPlayBtn');
+  btn.textContent = '⏳ Flowing...';
+  btn.style.background = 'var(--muted)';
+
+  // Animate each connection's particle
+  TVL_CONNECTIONS.forEach((conn, i) => {
+    const line = document.getElementById(conn.id);
+    const dot = document.getElementById(conn.dot);
+    const fromCoord = NODE_COORDS[conn.from];
+    const toCoord = NODE_COORDS[conn.to];
+    line.classList.add('active');
+    line.style.stroke = conn.color;
+
+    setTimeout(() => {
+      gsap.to(dot, { opacity: 1, duration: 0.2 });
+      gsap.to(dot, {
+        x: toCoord.x - fromCoord.x,
+        y: toCoord.y - fromCoord.y,
+        duration: 1.2,
+        ease: 'power1.inOut',
+        onComplete: () => {
+          gsap.to(dot, { opacity: 0, x: 0, y: 0, duration: 0.2 });
+        }
+      });
+    }, i * 300);
+  });
+
+  const totalTime = TVL_CONNECTIONS.length * 300 + 1500;
+  setTimeout(() => {
+    tvlFlowing = false;
+    btn.textContent = '▶ Play Flow Animation';
+    btn.style.background = '';
+    TVL_CONNECTIONS.forEach(conn => {
+      if (tvlFlowMode !== 'all') return;
+      document.getElementById(conn.id).classList.remove('active');
+      document.getElementById(conn.id).style.stroke = '';
+    });
+  }, totalTime);
+}
+
+// ============================================================
+// SECTION 6: FEE COMPARISON CHART
+// ============================================================
+function buildFeeChart() {
+  const container = document.getElementById('feeChart');
+  const fees = [
+    { logo: '⚡', name: 'Stargate',    type: 'Liquidity Pool', fee: 0.35, time: '~2 min',  security: 88, chains: 25, best: true },
+    { logo: '🌀', name: 'LayerZero',  type: 'Messaging',      fee: 0.42, time: '~3 min',  security: 82, chains: 50, best: false },
+    { logo: '🌉', name: 'cBridge',    type: 'Liquidity Pool', fee: 0.45, time: '~5 min',  security: 75, chains: 40, best: false },
+    { logo: '🛸', name: 'Hyperlane',   type: 'Modular',        fee: 0.80, time: '~8 min',  security: 65, chains: 35, best: false },
+    { logo: '🔷', name: 'Axelar',     type: 'PoS Routing',    fee: 0.65, time: '~7 min',  security: 78, chains: 45, best: false },
+    { logo: '🐛', name: 'Wormhole',   type: 'Messaging',      fee: 0.58, time: '~5 min',  security: 55, chains: 30, best: false }
+  ];
+  fees.sort((a, b) => a.fee - b.fee);
+  const maxFee = Math.max(...fees.map(f => f.fee));
+
+  container.innerHTML = fees.map(f => {
+    const widthPct = (f.fee / maxFee) * 100;
+    const color = f.fee < 0.45 ? 'var(--primary)' : f.fee < 0.6 ? 'var(--secondary)' : 'var(--accent)';
+    return `
+      <div class="fee-bar-row" onclick="this.classList.toggle('expanded')">
+        <div class="fee-bar-left">
+          <span class="fee-bar-logo">${f.logo}</span>
+          <div>
+            <div class="fee-bar-name">${f.name}${f.best ? '<span class="fee-savings-badge">SAVINGS</span>' : ''}</div>
+            <div class="fee-bar-type">${f.type}</div>
+          </div>
+        </div>
+        <div class="fee-bar-track">
+          <div class="fee-bar-fill" style="width:${widthPct}%;background:${color};" data-width="${widthPct}"></div>
+        </div>
+        <div class="fee-bar-pct">$${f.fee.toFixed(2)}</div>
+        <div class="fee-bar-expanded">
+          <div class="fee-detail-stat"><div class="fds-label">Time</div><div class="fds-val">${f.time}</div></div>
+          <div class="fee-detail-stat"><div class="fds-label">Security</div><div class="fds-val" style="color:${f.security > 75 ? 'var(--success)' : f.security > 60 ? 'var(--accent)' : 'var(--danger)'}">${f.security}/100</div></div>
+          <div class="fee-detail-stat"><div class="fds-label">Chains</div><div class="fds-val">${f.chains}</div></div>
+          <div class="fee-detail-stat"><div class="fds-label">Per $10K</div><div class="fds-val">$${(f.fee * 10).toFixed(2)}</div></div>
+          <div class="fee-detail-stat"><div class="fds-label">Per $100K</div><div class="fds-val">$${(f.fee * 100).toFixed(2)}</div></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Animate bars in
+  setTimeout(() => {
+    document.querySelectorAll('.fee-bar-fill').forEach((bar, i) => {
+      const target = bar.dataset.width;
+      gsap.from(bar, { width: '0%', duration: 0.6, delay: i * 0.1, ease: 'elastic.out(1, 0.5)' });
+    });
+  }, 100);
+}
+
+// ============================================================
+// ORIGINAL SIMULATOR (kept from original)
+// ============================================================
+const simState = { sourceChain: 'ethereum', destChain: 'arbitrum', amount: 1.0 };
+
+function selectChain(role, chain) {
+  if (role === 'source') {
+    simState.sourceChain = chain;
+    document.querySelectorAll('#sourceBtns .chain-btn').forEach(b => b.classList.toggle('selected', b.dataset.chain === chain));
+  } else {
+    simState.destChain = chain;
+    document.querySelectorAll('#destBtns .chain-btn').forEach(b => b.classList.toggle('selected', b.dataset.chain === chain));
+  }
+  updateSimulator();
+}
+
+function swapChains() {
+  const temp = simState.sourceChain;
+  simState.sourceChain = simState.destChain;
+  simState.destChain = temp;
+  document.querySelectorAll('#sourceBtns .chain-btn').forEach(b => b.classList.toggle('selected', b.dataset.chain === simState.sourceChain));
+  document.querySelectorAll('#destBtns .chain-btn').forEach(b => b.classList.toggle('selected', b.dataset.chain === simState.destChain));
+  updateSimulator();
+}
+
+function calculateBridgeFees(src, dst, amount) {
+  const srcInfo = CHAINS[src];
+
+// ============================================================
+// ORIGINAL SIMULATOR - complete
+// ============================================================
+const simState = { sourceChain: 'ethereum', destChain: 'arbitrum', amount: 1.0 };
+
+function selectChainSim(role, chain) {
+  if (role === 'source') {
+    simState.sourceChain = chain;
+    document.querySelectorAll('#sourceBtns .chain-btn').forEach(b => b.classList.toggle('selected', b.dataset.chain === chain));
+  } else {
+    simState.destChain = chain;
+    document.querySelectorAll('#destBtns .chain-btn').forEach(b => b.classList.toggle('selected', b.dataset.chain === chain));
+  }
+  updateSimulatorSim();
+}
+
+function swapChainsSim() {
+  const temp = simState.sourceChain;
+  simState.sourceChain = simState.destChain;
+  simState.destChain = temp;
+  document.querySelectorAll('#sourceBtns .chain-btn').forEach(b => b.classList.toggle('selected', b.dataset.chain === simState.sourceChain));
+  document.querySelectorAll('#destBtns .chain-btn').forEach(b => b.classList.toggle('selected', b.dataset.chain === simState.destChain));
+  updateSimulatorSim();
+}
+
+function calculateBridgeFeesSim(src, dst, amount) {
+  const srcInfo = CHAINS[src];
+  const dstInfo = CHAINS[dst];
+  let baseFee = src === 'ethereum' || dst === 'ethereum' ? amount * 0.0005 : amount * 0.0003;
+  let protocolFee = 0, protocolName = 'LayerZero';
+  if (srcInfo.type === 'liquidity' && dstInfo.type === 'liquidity') {
+    protocolFee = amount * 0.0002;
+    protocolName = 'Stargate (LayerZero)';
+  } else if (srcInfo.type === 'canonical' && dstInfo.type === 'canonical') {
+    protocolFee = 0;
+    protocolName = 'Canonical Bridge';
+  }
+  const gasOnDest = dstInfo.gasDest;
+  const totalFeeEth = baseFee + protocolFee + gasOnDest;
+  const totalFeeUsd = totalFeeEth * ETH_PRICE;
+  const received = ethAmount - totalFeeEth;
+  const slippage = (totalFeeEth / amount * 100).toFixed(2);
+  return {
+    youSend: amount,
+    bridgeFeeEth: baseFee + protocolFee,
+    bridgeFeeUsd: totalFeeUsd,
+    gasDestEth: gasOnDest,
+    gasDestUsd: gasOnDest * ETH_PRICE,
+    youReceive: received,
+    procTime: src === 'ethereum' ? '~15 min' : (dst === 'ethereum' ? '~10 min' : '~3 min'),
+    slippage,
+    protocol: protocolName
+  };
+}
+
+function updateSimulatorSim() {
+  const amount = parseFloat(document.getElementById('bridgeAmount')?.value || 1);
+  const src = CHAINS[simState.sourceChain];
+  const dst = CHAINS[simState.destChain];
+  if (!src || !dst) return;
+  const fees = calculateBridgeFeesSim(simState.sourceChain, simState.destChain, amount);
+  const el = id => document.getElementById(id);
+  if (el('youSend')) el('youSend').textContent = fees.youSend.toFixed(4) + ' ETH';
+  if (el('bridgeFee')) el('bridgeFee').textContent = '~$' + fees.bridgeFeeUsd.toFixed(2);
+  if (el('gasDest')) el('gasDest').textContent = '~$' + fees.gasDestUsd.toFixed(2);
+  if (el('youReceive')) el('youReceive').textContent = fees.youReceive.toFixed(4) + ' ETH';
+  if (el('procTime')) el('procTime').textContent = fees.procTime;
+  if (el('slippage')) el('slippage').textContent = fees.slippage + '%';
+  if (el('fromLabel')) el('fromLabel').textContent = src.name;
+  if (el('toLabel')) el('toLabel').textContent = dst.name;
+  if (el('transferMid')) el('transferMid').textContent = 'Crossing via ' + fees.protocol;
+}
+
+function runTransferSim() {
+  const particle = document.getElementById('transferParticle');
+  const mid = document.getElementById('transferMid');
+  const btn = document.getElementById('transferBtn');
+  if (!particle || !btn) return;
+  particle.style.animation = 'none';
+  particle.style.left = '5%';
+  void particle.offsetWidth;
+  if (mid) mid.classList.remove('visible');
+  btn.textContent = '⏳ Transferring...';
+  btn.style.background = 'var(--muted)';
+  btn.disabled = true;
+  requestAnimationFrame(() => {
+    particle.classList.add('animating');
+    setTimeout(() => { if (mid) mid.classList.add('visible'); }, 1000);
+  });
+  setTimeout(() => {
+    btn.textContent = '✓ Transfer Complete!';
+    btn.style.background = 'var(--success)';
+    setTimeout(() => {
+      btn.textContent = '▶ Simulate Bridge Transfer';
+      btn.style.background = 'var(--primary)';
+      btn.disabled = false;
+      if (mid) mid.classList.remove('visible');
+      particle.classList.remove('animating');
+      particle.style.animation = 'none';
+      void particle.offsetWidth;
+    }, 2000);
+  }, 2600);
+}
+
+// ============================================================
+// LIQUIDITY MIGRATION VIZ
+// ============================================================
+function buildMigrationViz() {
+  const container = document.getElementById('migrationChains');
+  if (!container) return;
+  const chains = [
+    { name: 'Ethereum', tvl: 180, apy: '4.2%', apyClass: 'low', color: '#627eea' },
+    { name: 'Arbitrum', tvl: 95, apy: '6.8%', apyClass: 'high', color: '#28a0f0' },
+    { name: 'Base', tvl: 70, apy: '7.5%', apyClass: 'high', color: '#0052ff' },
+    { name: 'Optimism', tvl: 55, apy: '5.1%', apyClass: 'low', color: '#ff0420' },
+    { name: 'Polygon', tvl: 40, apy: '4.8%', apyClass: 'low', color: '#8247e5' },
+  ];
+  const maxTvl = Math.max(...chains.map(c => c.tvl));
+  chains.forEach(c => {
+    const bar = document.createElement('div');
+    bar.className = 'mig-chain';
+    bar.innerHTML = '<div class="mig-bar-wrap"><div class="mig-bar" style="height:' + ((c.tvl / maxTvl) * 100) + '%;background:' + c.color + ';"></div></div><div class="mig-name">' + c.name + '</div><div class="mig-tvl">$' + c.tvl + 'M TVL</div><div class="mig-apy ' + c.apyClass + '">' + c.apy + ' APY</div>';
+    container.appendChild(bar);
+  });
+  const arrows = document.getElementById('migrationArrows');
+  if (!arrows) return;
+  const arrowLabels = [
+    { from: 'Arbitrum', to: 'Ethereum', label: '↩ Capital returns' },
+    { from: 'Ethereum', to: 'Base', label: '↪ Capital seeks L2 yields' },
+    { from: 'Polygon', to: 'Arbitrum', label: '↪ Capital migrates up' },
+    { from: 'Optimism', to: 'Base', label: '↪ New TVL to Base' },
+  ];
+  arrowLabels.forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'mig-arrow';
+    el.innerHTML = a.label;
+    arrows.appendChild(el);
+  });
+}
+
+// ============================================================
+// TVL CHART
+// ============================================================
+function buildTvlChart() {
+  const container = document.getElementById('tvlChart');
+  if (!container) return;
+  const data = [
+    { label: "Q1'21", val: 1.2, color: 'var(--primary)' },
+    { label: "Q3'21", val: 4.5, color: 'var(--primary)' },
+    { label: "Q1'22", val: 12.8, color: 'var(--primary)' },
+    { label: "Q3'22", val: 32.1, color: 'var(--secondary)' },
+    { label: "Q1'23", val: 8.4, color: 'var(--danger)' },
+    { label: "Q3'23", val: 5.2, color: 'var(--accent)' },
+    { label: "Q1'24", val: 9.8, color: 'var(--primary)' },
+    { label: "Q3'24", val: 12.5, color: 'var(--primary)' },
+    { label: "Q1'25", val: 14.2, color: 'var(--success)' },
+  ];
+  const maxVal = Math.max(...data.map(d => d.val));
+  data.forEach(d => {
+    const col = document.createElement('div');
+    col.className = 'tvl-col';
+    const heightPct = (d.val / maxVal) * 100;
+    col.innerHTML = '<div class="tvl-val">$' + d.val + 'B</div><div class="tvl-bar" style="height:' + heightPct + '%;background:' + d.color + ';"></div><div class="tvl-label">' + d.label + '</div>';
+    container.appendChild(col);
+  });
+}
+
+// ============================================================
+// RISK CARD SELECTOR
+// ============================================================
+function selectRiskCard(el) {
+  document.querySelectorAll('.risk-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+// ============================================================
+// TRANSFER TIME CALCULATOR
+// ============================================================
+let calcAmount = 1000;
+let selectedBridgeResult = null;
+
+const BRIDGE_CALC = [
+  { id: 'lz', logo: '🌀', name: 'LayerZero', type: 'Messaging', speed: 88, feeRate: 0.00042 },
+  { id: 'st', logo: '⚡', name: 'Stargate', type: 'Liquidity', speed: 92, feeRate: 0.00035 },
+  { id: 'cb', logo: '🌉', name: 'cBridge', type: 'Liquidity', speed: 82, feeRate: 0.00045 },
+  { id: 'wh', logo: '🐛', name: 'Wormhole', type: 'Messaging', speed: 75, feeRate: 0.00058 },
+  { id: 'ax', logo: '🔷', name: 'Axelar', type: 'PoS', speed: 70, feeRate: 0.00065 },
+  { id: 'hl', logo: '🛸', name: 'Hyperlane', type: 'Modular', speed: 60, feeRate: 0.00080 }
+];
+
+function setCalcChain(role, chain) {
+  if (role === 'src') {
+    document.querySelectorAll('#calcSrcChains .calc-chain-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.chain === chain);
+    });
+  } else {
+    document.querySelectorAll('#calcDstChains .calc-chain-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.chain === chain);
+    });
+  }
+  updateCalcResults();
+}
+
+function updateCalc() { updateCalcResults(); }
+
+function updateCalcResults() {
+  const container = document.getElementById('bridgeResults');
+  if (!container) return;
+  const srcChain = document.getElementById('calcSrcChain')?.value || 'ethereum';
+  const dstChain = document.getElementById('calcDstChain')?.value || 'arbitrum';
+  const sliderVal = parseFloat(document.getElementById('calcAmountSlider')?.value || 1000);
+  const amountEth = sliderVal / ETH_PRICE;
+
+  const withBridge = BRIDGE_CALC.map(b => {
+    const fee = amountEth * b.feeRate;
+    let time;
+    if (srcChain === 'ethereum' || dstChain === 'ethereum') {
+      time = srcChain === 'ethereum' ? '~15 min' : '~10 min';
+    } else {
+      time = '~3 min';
+    }
+    let adjSpeed = b.speed;
+    if (srcChain !== 'ethereum' && dstChain !== 'ethereum') adjSpeed += 10;
+    return { ...b, fee, time, adjSpeed };
+  });
+
+  withBridge.sort((a, b) => a.fee - b.fee);
+  const best = withBridge[0];
+
+  container.innerHTML = withBridge.map(b => {
+    const isBest = b.id === best.id;
+    return '<div class="calc-result-card ' + (isBest ? 'best' : '') + '"><div class="crc-left"><span class="crc-logo">' + b.logo + '</span><div><div class="crc-name">' + b.name + (isBest ? '<span class="crc-best-badge">BEST</span>' : '') + '</div><div class="crc-type">' + b.type + ' · ' + b.adjSpeed + '/100 speed</div></div></div><div class="crc-right"><div class="crc-time">' + b.time + '</div><div class="crc-fee">~$' + (b.fee * ETH_PRICE).toFixed(2) + ' fee</div><div class="crc-rate">' + (b.feeRate * 100).toFixed(3) + '% rate</div></div></div>';
+  }).join('');
+
+  const badge = document.getElementById('routeTimeBadge');
+  if (badge) badge.textContent = 'Best: ' + best.name + ' ' + best.time;
+
+  gsap.to('#routePathFill', { width: '100%', duration: 1.5, ease: 'power2.out' });
+  setTimeout(() => gsap.to('#routePathFill', { width: '0%', duration: 0.3 }), 3000);
+}
+
+// ============================================================
+// TVL FLOW VIZ
+// ============================================================
+const TVL_CONNECTIONS = [
+  { from: 'eth', to: 'arb', dot: 'tvlDot0', label: 'tvlFlowLabel0', amount: 280, color: '#00ffc8' },
+  { from: 'eth', to: 'op',  dot: 'tvlDot1', label: 'tvlFlowLabel1', amount: 190, color: '#00ffc8' },
+  { from: 'eth', to: 'base',dot: 'tvlDot2', label: 'tvlFlowLabel2', amount: 240, color: '#00ffc8' },
+  { from: 'eth', to: 'poly',dot: 'tvlDot3', label: 'tvlFlowLabel3', amount: 120, color: '#a855f7' },
+  { from: 'eth', to: 'avax',dot: 'tvlDot4', label: 'tvlFlowLabel4', amount: 85,  color: '#a855f7' },
+  { from: 'arb', to: 'op',   dot: 'tvlDot5', label: 'tvlFlowLabel5', amount: 160, color: '#28a0f0' },
+  { from: 'arb', to: 'base', dot: 'tvlDot6', label: 'tvlFlowLabel6', amount: 210, color: '#28a0f0' },
+  { from: 'op',  to: 'base', dot: 'tvlDot7', label: 'tvlFlowLabel7', amount: 95,  color: '#28a0f0' }
+];
+const NODE_COORDS = {
+  eth:   { x: 160, y: 160 }, arb: { x: 360, y: 70 },
+  op:    { x: 540, y: 160 }, base:{ x: 540, y: 240 },
+  poly:  { x: 720, y: 260 }, avax:{ x: 840, y: 260 }
+};
+
+function tvlFlowSetMode(mode) {
+  TVL_CONNECTIONS.forEach(conn => {
+    const line = document.getElementById('tvlLine' + conn.from.charAt(0).toUpperCase() + conn.from.slice(1) + conn.to.charAt(0).toUpperCase() + conn.to.slice(1));
+    const label = document.getElementById(conn.label);
+    if (!line) return;
+    let dim = false;
+    if (mode === 'eth') dim = conn.from !== 'eth';
+    else if (mode === 'l2') dim = conn.from === 'eth' || conn.to === 'eth';
+    line.classList.toggle('dim', dim);
+    line.classList.toggle('active', !dim);
+    if (label) label.style.opacity = dim ? 0.2 : 1;
+  });
+  ['Eth','Arb','Op','Base','Poly','Avax'].forEach(n => {
+    const nd = document.getElementById('tvlNode' + n);
+    if (!nd) return;
+    let dim = false;
+    if (mode === 'eth') dim = n.toLowerCase() !== 'eth';
+    else if (mode === 'l2') dim = n.toLowerCase() === 'eth';
+    nd.classList.toggle('dim', dim);
+  });
+}
+
+function runTvlFlowAnimation() {
+  const btn = document.getElementById('tvlFlowPlayBtn');
+  if (!btn || btn.dataset.running === '1') return;
+  btn.dataset.running = '1';
+  btn.textContent = '⏳ Flowing...';
+
+  const lineIds = ['tvlLineEthArb','tvlLineEthOp','tvlLineEthBase','tvlLineEthPoly','tvlLineEthAvax','tvlLineArbOp','tvlLineArbBase','tvlLineOpBase'];
+  const dotIds = ['tvlDot0','tvlDot1','tvlDot2','tvlDot3','tvlDot4','tvlDot5','tvlDot6','tvlDot7'];
+  const coords = [
+    [{x:160,y:160},{x:360,y:70}], [{x:160,y:160},{x:540,y:160}], [{x:160,y:160},{x:540,y:240}],
+    [{x:160,y:160},{x:720,y:260}], [{x:160,y:160},{x:840,y:260}],
+    [{x:360,y:70},{x:540,y:160}], [{x:360,y:70},{x:540,y:240}], [{x:540,y:160},{x:540,y:240}]
+  ];
+  const colors = ['#00ffc8','#00ffc8','#00ffc8','#a855f7','#a855f7','#28a0f0','#28a0f0','#28a0f0'];
+
+  dotIds.forEach((dotId, i) => {
+    const dot = document.getElementById(dotId);
+    const line = document.getElementById(lineIds[i]);
+    if (!dot || !line) return;
+    const [from, to] = coords[i];
+    setTimeout(() => {
+      line.style.stroke = colors[i];
+      line.classList.add('active');
+      dot.style.opacity = 1;
+      gsap.to(dot, { attr: { cx: to.x, cy: to.y }, duration: 1.2, ease: 'power1.inOut', onComplete: () => {
+        gsap.set(dot, { attr: { cx: from.x, cy: from.y }, opacity: 0 });
+      }});
+    }, i * 350);
+  });
+
+  setTimeout(() => {
+    btn.dataset.running = '0';
+    btn.textContent = '▶ Play Flow Animation';
+    dotIds.forEach((dotId, i) => {
+      const line = document.getElementById(lineIds[i]);
+      if (line) { line.style.stroke = ''; line.classList.remove('active'); }
+    });
+  }, dotIds.length * 350 + 1500);
+}
+
+// ============================================================
+// FEE COMPARISON
+// ============================================================
+function setFeeAmount(amount) {
+  document.querySelectorAll('.fee-tab').forEach(t => {
+    t.classList.toggle('active', parseInt(t.dataset.amount) === amount);
+  });
+  const sub = document.getElementById('feeChartSub');
+  if (sub) sub.textContent = 'Comparing fees for $' + amount.toLocaleString() + ' transfer';
+  buildFeeChartAt(amount);
+}
+
+function buildFeeChartAt(amount) {
+  const container = document.getElementById('feeBars');
+  if (!container) return;
+  const fees = [
+    { logo: '⚡', name: 'Stargate',    type: 'Liquidity Pool', fee: 0.35, time: '~2 min',  security: 88, chains: 25 },
+    { logo: '🌀', name: 'LayerZero',  type: 'Messaging',      fee: 0.42, time: '~3 min',  security: 82, chains: 50 },
+    { logo: '🌉', name: 'cBridge',    type: 'Liquidity Pool', fee: 0.45, time: '~5 min',  security: 75, chains: 40 },
+    { logo: '🔷', name: 'Axelar',     type: 'PoS Routing',    fee: 0.65, time: '~7 min',  security: 78, chains: 45 },
+    { logo: '🛸', name: 'Hyperlane',   type: 'Modular',        fee: 0.80, time: '~8 min',  security: 65, chains: 35 },
+    { logo: '🐛', name: 'Wormhole',   type: 'Messaging',      fee: 0.58, time: '~5 min',  security: 55, chains: 30 }
+  ];
+  fees.sort((a, b) => a.fee - b.fee);
+  const maxFee = fees[fees.length - 1].fee;
+
+  container.innerHTML = fees.map(f => {
+    const widthPct = (f.fee / maxFee) * 100;
+    const color = f.fee < 0.45 ? 'var(--primary)' : f.fee < 0.6 ? 'var(--secondary)' : 'var(--accent)';
+    const actualFee = (f.fee * amount / 1000).toFixed(2);
+    return '<div class="fee-bar-row"><div class="fee-bar-left"><span class="fee-bar-logo">' + f.logo + '</span><div><div class="fee-bar-name">' + f.name + '</div><div class="fee-bar-type">' + f.type + '</div></div></div><div class="fee-bar-track"><div class="fee-bar-fill" style="width:' + widthPct + '%;background:' + color + ';"></div></div><div class="fee-bar-pct">$' + actualFee + '</div></div>';
+  }).join('');
+
+  setTimeout(() => {
+    document.querySelectorAll('.fee-bar-fill').forEach((bar, i) => {
+      gsap.from(bar, { width: '0%', duration: 0.6, delay: i * 0.08, ease: 'elastic.out(1, 0.5)' });
+    });
+  }, 50);
+}
+
+// ============================================================
+// RISK SIMULATOR
+// ============================================================
+function initRiskSimulator() {
+  const sliderConfig = [
+    { id: 'auditSlider', fillId: 'auditFill', thumbId: 'auditThumb', valId: 'auditVal', suffix: ' months',
+      onUpdate: v => {
+        const pct = (v / 36) * 100;
+        const fill = document.getElementById('auditFill');
+        if (fill) { fill.style.width = pct + '%'; fill.style.background = v < 6 ? 'var(--success)' : v < 18 ? 'var(--accent)' : 'var(--danger)'; }
+        const thumb = document.getElementById('auditThumb');
+        if (thumb) thumb.style.left = pct + '%';
+        const val = document.getElementById('auditVal');
+        if (val) val.textContent = v + ' months';
+      }
+    },
+    { id: 'tvlRiskSlider', fillId: 'tvlSimFill', thumbId: 'tvlSimThumb', valId: 'tvlSimVal', prefix: '$', suffix: 'B',
+      onUpdate: v => {
+        const pct = (v / 10) * 100;
+        const fill = document.getElementById('tvlSimFill');
+        if (fill) { fill.style.width = pct + '%'; fill.style.background = v > 0.5 && v < 5 ? 'var(--success)' : 'var(--accent)'; }
+        const thumb = document.getElementById('tvlSimThumb');
+        if (thumb) thumb.style.left = pct + '%';
+        const val = document.getElementById('tvlSimVal');
+        if (val) val.textContent = '$' + v.toFixed(1) + 'B';
+      }
+    },
+    { id: 'slashSlider', fillId: 'slashFill', thumbId: 'slashThumb', valId: 'slashVal', suffix: ' events',
+      onUpdate: v => {
+        const pct = (v / 10) * 100;
+        const fill = document.getElementById('slashFill');
+        if (fill) { fill.style.width = pct + '%'; fill.style.background = v === 0 ? 'var(--success)' : v < 3 ? 'var(--accent)' : 'var(--danger)'; }
+        const thumb = document.getElementById('slashThumb');
+        if (thumb) thumb.style.left = pct + '%';
+        const val = document.getElementById('slashVal');
+        if (val) val.textContent = v + ' events';
+      }
+    },
+    { id: 'ageSlider', fillId: 'ageFill', thumbId: 'ageThumb', valId: 'ageVal', suffix: ' months',
+      onUpdate: v => {
+        const pct = (v / 60) * 100;
+        const fill = document.getElementById('ageFill');
+        if (fill) { fill.style.width = pct + '%'; fill.style.background = v >= 12 && v <= 36 ? 'var(--success)' : v < 12 ? 'var(--danger)' : 'var(--accent)'; }
+        const thumb = document.getElementById('ageThumb');
+        if (thumb) thumb.style.left = pct + '%';
+        const val = document.getElementById('ageVal');
+        if (val) val.textContent = v + ' months';
+      }
+    },
+    { id: 'validatorsSlider', fillId: 'validatorsFill', thumbId: 'validatorsThumb', valId: 'validatorsVal', suffix: ' validators',
+      onUpdate: v => {
+        const pct = (v / 100) * 100;
+        const fill = document.getElementById('validatorsFill');
+        if (fill) { fill.style.width = pct + '%'; fill.style.background = v >= 50 ? 'var(--success)' : v >= 20 ? 'var(--accent)' : 'var(--danger)'; }
+        const thumb = document.getElementById('validatorsThumb');
+        if (thumb) thumb.style.left = pct + '%';
+        const val = document.getElementById('validatorsVal');
+        if (val) val.textContent = v + ' validators';
+      }
+    }
+  ];
+
+  sliderConfig.forEach(cfg => {
+    const slider = document.getElementById(cfg.id);
+    if (!slider) return;
+    slider.addEventListener('input', () => {
+      cfg.onUpdate(parseFloat(slider.value));
+      updateRiskMetersFromSliders();
+    });
+    cfg.onUpdate(parseFloat(slider.value));
+  });
+
+  updateRiskMetersFromSliders();
+}
+
+function updateRiskMetersFromSliders() {
+  const get = id => parseFloat(document.getElementById(id)?.value || '0');
+  const auditMonths = get('auditSlider');
+  const tvlVal = get('tvlRiskSlider');
+  const slashEvents = get('slashSlider');
+  const validators = get('validatorsSlider');
+  const contractAge = get('ageSlider');
+
+  const auditScore = Math.max(0, Math.min(100, 100 - Math.max(0, (auditMonths - 6) * 3)));
+  const slashScore = Math.max(0, 100 - slashEvents * 25);
+  const validatorScore = Math.max(0, validators >= 50 ? 100 : validators >= 20 ? 70 : 30);
+  const tvlScore = tvlVal >= 0.5 && tvlVal <= 5 ? 90 : tvlVal > 5 ? 60 : 40;
+  const overall = Math.round(auditScore * 0.3 + slashScore * 0.25 + validatorScore * 0.25 + tvlScore * 0.2);
+
+  const arcLen = 251.2;
+
+  function meterColor(v) {
+    if (v >= 75) return 'var(--success)';
+    if (v >= 50) return 'var(--accent)';
+    return 'var(--danger)';
+  }
+  function animateMeter(fillId, numId, labelId, value, labelText, labelClass) {
+    const fill = document.getElementById(fillId);
+    const num = document.getElementById(numId);
+    const label = document.getElementById(labelId);
+    if (!fill || !num) return;
+    const offset = arcLen - (value / 100) * arcLen;
+    const color = meterColor(value);
+    gsap.to(fill, { strokeDashoffset: offset, stroke: color, duration: 0.5, ease: 'elastic.out(1, 0.5)' });
+    gsap.to(num, { color: color, duration: 0.3 });
+    num.textContent = Math.round(value);
+    if (label) { label.textContent = labelText; label.className = 'risk-meter-label ' + labelClass; }
+  }
+
+  animateMeter('overallMeter', 'overallScore', 'overallName', overall,
+    overall >= 75 ? 'Low Risk' : overall >= 50 ? 'Medium Risk' : 'High Risk',
+    overall >= 75 ? 'safe' : overall >= 50 ? 'caution' : 'danger');
+  animateMeter('auditMeter', 'auditScore', 'auditMeterName', auditScore,
+    auditScore >= 75 ? 'Recent Audit' : auditScore >= 50 ? 'Audit Aging' : 'Stale Audit',
+    auditScore >= 75 ? 'safe' : auditScore >= 50 ? 'caution' : 'danger');
+  animateMeter('slashMeter', 'slashScore', 'slashMeterName', slashScore,
+    slashScore >= 75 ? 'No Incidents' : slashScore >= 50 ? 'Minor Incidents' : 'Major Incidents',
+    slashScore >= 75 ? 'safe' : slashScore >= 50 ? 'caution' : 'danger');
+
+  // Update desc
+  const overallDesc = document.getElementById('overallDesc');
+  if (overallDesc) overallDesc.textContent = overall >= 75 ? 'Well-audited, mature protocol' : overall >= 50 ? 'Some concerns, review carefully' : 'Significant risk factors detected';
+  const auditMeterDesc = document.getElementById('auditMeterDesc');
+  if (auditMeterDesc) auditMeterDesc.textContent = auditScore >= 75 ? 'Within 6 months' : auditScore >= 50 ? '6-18 months old' : 'Over 18 months — re-audit recommended';
+  const slashMeterDesc = document.getElementById('slashMeterDesc');
+  if (slashMeterDesc) slashMeterDesc.textContent = slashScore >= 75 ? 'Clean track record' : slashScore >= 50 ? 'Minor slashing events' : 'Significant slashing history';
+
+  // Chips
+  const chips = [];
+  if (auditMonths > 24) chips.push({ label: '⚠️ Stale audit', cls: 'high' });
+  if (slashEvents > 0) chips.push({ label: '⚔️ ' + slashEvents + ' slash event' + (slashEvents > 1 ? 's' : ''), cls: 'high' });
+  if (validators < 10) chips.push({ label: '👥 Small validator set', cls: 'medium' });
+  if (contractAge < 6) chips.push({ label: '📜 New contract', cls: 'medium' });
+  if (overall > 70) chips.push({ label: '🚨 High overall risk', cls: 'high' });
+  if (chips.length === 0) chips.push({ label: '✓ Risk factors look good', cls: 'low' });
+  const chipEl = document.getElementById('riskFactorChips');
+  if (chipEl) chipEl.innerHTML = chips.map(c => '<span class="risk-chip ' + c.cls + '">' + c.label + '</span>').join('');
+}
+
+// ============================================================
+// FLOW DIAGRAM
+// ============================================================
+let flowSpeed = 1;
+let flowAnimating = false;
+let flowSrc = 'ethereum';
+let flowDest = 'arbitrum';
+
+function setFlowSpeed(mode) {
+  flowSpeed = mode === 'slow' ? 0.5 : mode === 'fast' ? 2 : 1;
+  ['speedSlow','speedNormal','speedFast'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const active = (id === 'speedSlow' && mode === 'slow') || (id === 'speedNormal' && mode === 'normal') || (id === 'speedFast' && mode === 'fast');
+    el.style.background = active ? 'rgba(0,255,200,0.1)' : 'var(--surface-2)';
+    el.style.color = active ? 'var(--primary)' : 'var(--muted)';
+    el.style.borderColor = active ? 'var(--primary)' : 'var(--border)';
+  });
+}
+
+function updateFlowLabels() {
+  const srcChain = CHAINS[flowSrc] || CHAINS.ethereum;
+  const dstChain = CHAINS[flowDest] || CHAINS.arbitrum;
+  const srcEl = document.getElementById('flowSrcName');
+  const dstEl = document.getElementById('flowDestName');
+  const bridgeEl = document.getElementById('flowBridgeName');
+  const amtEl = document.getElementById('flowAmountLabel');
+  const timeEl = document.getElementById('flowTimeLabel');
+  if (srcEl) srcEl.textContent = srcChain.name;
+  if (dstEl) dstEl.textContent = dstChain.name;
+  if (bridgeEl) bridgeEl.textContent = 'LayerZero';
+  if (amtEl) amtEl.textContent = '1.0 ETH \u2192 ' + dstChain.name;
+  if (timeEl) {
+    const fee = (1 * 0.0004 * ETH_PRICE).toFixed(2);
+    const time = flowSrc === 'ethereum' || flowDest === 'ethereum' ? '~15 min' : '~3 min';
+    timeEl.textContent = time + ' \u00b7 $' + fee + ' fee';
+  }
+
+  // Update node colors
+  const chainABox = document.getElementById('chainABox');
+  const chainBBox = document.getElementById('chainBBox');
+  if (chainABox && chainABox.querySelector('rect')) chainABox.querySelector('rect').setAttribute('stroke', srcChain.color);
+  if (chainABox && chainABox.querySelector('text:last-child')) {
+    const texts = chainABox.querySelectorAll('text');
+    if (texts[1]) { texts[1].textContent = srcChain.short; texts[1].setAttribute('fill', srcChain.color); }
+  }
+  if (chainBBox && chainBBox.querySelector('rect')) chainBBox.querySelector('rect').setAttribute('stroke', dstChain.color);
+  if (chainBBox && chainBBox.querySelectorAll('text')[1]) {
+    const texts = chainBBox.querySelectorAll('text');
+    if (texts[1]) { texts[1].textContent = dstChain.short; texts[1].setAttribute('fill', dstChain.color); }
+  }
+}
+
+function runFlowAnimation() {
+  if (flowAnimating) return;
+  flowAnimating = true;
+  const btn = document.getElementById('flowPlayBtn');
+  const text = document.getElementById('flowPlayText');
+  if (btn) btn.style.background = 'var(--muted)';
+  if (text) text.textContent = 'Animating...';
+
+  const paths = ['flowPath1','flowPath2','flowPath3','flowPath4','flowPath5'];
+  const particles = ['flowP1','flowP2','flowP3','flowP4','flowP5','flowP6'];
+  const delays = [0, 400, 800, 1200, 1600, 2000];
+
+  // Activate paths
+  paths.forEach((pid, i) => {
+    const el = document.getElementById(pid);
+    if (!el) return;
+    setTimeout(() => {
+      gsap.to(el, { duration: 0.2, stroke: '#00ffc8', strokeWidth: 3 });
+    }, i * 400 / flowSpeed);
+  });
+
+  // Animate particles along paths
+  const pathCoords = [
+    { x1: 160, y1: 135, x2: 210, y2: 135 },
+    { x1: 310, y1: 135, x2: 380, y2: 135 },
+    { x1: 520, y1: 135, x2: 560, y2: 135 },
+    { x1: 660, y1: 135, x2: 700, y2: 135 },
+    { x1: 800, y1: 135, x2: 840, y2: 135 }
+  ];
+
+  particles.forEach((pid, i) => {
+    const el = document.getElementById(pid);
+    if (!el) return;
+    const pIdx = Math.min(Math.floor(i / 2), pathCoords.length - 1);
+    const pData = pathCoords[pIdx];
+    const delay = delays[i] / flowSpeed;
+
+    setTimeout(() => {
+      el.setAttribute('cx', pData.x1);
+      el.setAttribute('cy', pData.y1);
+      gsap.to(el, { opacity: 1, duration: 0.15 });
+      gsap.to(el, { attr: { cx: pData.x2, cy: pData.y2 }, duration: 0.5 / flowSpeed, ease: 'power2.inOut', onComplete: () => {
+        gsap.to(el, { opacity: 0, duration: 0.2 });
+      }});
+    }, delay);
+  });
+
+  const totalTime = (2400 / flowSpeed) + 800;
+  setTimeout(() => {
+    flowAnimating = false;
+    if (btn) btn.style.background = 'var(--primary)';
+    if (text) text.textContent = 'Play Flow Animation';
+    paths.forEach((pid, i) => {
+      setTimeout(() => {
+        const el = document.getElementById(pid);
+        if (el) gsap.to(el, { duration: 0.3, stroke: '#1e1e2e', strokeWidth: 2 });
+      }, i * 80);
+    });
+  }, totalTime);
+}
+
+function resetFlow() {
+  gsap.killTweensOf(['#flowP1','#flowP2','#flowP3','#flowP4','#flowP5','#flowP6']);
+  ['flowP1','flowP2','flowP3','flowP4','flowP5','flowP6'].forEach(pid => {
+    gsap.set('#' + pid, { opacity: 0 });
+  });
+  ['flowPath1','flowPath2','flowPath3','flowPath4','flowPath5'].forEach(pid => {
+    gsap.set('#' + pid, { stroke: '#1e1e2e', strokeWidth: 2 });
+  });
+  flowAnimating = false;
+  const text = document.getElementById('flowPlayText');
+  const btn = document.getElementById('flowPlayBtn');
+  if (text) text.textContent = 'Play Flow Animation';
+  if (btn) btn.style.background = 'var(--primary)';
+}
+
+// Flow chain pill click handler
+document.querySelectorAll('.flow-chain-pill').forEach(btn => {
+  btn.style.cursor = 'pointer';
+  btn.addEventListener('click', () => {
+    const pill = btn;
+    const alreadySelectedA = pill.classList.contains('selected-a');
+    const alreadySelectedB = pill.classList.contains('selected-b');
+
+    // If already src, make it dst; if already dst, make it src; if neither, make it src
+    if (alreadySelectedA) {
+      pill.classList.remove('selected-a');
+      pill.classList.add('selected-b');
+      flowDest = pill.dataset.chain;
+    } else if (alreadySelectedB) {
+      pill.classList.remove('selected-b');
+      pill.classList.add('selected-a');
+      flowSrc = pill.dataset.chain;
+    } else {
+      pill.classList.add('selected-a');
+      flowSrc = pill.dataset.chain;
+    }
+    updateFlowLabels();
+  });
+});
+
+// ============================================================
+// MATRIX
+// ============================================================
+function buildMatrix() {
+  const tbody = document.getElementById('matrixBody');
+  if (!tbody) return;
+  const bridgeData = [
+    { id: 'lz', logo: '🌀', name: 'LayerZero', type: 'Messaging', tvl: 5.8, security: 82, speed: 88, feePerK: 0.42, chains: 50, risk: 'Medium', riskVal: 60 },
+    { id: 'wh', logo: '🐛', name: 'Wormhole', type: 'Messaging', tvl: 3.2, security: 55, speed: 75, feePerK: 0.58, chains: 30, risk: 'Medium', riskVal: 75 },
+    { id: 'ax', logo: '🔷', name: 'Axelar', type: 'PoS Routing', tvl: 0.78, security: 78, speed: 70, feePerK: 0.65, chains: 45, risk: 'Medium', riskVal: 55 },
+    { id: 'st', logo: '⚡', name: 'Stargate', type: 'Liquidity Pool', tvl: 0.89, security: 88, speed: 92, feePerK: 0.35, chains: 25, risk: 'Low', riskVal: 35 },
+    { id: 'hl', logo: '🛸', name: 'Hyperlane', type: 'Modular', tvl: 0.14, security: 65, speed: 60, feePerK: 0.80, chains: 35, risk: 'Medium', riskVal: 70 },
+    { id: 'cb', logo: '🌉', name: 'Celer cBridge', type: 'Liquidity Pool', tvl: 0.45, security: 75, speed: 82, feePerK: 0.45, chains: 40, risk: 'Low-Med', riskVal: 45 }
+  ];
+
+  bridgeData.forEach(b => {
+    const tr = document.createElement('tr');
+    tr.dataset.bridgeId = b.id;
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', () => selectBridgeRow(b.id));
+    const secColor = b.security > 80 ? 'var(--success)' : b.security > 65 ? 'var(--accent)' : 'var(--danger)';
+    const riskColor = b.risk === 'Low' || b.risk === 'Low-Med' ? 'var(--success)' : b.risk === 'Medium' ? 'var(--accent)' : 'var(--danger)';
+    const riskBadge = b.risk === 'Low' || b.risk === 'Low-Med' ? 'green' : b.risk === 'Medium' ? 'yellow' : 'red';
+    tr.innerHTML = '<td><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:20px;">' + b.logo + '</span><div><div style="font-weight:700;font-size:14px;">' + b.name + '</div><div style="font-size:11px;color:var(--muted);">' + b.type + '</div></div></div></td><td><span style="font-family:var(--mono);font-weight:600;color:var(--primary);">$' + b.tvl + 'B</span></td><td><span class="badge cyan">' + b.type + '</span></td><td><span class="badge ' + riskBadge + '">' + b.risk + '</span></td><td><span style="font-family:var(--mono);font-weight:600;">$' + b.feePerK + '</span></td><td><span style="font-family:var(--mono);font-weight:600;">' + b.chains + '</span></td><td><span class="badge ' + riskBadge + '">' + b.risk + '</span></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function selectBridgeRow(id) {
+  const bridgeData = {
+    lz: { logo: '🌀', name: 'LayerZero', type: 'Omnichain Messaging', risk: 'Medium', riskVal: 60, tvl: '$5.8B', desc: 'Omnichain messaging protocol. Not a bridge itself — infrastructure for building cross-chain apps. DVN model allows apps to configure their own security.',
+      pros: ['Application-level security', '50+ chains supported', 'No hack history', 'OFT standard'],
+      cons: ['Indirect TVL (via OApps)', 'DVN model complex', 'Not fully decentralized'] },
+    wh: { logo: '🐛', name: 'Wormhole', type: 'Cross-Chain Messaging', risk: 'Medium', riskVal: 75, tvl: '$3.2B', desc: 'Cross-chain messaging used by many major protocols. Lost $320M in Feb 2022 due to signature verification bug. Recovered and re-launched.',
+      pros: ['Massive ecosystem', '30+ chains', 'Canonical token bridge', 'Recovered from hack'],
+      cons: ['$320M hack in 2022', 'Complex guardian set', 'Some centralization'] },
+    st: { logo: '⚡', name: 'Stargate', type: 'Liquidity Pool', risk: 'Low', riskVal: 35, tvl: '$890M', desc: 'Liquidity-first bridge built on LayerZero. Combines unified liquidity pools with LayerZero messaging for instant finality.',
+      pros: ['Instant finality', 'Unified liquidity', 'No hack history', 'Delta algorithm'],
+      cons: ['Limited assets', 'TVL concentration', '25 chains only'] },
+    ax: { logo: '🔷', name: 'Axelar', type: 'PoS Routing', risk: 'Medium', riskVal: 55, tvl: '$780M', desc: 'Proof-of-stake cross-chain routing. Validators stake AXL to secure cross-chain messages. GMP enables any-to-any calls.',
+      pros: ['PoS security', '45 chains', 'No hack history', 'GMP very flexible'],
+      cons: ['AXL token dependency', 'Smaller TVL', 'Audit concerns'] },
+    hl: { logo: '🛸', name: 'Hyperlane', type: 'Modular', risk: 'Medium', riskVal: 70, tvl: '$140M', desc: 'Modular interoperability. Sovereign consensus lets any chain customize its security model. ISM approach is unique.',
+      pros: ['Sovereign security', 'Any-to-any chains', 'ISM customization'],
+      cons: ['Smaller TVL', 'Partial audits', 'Newer protocol'] },
+    cb: { logo: '🌉', name: 'Celer cBridge', type: 'Liquidity Pool', risk: 'Low-Med', riskVal: 45, tvl: '$450M', desc: 'State guardian network + liquidity pools. Provides fast cross-chain transfers for users while LPs earn yields.',
+      pros: ['State guardian security', '40 chains', 'No major hacks', 'Good liquidity'],
+      cons: ['Smaller than LZ/Stargate', 'CELR dependency', 'Complex LP mgmt'] }
+  };
+  const b = bridgeData[id];
+  if (!b) return;
+
+  document.querySelectorAll('#matrixBody tr').forEach(r => {
+    r.classList.remove('selected', 'dim');
+    if (r.dataset.bridgeId === id) r.classList.add('selected');
+    else r.classList.add('dim');
+  });
+
+  const panel = document.getElementById('matrixHlPanel');
+  if (!panel) return;
+  panel.classList.add('visible');
+  const riskBadge = b.riskVal >= 65 ? 'badge red' : b.riskVal >= 45 ? 'badge yellow' : 'badge green';
+
+  const mhlLogo = document.getElementById('mhlLogo');
+  const mhlName = document.getElementById('mhlName');
+  const mhlType = document.getElementById('mhlType');
+  const mhlBadge = document.getElementById('mhlBadge');
+  const mhlDesc = document.getElementById('mhlDesc');
+  const mhlStats = document.getElementById('mhlStats');
+  const mhlPros = document.getElementById('mhlPros');
+  const mhlCons = document.getElementById('mhlCons');
+
+  if (mhlLogo) mhlLogo.textContent = b.logo;
+  if (mhlName) mhlName.textContent = b.name;
+  if (mhlType) mhlType.textContent = b.type;
+  if (mhlBadge) mhlBadge.innerHTML = '<span class="' + riskBadge + '">' + b.risk + ' Risk</span>';
+  if (mhlDesc) mhlDesc.textContent = b.desc;
+  if (mhlStats) {
+    mhlStats.innerHTML = '<div class="matrix-hl-stat"><div class="mhs-label">TVL</div><div class="mhs-val" style="color:var(--primary)">' + b.tvl + '</div></div><div class="matrix-hl-stat"><div class="mhs-label">Risk Score</div><div class="mhs-val" style="color:' + (b.riskVal >= 65 ? 'var(--danger)' : b.riskVal >= 45 ? 'var(--accent)' : 'var(--success)') + '">' + b.riskVal + '/100</div></div>';
+  }
+  if (mhlPros) mhlPros.innerHTML = b.pros.map(p => '<li>' + p + '</li>').join('');
+  if (mhlCons) mhlCons.innerHTML = b.cons.map(c => '<li>' + c + '</li>').join('');
+
+  gsap.from('#matrixHlPanel', { duration: 0.3, y: 10, opacity: 0 });
+
+  // Update SVG bridge hub
+  const hubRect = document.querySelector('#bridgeHubBox rect');
+  const hubName = document.getElementById('bridgeHubName');
+  if (hubRect) hubRect.setAttribute('stroke', b.riskVal >= 65 ? 'var(--danger)' : b.riskVal >= 45 ? 'var(--accent)' : 'var(--success)');
+  if (hubName) hubName.textContent = b.name;
+}
+
+function closeBridgeDetail() {
+  const panel = document.getElementById('matrixHlPanel');
+  if (panel) panel.classList.remove('visible');
+  document.querySelectorAll('#matrixBody tr').forEach(r => r.classList.remove('selected', 'dim'));
+  const hubRect = document.querySelector('#bridgeHubBox rect');
+  const hubName = document.getElementById('bridgeHubName');
+  if (hubRect) hubRect.setAttribute('stroke', 'var(--secondary)');
+  if (hubName) hubName.textContent = 'LayerZero';
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  // Build all dynamic components
+  buildMatrix();
+  buildMigrationViz();
+  buildTvlChart();
+  initRiskSimulator();
+  updateCalcResults();
+  setFeeAmount(10000);
+  buildFeeChartAt(10000);
+  updateFlowLabels();
+
+  // Route viz
+  const routeSrc = document.getElementById('routeSrcLabel');
+  const routeDst = document.getElementById('routeDstLabel');
+  if (routeSrc) routeSrc.textContent = 'Ethereum';
+  if (routeDst) routeDst.textContent = 'Arbitrum';
+
+  // Add click handlers for nav links
+  document.querySelectorAll('.nav-links a').forEach(link => {
+    if (link.getAttribute('href') === 'bridges.html') {
+      link.classList.add('active');
+    }
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+  <!-- Tools & Links -->
+  <section class="tools-section">
+    <div class="container">
+      <div class="tools-header">🔗 Tools &amp; Links</div>
+      <div class="tools-grid">
+        <a href="https://stargate.finance/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🌉</span>
+          <span class="tool-name">Stargate</span>
+          <span class="tool-desc">Cross-chain bridge</span>
+        </a>
+        <a href="https://layerzero.network/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">🔗</span>
+          <span class="tool-name">LayerZero</span>
+          <span class="tool-desc">Omnichain protocol</span>
+        </a>
+        <a href="https://defillama.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">📊</span>
+          <span class="tool-name">DeFiLlama</span>
+          <span class="tool-desc">TVL &amp; yield data</span>
+        </a>
+        <a href="https://debank.com/" target="_blank" rel="noopener sponsored" class="tool-card">
+          <span class="tool-icon">💼</span>
+          <span class="tool-name">DeBank</span>
+          <span class="tool-desc">Portfolio tracker</span>
+        </a>
+      </div>
+    </div>
+  </section>
+  <style>
+  .tools-section { padding: 40px 0 20px; }
+  .tools-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+  .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .tool-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; text-decoration: none; color: inherit; transition: all 0.2s; }
+  .tool-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  .tool-icon { font-size: 20px; flex-shrink: 0; }
+  .tool-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .tool-desc { font-size: 11px; color: var(--muted); margin-left: auto; }
+  </style>
+
+</body>
+</html>
