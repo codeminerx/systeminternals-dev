@@ -155,6 +155,13 @@ declare module 'astro:content' {
   collection: "posts";
   data: InferEntrySchema<"posts">
 } & { render(): Render[".md"] };
+"clickhouse-query-optimization.md": {
+	id: "clickhouse-query-optimization.md";
+  slug: "clickhouse-query-optimization";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
 "database-normalization-practical-guide.md": {
 	id: "database-normalization-practical-guide.md";
   slug: "database-normalization-practical-guide";

@@ -1,0 +1,351 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="A practical guide to optimizing ClickHouse queries — reading EXPLAIN plans, understanding data skip indexes, materialized views, and projection strategies for trillion-row datasets."><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"><title>ClickHouse Query Optimization: From Slow Queries to Sub-Second Response Times</title><meta property="og:title" content="ClickHouse Query Optimization: From Slow Queries to Sub-Second Response Times"><meta property="og:description" content="A practical guide to optimizing ClickHouse queries — reading EXPLAIN plans, understanding data skip indexes, materialized views, and projection strategies for trillion-row datasets."><meta property="og:type" content="article"><meta property="og:url" content="https://systeminternals.dev/posts/clickhouse-query-optimization"><meta property="og:image" content="/og-default.svg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="ClickHouse Query Optimization: From Slow Queries to Sub-Second Response Times"><meta name="twitter:description" content="A practical guide to optimizing ClickHouse queries — reading EXPLAIN plans, understanding data skip indexes, materialized views, and projection strategies for trillion-row datasets."><meta name="twitter:image" content="/og-default.svg"><link rel="canonical" href="https://systeminternals.dev/posts/clickhouse-query-optimization"><style>:root{color-scheme:dark;--bg: #0d0d0d;--bg-secondary: #161616;--text: #e5e5e5;--text-muted: #888;--accent: #60a5fa;--accent-hover: #93c5fd;--border: #2a2a2a;--code-bg: #1a1a1a;--font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;--max-width: 700px;--spacing: 1.5rem}*{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;scroll-behavior:smooth}body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}.container{max-width:var(--max-width);margin:0 auto;padding:0 var(--spacing)}h1,h2,h3,h4{font-weight:600;line-height:1.3;margin-top:2rem;margin-bottom:1rem}h1{font-size:2rem}h2{font-size:1.5rem}h3{font-size:1.25rem}p{margin-bottom:1.25rem}a{color:var(--accent);text-decoration:none;transition:color .2s}a:hover{color:var(--accent-hover)}header{padding:2rem 0;border-bottom:1px solid var(--border);margin-bottom:3rem}header nav{display:flex;align-items:center;gap:2rem}.site-title{font-size:1.25rem;font-weight:700;color:var(--text)}.site-title:hover{color:var(--accent)}nav a{color:var(--text-muted);font-size:.9rem}nav a:hover{color:var(--text)}footer{padding:3rem 0;margin-top:4rem;border-top:1px solid var(--border);color:var(--text-muted);font-size:.875rem}.post-list{list-style:none;display:flex;flex-direction:column;gap:2rem}.post-item a{display:block;padding:1.5rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);transition:border-color .2s}.post-item a:hover{border-color:var(--accent)}.post-item h2{margin:0 0 .5rem;font-size:1.25rem;color:var(--text)}.post-item p{margin:0;color:var(--text-muted);font-size:.9rem}.post-meta{font-size:.8rem;color:var(--text-muted);margin-top:.75rem}article{margin-bottom:4rem}article header{border:none;padding:0;margin-bottom:2rem}article h1{margin-top:0;font-size:2.25rem}.prose ul,.prose ol{margin-bottom:1.25rem;padding-left:1.5rem}.prose li{margin-bottom:.5rem}.prose blockquote{border-left:3px solid var(--accent);padding-left:1rem;margin:1.5rem 0;color:var(--text-muted);font-style:italic}.prose hr{border:none;border-top:1px solid var(--border);margin:2rem 0}.prose img{max-width:100%;height:auto;border-radius:8px;margin:1.5rem 0}code{font-family:var(--font-mono);font-size:.875em}:not(pre)>code{background:var(--code-bg);padding:.2em .4em;border-radius:4px}pre{background:var(--code-bg);padding:1.25rem;border-radius:8px;overflow-x:auto;margin:1.5rem 0;border:1px solid var(--border)}pre code{background:none;padding:0}.tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}.tag{font-size:.75rem;padding:.25rem .75rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:9999px;color:var(--text-muted)}
+.post-meta[data-astro-cid-gjtny2mx]{display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text-muted);margin-top:.75rem}.reading-time[data-astro-cid-gjtny2mx]{color:var(--text-muted)}.post-meta[data-astro-cid-gjtny2mx] time[data-astro-cid-gjtny2mx]+.reading-time[data-astro-cid-gjtny2mx]:before{content:"·";margin-left:.5rem;color:var(--text-muted)}.related-posts[data-astro-cid-gjtny2mx]{margin-top:4rem;padding-top:2rem;border-top:1px solid #e5e7eb}.related-posts[data-astro-cid-gjtny2mx] h2[data-astro-cid-gjtny2mx]{font-size:1.25rem;margin-bottom:1rem}.related-posts[data-astro-cid-gjtny2mx] ul[data-astro-cid-gjtny2mx]{list-style:none;padding:0;display:flex;flex-direction:column;gap:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] a[data-astro-cid-gjtny2mx]{font-weight:600;font-size:1rem}.related-posts[data-astro-cid-gjtny2mx] li[data-astro-cid-gjtny2mx] p[data-astro-cid-gjtny2mx]{margin:.25rem 0 0;font-size:.875rem;color:#6b7280}
+</style></head> <body> <div class="container"> <header> <nav> <a href="/" class="site-title">systeminternals.dev</a> <a href="/about">About</a> <a href="/defi/">DeFi</a> <a href="/affiliate">Affiliate</a> <a href="/newsletter">Newsletter</a> <a href="/rss.xml">RSS</a> </nav> </header> <main>  <article data-astro-cid-gjtny2mx> <header data-astro-cid-gjtny2mx> <h1 data-astro-cid-gjtny2mx>ClickHouse Query Optimization: From Slow Queries to Sub-Second Response Times</h1> <p class="post-meta" data-astro-cid-gjtny2mx> <time datetime="2026-05-09T00:00:00.000Z" data-astro-cid-gjtny2mx>May 8, 2026</time> <span class="reading-time" data-astro-cid-gjtny2mx>10 min read</span> </p> <div class="tags" data-astro-cid-gjtny2mx> <span class="tag" data-astro-cid-gjtny2mx>clickhouse</span><span class="tag" data-astro-cid-gjtny2mx>databases</span><span class="tag" data-astro-cid-gjtny2mx>performance</span><span class="tag" data-astro-cid-gjtny2mx>olap</span><span class="tag" data-astro-cid-gjtny2mx>query-optimization</span><span class="tag" data-astro-cid-gjtny2mx>analytics</span> </div> </header> <div class="prose" data-astro-cid-gjtny2mx>  <p>You wrote the query. It runs. And runs. And runs. ClickHouse is built for speed, but a naive query can still crawl through a trillion rows. The difference between a 50ms query and a 50-second query is understanding how ClickHouse actually executes your request.</p>
+<p>This guide covers the techniques that turn slow analytical queries into sub-second responses on datasets that would bring a traditional RDBMS to its knees.</p>
+<h2 id="start-with-explain">Start With EXPLAIN</h2>
+<p>Never guess. Read the plan. ClickHouse’s <code>EXPLAIN</code> syntax has three modes:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#A9B1D6">EXPLAIN [AST | SYNTAX | PLAN | PIPELINE] </span><span style="color:#BB9AF7">&#x3C;</span><span style="color:#A9B1D6">your query</span><span style="color:#BB9AF7">></span></span>
+<span class="line"></span></code></pre>
+<h3 id="plan-mode--the-default">PLAN mode — the default</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#A9B1D6">EXPLAIN PLAN </span><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> user_id, </span><span style="color:#0DB9D7">count</span><span style="color:#A9B1D6">() </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events</span></span>
+<span class="line"><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> event_type </span><span style="color:#BB9AF7">=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">purchase</span><span style="color:#89DDFF">'</span></span>
+<span class="line"><span style="color:#7DCFFF">  AND</span><span style="color:#BB9AF7"> date</span><span style="color:#BB9AF7"> >=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">2026-01-01</span><span style="color:#89DDFF">'</span></span>
+<span class="line"><span style="color:#7DCFFF">GROUP BY</span><span style="color:#A9B1D6"> user_id;</span></span>
+<span class="line"></span></code></pre>
+<p>Look for these signals in the output:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Signal</th><th>What It Means</th><th>Fix</th></tr></thead><tbody><tr><td><code>ReadFromMergeTree</code></td><td>Full table scan</td><td>Add WHERE on sorting key</td></tr><tr><td><code>AggregatingTransform</code></td><td>Aggregation late in pipeline</td><td>Push aggregation earlier</td></tr><tr><td><code>SortingTransform</code></td><td>Post-aggregation sort</td><td>Pre-sort by GROUP BY key</td></tr><tr><td><code>ParallelParsingTransform</code></td><td>Data parsed in parallel</td><td>Good — not a problem</td></tr></tbody></table>
+<h3 id="pipeline-mode--for-parallelism-analysis">PIPELINE mode — for parallelism analysis</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#A9B1D6">EXPLAIN PIPELINE </span><span style="color:#7DCFFF">SELECT</span><span style="color:#0DB9D7"> count</span><span style="color:#A9B1D6">() </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events;</span></span>
+<span class="line"></span></code></pre>
+<p>This shows how many threads will process the query and where bottlenecks occur.</p>
+<h3 id="ast-mode--for-syntax-validation">AST mode — for syntax validation</h3>
+<p>Useful when you suspect the query planner is misinterpreting your intent.</p>
+<h2 id="the-primary-key-is-your-first-optimization">The PRIMARY KEY is Your First Optimization</h2>
+<p>ClickHouse stores data sorted by the <strong>primary key</strong> (the first column(s) in the <code>ORDER BY</code> clause of your MergeTree table). This determines:</p>
+<ol>
+<li><strong>What can be skipped</strong> — ClickHouse reads granule chunks (8192 rows). If your WHERE clause filters on the primary key, ClickHouse skips entire granules that don’t match.</li>
+<li><strong>Where data is colocated</strong> — Rows with the same primary key value live on the same shard.</li>
+</ol>
+<h3 id="granule-skipping-demo">Granule Skipping Demo</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Table sorted by (user_id, date)</span></span>
+<span class="line"><span style="color:#89DDFF">CREATE</span><span style="color:#89DDFF"> TABLE</span><span style="color:#7AA2F7"> events</span><span style="color:#A9B1D6"> (</span></span>
+<span class="line"><span style="color:#A9B1D6">    user_id UInt32,</span></span>
+<span class="line"><span style="color:#BB9AF7">    date</span><span style="color:#BB9AF7"> Date</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#A9B1D6">    event_type String,</span></span>
+<span class="line"><span style="color:#A9B1D6">    payload String</span></span>
+<span class="line"><span style="color:#A9B1D6">) ENGINE </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> MergeTree</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#7DCFFF">ORDER BY</span><span style="color:#A9B1D6"> (user_id, </span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#A9B1D6">SETTINGS index_granularity </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 8192</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p>With 10M rows across 1220 granules, a query filtering on <code>user_id = 42</code> reads only the granules containing that user:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#A9B1D6">EXPLAIN indexes</span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64">1</span><span style="color:#7DCFFF"> SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> user_id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 42</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Output shows: marks_to_drop = 1219, marks_to_use = 1</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Only 1/1220 granules read = 99.9% data skipped</span></span>
+<span class="line"></span></code></pre>
+<p><strong>Choose your ORDER BY based on your most frequent filter patterns.</strong> If you filter by <code>tenant_id</code> 80% of the time and <code>date</code> 20%, put <code>tenant_id</code> first.</p>
+<h3 id="how-primary-key-affects-group-by-performance">How PRIMARY KEY Affects GROUP BY Performance</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Good: primary key matches GROUP BY</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Table: ORDER BY (tenant_id, date)</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> tenant_id, </span><span style="color:#0DB9D7">count</span><span style="color:#A9B1D6">() </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events</span></span>
+<span class="line"><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> tenant_id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 100</span></span>
+<span class="line"><span style="color:#7DCFFF">GROUP BY</span><span style="color:#A9B1D6"> tenant_id;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Reads only one granule set, no final merge needed</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Bad: GROUP BY on non-primary-key column</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Table: ORDER BY (tenant_id, date)</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> event_type, </span><span style="color:#0DB9D7">count</span><span style="color:#A9B1D6">() </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events</span></span>
+<span class="line"><span style="color:#7DCFFF">GROUP BY</span><span style="color:#A9B1D6"> event_type;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Must scan all granules, aggregate across all threads, then merge</span></span>
+<span class="line"></span></code></pre>
+<h2 id="clickhouse-data-skip-indexes">ClickHouse Data Skip Indexes</h2>
+<p>Beyond the primary key, ClickHouse has secondary <strong>data skip indexes</strong> that work at the granule level.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#89DDFF">ALTER</span><span style="color:#89DDFF"> TABLE</span><span style="color:#A9B1D6"> events </span><span style="color:#89DDFF">ADD</span><span style="color:#89DDFF"> INDEX</span><span style="color:#A9B1D6"> idx_type event_type </span><span style="color:#89DDFF">TYPE</span><span style="color:#A9B1D6"> bloom_filter GRANULARITY </span><span style="color:#FF9E64">3</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#89DDFF">ALTER</span><span style="color:#89DDFF"> TABLE</span><span style="color:#A9B1D6"> events </span><span style="color:#89DDFF">ADD</span><span style="color:#89DDFF"> INDEX</span><span style="color:#A9B1D6"> idx_date </span><span style="color:#BB9AF7">date</span><span style="color:#89DDFF"> TYPE</span><span style="color:#A9B1D6"> minmax GRANULARITY </span><span style="color:#FF9E64">4</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<h3 id="index-types">Index Types</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Index Type</th><th>Best For</th><th>Granularity</th></tr></thead><tbody><tr><td><code>bloom_filter</code></td><td>High-cardinality strings (user IDs, UUIDs)</td><td>3 granules checked before reading</td></tr><tr><td><code>minmax</code></td><td>Range predicates on numeric/date columns</td><td>Full skip if range doesn’t match</td></tr><tr><td><code>set</code></td><td>Equality on low-cardinality columns</td><td>Exact match per granule</td></tr><tr><td><code>tokenbf_v1</code></td><td>Full-text search on Strings</td><td>Bloom filter on tokens</td></tr><tr><td><code>ngrambf_v1</code></td><td>Prefix/substring search</td><td>N-gram bloom filter</td></tr></tbody></table>
+<p>Indexes only help if the column appears in your WHERE clause:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Uses bloom_filter index on event_type</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> event_type </span><span style="color:#BB9AF7">=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">purchase</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Ignores bloom_filter index (no WHERE on event_type)</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#7DCFFF">WHERE</span><span style="color:#BB9AF7"> date</span><span style="color:#BB9AF7"> ></span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">2026-01-01</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<h3 id="index-granularity">Index Granularity</h3>
+<p><code>GRANULARITY N</code> means the index is checked once per N granules, not once per granule. Higher values = smaller index, less precise skipping, but faster writes. Lower values = more precise skipping, bigger index.</p>
+<p>For high-cardinality columns with bloom_filter, <code>GRANULARITY 3</code> is typical — check 3 granules, skip if filter says no match.</p>
+<h2 id="materialized-views-pre-computation-at-scale">Materialized Views: Pre-Computation at Scale</h2>
+<p>Materialized views in ClickHouse recompute on every insert. They’re the closest thing to a cache that ClickHouse offers, but unlike a cache, they’re always consistent.</p>
+<h3 id="roll-up-view">Roll-Up View</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Source table</span></span>
+<span class="line"><span style="color:#89DDFF">CREATE</span><span style="color:#89DDFF"> TABLE</span><span style="color:#7AA2F7"> events_raw</span><span style="color:#A9B1D6"> (</span></span>
+<span class="line"><span style="color:#A9B1D6">    user_id UInt32,</span></span>
+<span class="line"><span style="color:#BB9AF7">    date</span><span style="color:#89DDFF"> DateTime</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#A9B1D6">    event_type String,</span></span>
+<span class="line"><span style="color:#A9B1D6">    amount Float64</span></span>
+<span class="line"><span style="color:#A9B1D6">) ENGINE </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> MergeTree</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#7DCFFF">ORDER BY</span><span style="color:#A9B1D6"> (user_id, </span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Materialized view that aggregates by hour</span></span>
+<span class="line"><span style="color:#89DDFF">CREATE</span><span style="color:#A9B1D6"> MATERIALIZED VIEW events_hourly</span></span>
+<span class="line"><span style="color:#A9B1D6">ENGINE </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> SummingMergeTree</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#89DDFF">PARTITION</span><span style="color:#89DDFF"> BY</span><span style="color:#A9B1D6"> toYYYYMM(</span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#7DCFFF">ORDER BY</span><span style="color:#A9B1D6"> (event_type, toStartOfHour(</span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">))</span></span>
+<span class="line"><span style="color:#89DDFF">AS</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span></span>
+<span class="line"><span style="color:#A9B1D6">    event_type,</span></span>
+<span class="line"><span style="color:#A9B1D6">    toStartOfHour(</span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">) </span><span style="color:#89DDFF">AS</span><span style="color:#89DDFF"> hour</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#0DB9D7">    count</span><span style="color:#A9B1D6">() </span><span style="color:#89DDFF">AS</span><span style="color:#A9B1D6"> cnt,</span></span>
+<span class="line"><span style="color:#0DB9D7">    sum</span><span style="color:#A9B1D6">(amount) </span><span style="color:#89DDFF">AS</span><span style="color:#A9B1D6"> total_amount</span></span>
+<span class="line"><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events_raw</span></span>
+<span class="line"><span style="color:#7DCFFF">GROUP BY</span><span style="color:#A9B1D6"> event_type, toStartOfHour(</span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">);</span></span>
+<span class="line"></span></code></pre>
+<p>Inserts automatically populate the view:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">INSERT INTO</span><span style="color:#A9B1D6"> events_raw </span><span style="color:#7DCFFF">VALUES</span><span style="color:#A9B1D6"> (</span><span style="color:#FF9E64">1</span><span style="color:#A9B1D6">, </span><span style="color:#89DDFF">now</span><span style="color:#9ABDF5">()</span><span style="color:#A9B1D6">, </span><span style="color:#89DDFF">'</span><span style="color:#9ECE6A">purchase</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">, </span><span style="color:#FF9E64">49</span><span style="color:#A9B1D6">.</span><span style="color:#FF9E64">99</span><span style="color:#A9B1D6">);</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- View auto-populated with hourly aggregation</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Query the pre-computed view instead of raw table</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> event_type, </span><span style="color:#0DB9D7">sum</span><span style="color:#A9B1D6">(total_amount) </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events_hourly</span></span>
+<span class="line"><span style="color:#7DCFFF">WHERE</span><span style="color:#89DDFF"> hour</span><span style="color:#BB9AF7"> >=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">2026-05-01 00:00:00</span><span style="color:#89DDFF">'</span></span>
+<span class="line"><span style="color:#7DCFFF">GROUP BY</span><span style="color:#A9B1D6"> event_type;</span></span>
+<span class="line"></span></code></pre>
+<h3 id="clickhouse-keeper-for-real-time-materialization">ClickHouse-Keeper for Real-Time Materialization</h3>
+<p>For sub-second latency on real-time data, consider using <strong>ClickHouse-Keeper</strong> (built-in coordination layer) to serve pre-aggregated results while raw events continue ingesting.</p>
+<h2 id="projections-automatic-query-acceleration">Projections: Automatic Query Acceleration</h2>
+<p>Introduced in ClickHouse 22.8, <strong>projections</strong> are alternate sort orders that ClickHouse automatically selects when they match a query’s filter pattern.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#89DDFF">ALTER</span><span style="color:#89DDFF"> TABLE</span><span style="color:#A9B1D6"> events </span><span style="color:#89DDFF">ADD</span><span style="color:#A9B1D6"> PROJECTION proj_user_date (</span></span>
+<span class="line"><span style="color:#7DCFFF">    SELECT</span><span style="color:#A9B1D6"> user_id, </span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">, </span><span style="color:#0DB9D7">count</span><span style="color:#A9B1D6">(), </span><span style="color:#0DB9D7">sum</span><span style="color:#A9B1D6">(amount)</span></span>
+<span class="line"><span style="color:#7DCFFF">    GROUP BY</span><span style="color:#A9B1D6"> user_id, </span><span style="color:#BB9AF7">date</span></span>
+<span class="line"><span style="color:#A9B1D6">);</span></span>
+<span class="line"></span></code></pre>
+<p>ClickHouse automatically uses <code>proj_user_date</code> when a query matches that SELECT pattern. Unlike materialized views, projections store full data — not just aggregates — so they work for any query on that projection’s column set.</p>
+<h3 id="when-to-use-projections">When to Use Projections</h3>
+<ul>
+<li>Queries that GROUP BY columns different from the primary key</li>
+<li>Queries that filter on columns not in the primary key</li>
+<li>High-cardinality columns where bloom_filter indexes alone aren’t enough</li>
+</ul>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Automatically picks proj_user_date</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> user_id, </span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">, </span><span style="color:#0DB9D7">count</span><span style="color:#A9B1D6">() </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events</span></span>
+<span class="line"><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> user_id </span><span style="color:#89DDFF">BETWEEN</span><span style="color:#FF9E64"> 1000</span><span style="color:#7DCFFF"> AND</span><span style="color:#FF9E64"> 2000</span></span>
+<span class="line"><span style="color:#7DCFFF">GROUP BY</span><span style="color:#A9B1D6"> user_id, </span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<h2 id="sampling-the-nuclear-option">Sampling: The Nuclear Option</h2>
+<p>When you don’t need exact counts, <code>SAMPLE</code> dramatically reduces scanned data:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#0DB9D7"> count</span><span style="color:#A9B1D6">() </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#89DDFF">SAMPLE</span><span style="color:#FF9E64"> 10000</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Reads exactly 10,000 granules, extrapolates to full table</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Sampling with aggregation</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> user_id, </span><span style="color:#0DB9D7">count</span><span style="color:#A9B1D6">() </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events</span></span>
+<span class="line"><span style="color:#7DCFFF">WHERE</span><span style="color:#BB9AF7"> date</span><span style="color:#BB9AF7"> ></span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">2026-01-01</span><span style="color:#89DDFF">'</span></span>
+<span class="line"><span style="color:#89DDFF">SAMPLE</span><span style="color:#FF9E64"> 1000000</span></span>
+<span class="line"><span style="color:#7DCFFF">GROUP BY</span><span style="color:#A9B1D6"> user_id;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- If table has 100M granules, reads 1M and scales result</span></span>
+<span class="line"></span></code></pre>
+<p><code>SAMPLE</code> works on granule count, not row count. The <code>sample_key</code> determines which granules are selected.</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#89DDFF">CREATE</span><span style="color:#89DDFF"> TABLE</span><span style="color:#7AA2F7"> events</span><span style="color:#A9B1D6"> (...) ENGINE </span><span style="color:#BB9AF7">=</span><span style="color:#A9B1D6"> MergeTree</span><span style="color:#9ABDF5">()</span></span>
+<span class="line"><span style="color:#7DCFFF">ORDER BY</span><span style="color:#A9B1D6"> (user_id, </span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">)</span></span>
+<span class="line"><span style="color:#89DDFF">SAMPLE</span><span style="color:#89DDFF"> BY</span><span style="color:#A9B1D6"> user_id;  </span><span style="color:#51597D;font-style:italic">-- deterministic sampling by user_id</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#89DDFF">SAMPLE</span><span style="color:#FF9E64"> 1</span><span style="color:#89DDFF">/</span><span style="color:#FF9E64">10</span><span style="color:#A9B1D6">;  </span><span style="color:#51597D;font-style:italic">-- 10% of data, deterministic</span></span>
+<span class="line"></span></code></pre>
+<h2 id="limit-by--prewhere-efficient-top-k-queries">LIMIT BY + PREWHERE: Efficient Top-K Queries</h2>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> user_id, </span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">, amount</span></span>
+<span class="line"><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events</span></span>
+<span class="line"><span style="color:#7DCFFF">WHERE</span><span style="color:#BB9AF7"> date</span><span style="color:#BB9AF7"> >=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">2026-01-01</span><span style="color:#89DDFF">'</span></span>
+<span class="line"><span style="color:#7DCFFF">LIMIT</span><span style="color:#FF9E64"> 100</span><span style="color:#89DDFF"> BY</span><span style="color:#A9B1D6"> user_id   </span><span style="color:#51597D;font-style:italic">-- top 100 per user, applied before final sort</span></span>
+<span class="line"><span style="color:#7DCFFF">ORDER BY</span><span style="color:#A9B1D6"> amount </span><span style="color:#89DDFF">DESC</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p><code>LIMIT BY</code> reduces data volume early in the pipeline — only 100 rows per user are kept through the rest of the query.</p>
+<h3 id="prewhere-legacy">PREWHERE (Legacy)</h3>
+<p>Older ClickHouse versions used <code>PREWHERE</code> to filter columns before reading full rows. Modern ClickHouse auto-infers PREWHERE behavior from your WHERE clause — explicit <code>PREWHERE</code> is deprecated.</p>
+<h2 id="join-strategies">JOIN Strategies</h2>
+<p>Join order and strategy dramatically affect performance in ClickHouse.</p>
+<h3 id="broadcast-join-small-table-on-right">Broadcast Join (small table on right)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#E0AF68"> e</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">user_id</span><span style="color:#A9B1D6">, </span><span style="color:#E0AF68">u</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">plan</span></span>
+<span class="line"><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events e</span></span>
+<span class="line"><span style="color:#A9B1D6">ANY </span><span style="color:#7DCFFF">LEFT JOIN</span><span style="color:#A9B1D6"> users u </span><span style="color:#89DDFF">ON</span><span style="color:#E0AF68"> e</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">user_id</span><span style="color:#BB9AF7"> =</span><span style="color:#E0AF68"> u</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">id</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- ClickHouse broadcasts users table to all shards if it's small enough</span></span>
+<span class="line"></span></code></pre>
+<h3 id="global-join-for-large-tables">Global JOIN (for large tables)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#E0AF68"> e</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">user_id</span><span style="color:#A9B1D6">, </span><span style="color:#E0AF68">u</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">plan</span></span>
+<span class="line"><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events e</span></span>
+<span class="line"><span style="color:#89DDFF">GLOBAL</span><span style="color:#A9B1D6"> ANY </span><span style="color:#7DCFFF">LEFT JOIN</span><span style="color:#A9B1D6"> (</span></span>
+<span class="line"><span style="color:#7DCFFF">    SELECT</span><span style="color:#A9B1D6"> id, plan </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> users </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> plan </span><span style="color:#BB9AF7">=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">enterprise</span><span style="color:#89DDFF">'</span></span>
+<span class="line"><span style="color:#A9B1D6">) u </span><span style="color:#89DDFF">ON</span><span style="color:#E0AF68"> e</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">user_id</span><span style="color:#BB9AF7"> =</span><span style="color:#E0AF68"> u</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">id</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Pre-filtered users table joined globally to avoid reshuffling</span></span>
+<span class="line"></span></code></pre>
+<h3 id="shuffle-join-when-both-tables-are-large">Shuffle JOIN (when both tables are large)</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SET</span><span style="color:#A9B1D6"> join_algorithm </span><span style="color:#BB9AF7">=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">parallel_hash</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#E0AF68"> e</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">user_id</span><span style="color:#A9B1D6">, </span><span style="color:#E0AF68">p</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">plan_name</span></span>
+<span class="line"><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events e</span></span>
+<span class="line"><span style="color:#7DCFFF">JOIN</span><span style="color:#A9B1D6"> plans p </span><span style="color:#89DDFF">ON</span><span style="color:#E0AF68"> e</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">plan_id</span><span style="color:#BB9AF7"> =</span><span style="color:#E0AF68"> p</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">id</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Data shuffled by join key across nodes</span></span>
+<span class="line"></span></code></pre>
+<h3 id="join-algorithm-comparison">Join Algorithm Comparison</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Algorithm</th><th>Best For</th><th>Memory</th><th>Speed</th></tr></thead><tbody><tr><td><code>hash</code></td><td>Default, balanced</td><td>Medium</td><td>Fast</td></tr><tr><td><code>parallel_hash</code></td><td>High cardinality join keys</td><td>Medium</td><td>Faster</td></tr><tr><td><code>merge</code></td><td>Sorted inputs</td><td>Low</td><td>Medium</td></tr><tr><td><code>direct</code></td><td>Key is primary key of right table</td><td>Minimal</td><td>Fastest</td></tr><tr><td><code>grace_hash</code></td><td>Very large joins that exceed memory</td><td>Adaptive</td><td>Adaptive</td></tr></tbody></table>
+<h2 id="interpolate-running-calculations-without-window-functions">INTERPOLATE: Running Calculations Without Window Functions</h2>
+<p>ClickHouse supports <code>INTERPOLATE</code> for efficient running calculations that would normally require expensive window functions:</p>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#7DCFFF">SELECT</span></span>
+<span class="line"><span style="color:#A9B1D6">    toStartOfDay(</span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">) </span><span style="color:#89DDFF">AS</span><span style="color:#89DDFF"> day</span><span style="color:#A9B1D6">,</span></span>
+<span class="line"><span style="color:#A9B1D6">    revenue,</span></span>
+<span class="line"><span style="color:#A9B1D6">    revenue </span><span style="color:#89DDFF">-</span><span style="color:#0DB9D7"> lag</span><span style="color:#A9B1D6">(revenue) INTERPOLATE </span><span style="color:#89DDFF">AS</span><span style="color:#A9B1D6"> prev_revenue</span></span>
+<span class="line"><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> daily_revenue</span></span>
+<span class="line"><span style="color:#7DCFFF">ORDER BY</span><span style="color:#89DDFF"> day</span></span>
+<span class="line"><span style="color:#7DCFFF">LIMIT</span><span style="color:#FF9E64"> 100</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p>This is optimized for columnar storage and often 10× faster than equivalent <code>LAG() OVER()</code> window functions.</p>
+<h2 id="common-anti-patterns">Common Anti-Patterns</h2>
+<h3 id="1-select--on-wide-tables">1. SELECT * on Wide Tables</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Bad: reads all 150 columns</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> user_id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 42</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Good: reads only needed columns</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#A9B1D6"> user_id, </span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">, amount </span><span style="color:#7DCFFF">FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> user_id </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 42</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<p>ClickHouse reads column-by-column. Selecting all columns forces reads from every column file.</p>
+<h3 id="2-functions-on-where-columns">2. Functions on WHERE Columns</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Bad: cannot use primary key or indexes</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> toYYYYMM(</span><span style="color:#BB9AF7">date</span><span style="color:#A9B1D6">) </span><span style="color:#BB9AF7">=</span><span style="color:#FF9E64"> 202601</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Good: range scan on sortable date column</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#7DCFFF">WHERE</span><span style="color:#BB9AF7"> date</span><span style="color:#BB9AF7"> >=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">2026-01-01</span><span style="color:#89DDFF">'</span><span style="color:#7DCFFF"> AND</span><span style="color:#BB9AF7"> date</span><span style="color:#BB9AF7"> &#x3C;</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">2026-02-01</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<h3 id="3-large-in-subqueries">3. Large IN Subqueries</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Bad: millions of IDs in IN clause</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> user_id </span><span style="color:#89DDFF">IN</span><span style="color:#A9B1D6"> (</span><span style="color:#FF9E64">1</span><span style="color:#A9B1D6">, </span><span style="color:#FF9E64">2</span><span style="color:#A9B1D6">, </span><span style="color:#FF9E64">3</span><span style="color:#A9B1D6">, ...</span><span style="color:#FF9E64">500000</span><span style="color:#A9B1D6">);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Good: use GLOBAL JOIN or pre-aggregate</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> events </span><span style="color:#89DDFF">GLOBAL</span><span style="color:#A9B1D6"> ANY </span><span style="color:#7DCFFF">JOIN</span><span style="color:#A9B1D6"> user_set </span><span style="color:#89DDFF">ON</span><span style="color:#E0AF68"> events</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">user_id</span><span style="color:#BB9AF7"> =</span><span style="color:#E0AF68"> user_set</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">id</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<h3 id="4-unpartitioned-merge-tables">4. Unpartitioned MERGE Tables</h3>
+<pre class="astro-code tokyo-night" style="background-color:#1a1b26;color:#a9b1d6; overflow-x: auto;" tabindex="0" data-language="sql"><code><span class="line"><span style="color:#51597D;font-style:italic">-- Bad: MERGE engine queries all underlying tables</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#E0AF68"> system</span><span style="color:#A9B1D6">.</span><span style="color:#E0AF68">movies</span><span style="color:#7DCFFF"> WHERE</span><span style="color:#A9B1D6"> title </span><span style="color:#BB9AF7">=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">Inception</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#51597D;font-style:italic">-- Good: query the specific table directly</span></span>
+<span class="line"><span style="color:#7DCFFF">SELECT</span><span style="color:#89DDFF"> *</span><span style="color:#7DCFFF"> FROM</span><span style="color:#A9B1D6"> movies_current </span><span style="color:#7DCFFF">WHERE</span><span style="color:#A9B1D6"> title </span><span style="color:#BB9AF7">=</span><span style="color:#89DDFF"> '</span><span style="color:#9ECE6A">Inception</span><span style="color:#89DDFF">'</span><span style="color:#A9B1D6">;</span></span>
+<span class="line"></span></code></pre>
+<h2 id="query-optimization-canvas">Query Optimization Canvas</h2>
+<clickhousequeryoptimizer client:load="">
+<p>The visualizer above shows how different query patterns interact with ClickHouse’s storage engine. Use the dropdown to select a query type, then click “Run Query” to see which granules are read and how the query pipeline executes.</p>
+<h2 id="summary-query-optimization-checklist">Summary: Query Optimization Checklist</h2>
+<p>Before shipping a ClickHouse query to production:</p>
+<ol>
+<li>✅ Run <code>EXPLAIN PLAN</code> — identify full scans</li>
+<li>✅ Confirm WHERE clause uses primary key or skip index</li>
+<li>✅ Check if GROUP BY order matches ORDER BY</li>
+<li>✅ Add bloom_filter/minmax index for non-key filter columns</li>
+<li>✅ Consider materialized view for frequent aggregations</li>
+<li>✅ Add projection if GROUP BY differs from primary key</li>
+<li>✅ Use <code>SAMPLE</code> for approximate counts</li>
+<li>✅ Prefer <code>GLOBAL JOIN</code> for large right-hand tables</li>
+<li>✅ Select only needed columns — never <code>SELECT *</code></li>
+<li>✅ Keep functions out of WHERE on sortable columns</li>
+</ol>
+<clickhousequeryoptimizer client:load=""></clickhousequeryoptimizer></clickhousequeryoptimizer>  </div> <aside class="related-posts" data-astro-cid-gjtny2mx> <h2 data-astro-cid-gjtny2mx>Related Posts</h2> <ul data-astro-cid-gjtny2mx> <li data-astro-cid-gjtny2mx> <a href="/posts/clickhouse-architecture-deep-dive" data-astro-cid-gjtny2mx>ClickHouse Architecture: How a Column-Oriented Database Processes Billions of Rows</a> <p data-astro-cid-gjtny2mx>A deep dive into ClickHouse&#39;s architecture—vectorized execution, MergeTree storage, and how it achieves sub-second queries on trillion-row datasets.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/database-normalization-practical-guide" data-astro-cid-gjtny2mx>Database Normalization: When to Normalize and When to Denormalize</a> <p data-astro-cid-gjtny2mx>Database normalization forms (1NF-3NF), when to denormalize for read performance, OLTP vs OLAP design patterns, star schemas, and practical guidelines for balancing data integrity and query speed in production SQL systems.</p> </li><li data-astro-cid-gjtny2mx> <a href="/posts/database-sharding-system-design" data-astro-cid-gjtny2mx>Database Sharding System Design: How to Scale Beyond a Single Database</a> <p data-astro-cid-gjtny2mx>A deep dive into database sharding—shard keys, consistent hashing, cross-shard queries, resharding, and the production patterns used by Instagram, YouTube, and Shopify to handle billions of rows.</p> </li> </ul> </aside> </article>  </main> <footer> <p>&copy; 2026 · Built with Astro</p> </footer> </div> </body></html> <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"ClickHouse Query Optimization: From Slow Queries to Sub-Second Response Times","description":"A practical guide to optimizing ClickHouse queries — reading EXPLAIN plans, understanding data skip indexes, materialized views, and projection strategies for trillion-row datasets.","datePublished":"2026-05-09T00:00:00.000Z","author":{"@type":"Person","name":"System Internals","url":"https://systeminternals.dev"},"publisher":{"@type":"Organization","name":"System Internals","url":"https://systeminternals.dev"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://systeminternals.dev/posts/clickhouse-query-optimization"},"keywords":"clickhouse, databases, performance, olap, query-optimization, analytics","articleSection":"clickhouse","about":[{"@type":"Thing","name":"clickhouse"},{"@type":"Thing","name":"databases"},{"@type":"Thing","name":"performance"},{"@type":"Thing","name":"olap"},{"@type":"Thing","name":"query-optimization"},{"@type":"Thing","name":"analytics"}]}</script> 

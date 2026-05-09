@@ -1,0 +1,517 @@
+---
+// Interactive ClickHouse Query Optimizer Visualizer
+---
+
+<div class="cqo-wrapper">
+  <div class="cqo-controls">
+    <div class="control-group">
+      <label for="cqo-query">Query Pattern:</label>
+      <select id="cqo-query">
+        <option value="filter-key">Filter on Primary Key (user_id)</option>
+        <option value="filter-date">Filter on Non-Key Date Column</option>
+        <option value="filter-bloom">Filter with Bloom Filter Index</option>
+        <option value="group-key">GROUP BY on Primary Key</option>
+        <option value="group-nonkey">GROUP BY on Non-Key Column</option>
+        <option value="join-broadcast">JOIN with Broadcast (small table)</option>
+        <option value="join-global">GLOBAL JOIN (filtered right table)</option>
+      </select>
+    </div>
+    <button id="cqo-run">Run Query</button>
+    <button id="cqo-reset">Reset</button>
+  </div>
+
+  <div class="cqo-stats">
+    <div class="cqo-stat">
+      <span class="cqo-stat-num" id="cqo-granules-read">0</span>
+      <span class="cqo-stat-label">Granules Read</span>
+    </div>
+    <div class="cqo-stat">
+      <span class="cqo-stat-num" id="cqo-granules-skip">0</span>
+      <span class="cqo-stat-label">Granules Skipped</span>
+    </div>
+    <div class="cqo-stat">
+      <span class="cqo-stat-num" id="cqo-scan-percent">0%</span>
+      <span class="cqo-stat-label">Data Scanned</span>
+    </div>
+    <div class="cqo-stat">
+      <span class="cqo-stat-num" id="cqo-speed">—</span>
+      <span class="cqo-stat-label">Expected Speed</span>
+    </div>
+  </div>
+
+  <canvas id="cqo-canvas" width="820" height="360"></canvas>
+
+  <div class="cqo-log" id="cqo-log">
+    <div class="cqo-log-entry">Select a query pattern and click "Run Query" to simulate ClickHouse execution...</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('cqo-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const querySelect = document.getElementById('cqo-query');
+  const runBtn = document.getElementById('cqo-run');
+  const resetBtn = document.getElementById('cqo-reset');
+  const logEl = document.getElementById('cqo-log');
+
+  const statGranulesRead = document.getElementById('cqo-granules-read');
+  const statGranulesSkip = document.getElementById('cqo-granules-skip');
+  const statScanPercent = document.getElementById('cqo-scan-percent');
+  const statSpeed = document.getElementById('cqo-speed');
+
+  const TOTAL_GRANULES = 24;
+  const ROWS_PER_GRANULE = 8192;
+
+  let animFrame = null;
+  let granules = [];
+  let phase = 0;
+  let running = false;
+  let currentQuery = 'filter-key';
+
+  function initGranules() {
+    granules = [];
+    for (let i = 0; i < TOTAL_GRANULES; i++) {
+      granules.push({
+        id: i,
+        state: 'idle', // idle, reading, skipped, done
+        progress: 0,
+        x: 0, y: 0
+      });
+    }
+    // Layout: 6 rows x 4 cols
+    const startX = 60;
+    const startY = 30;
+    const cellW = (canvas.width - startX - 30) / 4;
+    const cellH = 50;
+    for (let i = 0; i < TOTAL_GRANULES; i++) {
+      const col = i % 4;
+      const row = Math.floor(i / 4);
+      granules[i].x = startX + col * cellW;
+      granules[i].y = startY + row * cellH;
+    }
+  }
+
+  function getGranulesRead(query) {
+    switch(query) {
+      case 'filter-key': return 1;
+      case 'filter-date': return TOTAL_GRANULES;
+      case 'filter-bloom': return Math.ceil(TOTAL_GRANULES * 0.15);
+      case 'group-key': return 4;
+      case 'group-nonkey': return TOTAL_GRANULES;
+      case 'join-broadcast': return 8;
+      case 'join-global': return 6;
+      default: return 4;
+    }
+  }
+
+  function getSpeedLabel(query) {
+    switch(query) {
+      case 'filter-key': return '⚡ Sub-ms';
+      case 'filter-date': return '🐢 Full scan';
+      case 'filter-bloom': return '✨ ~50ms';
+      case 'group-key': return '⚡ ~20ms';
+      case 'group-nonkey': return '🐢 Full scan';
+      case 'join-broadcast': return '⚡ ~30ms';
+      case 'join-global': return '⚡ ~40ms';
+      default: return '—';
+    }
+  }
+
+  function getQueryLabel(query) {
+    switch(query) {
+      case 'filter-key': return 'SELECT * FROM events WHERE user_id = 42';
+      case 'filter-date': return 'SELECT * FROM events WHERE date >= \'2026-01-01\'';
+      case 'filter-bloom': return 'SELECT * FROM events WHERE event_type = \'purchase\'';
+      case 'group-key': return 'SELECT user_id, count() FROM events GROUP BY user_id';
+      case 'group-nonkey': return 'SELECT event_type, count() FROM events GROUP BY event_type';
+      case 'join-broadcast': return 'SELECT e.*, u.plan FROM events e JOIN users u ON e.user_id = u.id';
+      case 'join-global': return 'SELECT e.*, u.plan FROM events e GLOBAL JOIN (SELECT ...) u ON ...';
+      default: return query;
+    }
+  }
+
+  function addLog(msg, type) {
+    const div = document.createElement('div');
+    div.className = `cqo-log-entry log-${type || 'info'}`;
+    div.textContent = msg;
+    logEl.prepend(div);
+    if (logEl.children.length > 10) logEl.lastChild.remove();
+  }
+
+  function updateStats(granulesRead, granulesSkip) {
+    statGranulesRead.textContent = granulesRead;
+    statGranulesSkip.textContent = granulesSkip;
+    const pct = ((granulesRead / TOTAL_GRANULES) * 100).toFixed(1);
+    statScanPercent.textContent = pct + '%';
+    statSpeed.textContent = getSpeedLabel(currentQuery);
+  }
+
+  function draw() {
+    const W = 820, H = 360;
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('ClickHouse Granule Execution Visualization', 20, 20);
+
+    // Query label
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = '500 12px JetBrains Mono, monospace';
+    ctx.fillText(getQueryLabel(currentQuery), 20, 38);
+
+    // Legend
+    const legendX = W - 200;
+    ctx.fillStyle = '#888';
+    ctx.font = '400 11px Inter';
+    const legends = [
+      { color: '#60a5fa', label: 'Reading' },
+      { color: '#34d399', label: 'Used (skipped)' },
+      { color: '#1a1a1a', label: 'Skipped' },
+      { color: '#ef4444', label: 'Error' }
+    ];
+    legends.forEach((l, i) => {
+      ctx.fillStyle = l.color;
+      ctx.fillRect(legendX, 10 + i * 16, 12, 12);
+      ctx.fillStyle = '#888';
+      ctx.fillText(l.label, legendX + 18, 21 + i * 16);
+    });
+
+    // Draw granule boxes
+    granules.forEach((g, i) => {
+      const { x, y, state, progress } = g;
+      const bw = 150, bh = 40;
+
+      // Box
+      ctx.strokeStyle = state === 'idle' ? '#2a2a2a' : '#444';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, bw, bh);
+
+      // Fill based on state
+      if (state === 'idle') {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(x+1, y+1, bw-2, bh-2);
+      } else if (state === 'reading') {
+        ctx.fillStyle = '#60a5fa15';
+        ctx.fillRect(x+1, y+1, bw-2, bh-2);
+        // Progress bar
+        const fillW = (bw - 4) * progress;
+        ctx.fillStyle = '#60a5fa88';
+        ctx.fillRect(x+2, y+bh-6, fillW, 4);
+      } else if (state === 'skipped') {
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x+1, y+1, bw-2, bh-2);
+      } else if (state === 'done') {
+        ctx.fillStyle = '#34d39918';
+        ctx.fillRect(x+1, y+1, bw-2, bh-2);
+      }
+
+      // Label
+      ctx.fillStyle = state === 'skipped' ? '#444' : (state === 'done' ? '#34d399' : '#888');
+      ctx.font = '400 10px Inter';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Granule ${i} (${(i * ROWS_PER_GRANULE).toLocaleString()} rows)`, x + 6, y + 16);
+
+      // Row range
+      ctx.fillStyle = '#555';
+      ctx.font = '400 9px Inter';
+      ctx.fillText(`${(i * ROWS_PER_GRANULE).toLocaleString()} – ${((i+1) * ROWS_PER_GRANULE - 1).toLocaleString()} rows`, x + 6, y + 30);
+
+      // State indicator
+      if (state === 'reading') {
+        ctx.fillStyle = '#60a5fa';
+        ctx.fillText('READING...', x + bw - 70, y + 16);
+      } else if (state === 'skipped') {
+        ctx.fillStyle = '#ef4444';
+        ctx.fillText('SKIPPED', x + bw - 60, y + 16);
+      } else if (state === 'done') {
+        ctx.fillStyle = '#34d399';
+        ctx.fillText('SCANNED', x + bw - 65, y + 16);
+      }
+    });
+
+    // Phase description
+    const phaseDescs = {
+      0: 'Idle — select a query and click "Run Query"',
+      1: 'Phase 1: Index lookup — PRIMARY KEY / bloom_filter narrows granule set',
+      2: 'Phase 2: Granule reading — reading selected granules column-by-column',
+      3: 'Phase 3: Aggregation / JOIN — processing in vectorized chunks',
+      4: 'Complete — results returned to client'
+    };
+    ctx.fillStyle = '#888';
+    ctx.font = '400 11px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText(phaseDescs[phase] || '', W/2, H - 10);
+
+    // Reading animation arrows
+    if (phase >= 2 && phase < 4) {
+      const arrows = granules.filter(g => g.state === 'reading');
+      arrows.forEach(g => {
+        const pulseX = g.x + 75 + Math.sin(Date.now() / 200) * 3;
+        const pulseY = g.y - 10;
+        ctx.fillStyle = '#60a5fa';
+        ctx.beginPath();
+        ctx.moveTo(pulseX, pulseY + 8);
+        ctx.lineTo(pulseX - 6, pulseY);
+        ctx.lineTo(pulseX + 6, pulseY);
+        ctx.closePath();
+        ctx.fill();
+      });
+    }
+
+    animFrame = requestAnimationFrame(draw);
+  }
+
+  async function runQuery() {
+    if (running) return;
+    currentQuery = querySelect.value;
+    running = true;
+    resetState();
+    addLog(`Starting: ${getQueryLabel(currentQuery)}`, 'info');
+
+    const toRead = getGranulesRead(currentQuery);
+
+    // Phase 1: Index lookup
+    phase = 1;
+    addLog(`Phase 1: Index lookup — determining which ${TOTAL_GRANULES} granules to read...`, 'info');
+
+    // Mark granules to skip
+    const readIndices = new Set();
+    if (currentQuery === 'filter-key') {
+      readIndices.add(3); // user_id = 42 falls in granule 3
+    } else if (currentQuery === 'filter-date') {
+      for (let i = 0; i < TOTAL_GRANULES; i++) readIndices.add(i);
+    } else if (currentQuery === 'filter-bloom') {
+      // ~15% of granules match bloom filter
+      const matchIndices = [0, 5, 11, 18, 23];
+      matchIndices.forEach(i => readIndices.add(i));
+    } else if (currentQuery === 'group-key') {
+      // user_id groups span granules 0, 6, 12, 18
+      [0, 6, 12, 18].forEach(i => readIndices.add(i));
+    } else if (currentQuery === 'group-nonkey') {
+      for (let i = 0; i < TOTAL_GRANULES; i++) readIndices.add(i);
+    } else if (currentQuery === 'join-broadcast') {
+      // all events, broadcast join with small users table
+      [0, 4, 8, 12, 16, 20, 2, 6].forEach(i => readIndices.add(i));
+    } else if (currentQuery === 'join-global') {
+      // pre-filtered right table = fewer events
+      [0, 4, 8, 12, 2, 6].forEach(i => readIndices.add(i));
+    }
+
+    granules.forEach((g, i) => {
+      if (!readIndices.has(i)) {
+        g.state = 'skipped';
+      }
+    });
+
+    const skipped = TOTAL_GRANULES - readIndices.size;
+    addLog(`→ ${skipped} granules skipped (bloom_filter/minmax index), ${readIndices.size} granules to read`, 'info');
+    updateStats(readIndices.size, skipped);
+
+    await sleep(800);
+
+    // Phase 2: Reading granules
+    phase = 2;
+    addLog(`Phase 2: Reading ${readIndices.size} granules — vectorized columnar scan...`, 'info');
+
+    const readArr = Array.from(readIndices).sort((a,b) => a-b);
+    for (let i = 0; i < readArr.length; i++) {
+      const idx = readArr[i];
+      granules[idx].state = 'reading';
+      granules[idx].progress = 0;
+
+      // Animate progress
+      for (let p = 0; p <= 100; p += 20) {
+        granules[idx].progress = p / 100;
+        await sleep(40);
+      }
+      granules[idx].state = 'done';
+      granules[idx].progress = 1;
+    }
+
+    await sleep(400);
+
+    // Phase 3: Aggregation / Join
+    phase = 3;
+    addLog(`Phase 3: ${currentQuery.startsWith('join') ? 'Broadcast/Global JOIN merge' : 'Hash aggregation + merge'}, SIMD vectorized...`, 'info');
+    await sleep(600);
+
+    // Phase 4: Complete
+    phase = 4;
+    addLog(`✅ Query complete — ${readIndices.size} granules scanned, ${skipped} skipped`, 'success');
+    addLog(`→ Estimated response: ${getSpeedLabel(currentQuery)} (${readIndices.size}/${TOTAL_GRANULES} granules = ${((readIndices.size/TOTAL_GRANULES)*100).toFixed(1)}% data)`, 'info');
+    running = false;
+  }
+
+  function resetState() {
+    phase = 0;
+    granules.forEach(g => {
+      g.state = 'idle';
+      g.progress = 0;
+    });
+    logEl.innerHTML = '<div class="cqo-log-entry">Reset. Ready.</div>';
+    statGranulesRead.textContent = '0';
+    statGranulesSkip.textContent = '0';
+    statScanPercent.textContent = '0%';
+    statSpeed.textContent = '—';
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  runBtn.addEventListener('click', runQuery);
+  resetBtn.addEventListener('click', () => {
+    if (!running) resetState();
+  });
+  querySelect.addEventListener('change', () => {
+    currentQuery = querySelect.value;
+    if (!running) resetState();
+  });
+
+  initGranules();
+  draw();
+})();
+</script>
+
+<style>
+.cqo-wrapper {
+  margin: 2.5rem 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+}
+
+.cqo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.cqo-controls .control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cqo-controls label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.cqo-controls select {
+  background: var(--code-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.82rem;
+  font-family: var(--font-sans);
+  min-width: 240px;
+}
+
+.cqo-wrapper button {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.2s;
+}
+
+.cqo-wrapper button:hover {
+  background: var(--accent-hover);
+}
+
+.cqo-wrapper #cqo-reset {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.cqo-wrapper #cqo-reset:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+.cqo-stats {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.cqo-stat {
+  flex: 1;
+  min-width: 100px;
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.cqo-stat-num {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+
+.cqo-stat-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+}
+
+#cqo-canvas {
+  display: block;
+  max-width: 100%;
+  border-radius: 6px;
+  background: #0d0d0d;
+}
+
+.cqo-log {
+  max-height: 130px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  margin-top: 1rem;
+}
+
+.cqo-log-entry {
+  padding: 0.2rem 0;
+  border-bottom: 1px solid #1a1a1a;
+  color: #888;
+}
+
+.cqo-log-entry:last-child { border-bottom: none; }
+.log-info { color: #888; }
+.log-success { color: #34d399; }
+.log-warning { color: #f59e0b; }
+</style>
