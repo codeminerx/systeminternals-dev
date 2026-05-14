@@ -1,0 +1,769 @@
+---
+// Interactive Distributed Tracing Visualizer
+---
+
+<div class="canvas-wrapper">
+  <div class="controls">
+    <div class="control-group">
+      <label for="trace-mode">View:</label>
+      <select id="trace-mode">
+        <option value="trace-tree">Trace Tree (DAG)</option>
+        <option value="span-lifecycle">Span Lifecycle</option>
+        <option value="timing-waterfall">Timing Waterfall</option>
+        <option value="sampling">Tail Sampling</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="service-count">Services:</label>
+      <input type="range" id="service-count" min="3" max="8" value="5" />
+      <span id="service-count-display">5</span>
+    </div>
+    <button id="generate-trace">Generate Trace</button>
+    <button id="step-next">Step ›</button>
+    <button id="auto-play">▶ Auto-Play</button>
+    <button id="reset-trace">Reset</button>
+  </div>
+
+  <div class="canvas-row">
+    <canvas id="trace-canvas" width="900" height="420"></canvas>
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="dot" style="background:#60a5fa"></span>Server Span</span>
+    <span class="legend-item"><span class="dot" style="background:#34d399"></span>Client Span</span>
+    <span class="legend-item"><span class="dot" style="background:#f59e0b"></span>Producer/Consumer (async)</span>
+    <span class="legend-item"><span class="dot" style="background:#ef4444"></span>Error Span</span>
+  </div>
+
+  <div class="info-panel" id="info-panel">
+    <div class="info-title">Trace Overview</div>
+    <div class="info-content" id="info-content">
+      Click "Generate Trace" to create a sample distributed trace, then step through the lifecycle.
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('trace-canvas');
+  const ctx = canvas.getContext('2d');
+  const modeSelect = document.getElementById('trace-mode');
+  const serviceSlider = document.getElementById('service-count');
+  const serviceCountDisplay = document.getElementById('service-count-display');
+  const generateBtn = document.getElementById('generate-trace');
+  const stepBtn = document.getElementById('step-next');
+  const autoPlayBtn = document.getElementById('auto-play');
+  const resetBtn = document.getElementById('reset-trace');
+  const infoPanel = document.getElementById('info-panel');
+  const infoContent = document.getElementById('info-content');
+
+  serviceSlider.addEventListener('input', () => {
+    serviceCountDisplay.textContent = serviceSlider.value;
+  });
+
+  let mode = 'trace-tree';
+  let trace = null;
+  let currentStep = 0;
+  let maxStep = 0;
+  let autoPlayInterval = null;
+  let stepDurations = [];
+
+  modeSelect.addEventListener('change', (e) => {
+    mode = e.target.value;
+    if (trace) draw();
+  });
+  generateBtn.addEventListener('click', generateTrace);
+  stepBtn.addEventListener('click', () => advanceStep(1));
+  autoPlayBtn.addEventListener('click', toggleAutoPlay);
+  resetBtn.addEventListener('click', () => { trace = null; currentStep = 0; draw(); });
+
+  function generateTrace() {
+    currentStep = 0;
+    const count = parseInt(serviceSlider.value);
+    const services = [
+      { name: 'API Gateway', color: '#60a5fa', x: 450 },
+      { name: 'Auth Service', color: '#a78bfa', x: 250 },
+      { name: 'Checkout Svc', color: '#34d399', x: 650 },
+      { name: 'Cart Service', color: '#fbbf24', x: 150 },
+      { name: 'Inventory', color: '#f472b6', x: 350 },
+      { name: 'Payment Svc', color: '#ef4444', x: 750 },
+      { name: 'Fraud Svc', color: '#fb923c', x: 850 },
+      { name: 'Email Svc', color: '#22d3ee', x: 550 },
+    ].slice(0, count);
+
+    const rootSpan = {
+      name: 'GET /checkout',
+      service: services[0].name,
+      serviceIdx: 0,
+      startTime: 0,
+      duration: 0,
+      spans: [],
+      parentIdx: -1,
+      status: 'server',
+      error: false,
+    };
+
+    // Generate a realistic call tree
+    const callGraph = generateCallTree(services, count);
+    buildSpans(rootSpan, callGraph, services);
+    
+    // Calculate actual durations
+    let time = 0;
+    function calcDuration(span, parentStart) {
+      const baseTime = span.error ? 180 : 15 + Math.random() * 80;
+      span.startTime = parentStart;
+      span.duration = baseTime;
+      let childEnd = parentStart;
+      span.spans.forEach(child => {
+        calcDuration(child, parentStart + 5);
+        childEnd = Math.max(childEnd, child.startTime + child.duration);
+      });
+      if (span.spans.length > 0) {
+        span.duration = childEnd - parentStart + 10;
+      }
+    }
+    calcDuration(rootSpan, 0);
+
+    trace = { root: rootSpan, services, totalDuration: rootSpan.duration };
+    stepDurations = [];
+    maxStep = countSpans(rootSpan);
+    infoContent.innerHTML = `<strong>Trace generated:</strong> ${trace.root.name}<br>
+      Total duration: ${trace.totalDuration.toFixed(1)}ms<br>
+      Services in trace: ${services.length}<br>
+      Total spans: ${maxStep}<br><br>
+      Click "Step ›" to advance through the trace lifecycle.`;
+    draw();
+  }
+
+  function generateCallTree(services, count) {
+    const graph = { 0: [] };
+    if (count < 2) return graph;
+    
+    // Gateway calls Auth + Checkout
+    graph[0] = [1, 2];
+    if (count < 3) return graph;
+    
+    if (count >= 3) {
+      // Checkout calls Cart + Inventory + Payment
+      graph[2] = [3, 4, 5];
+    }
+    if (count >= 6) {
+      // Payment calls Fraud
+      graph[5] = [6];
+    }
+    if (count >= 7) {
+      // Checkout also calls Email async
+      graph[2].push(7);
+    }
+    return graph;
+  }
+
+  function buildSpans(parentSpan, graph, services) {
+    const nodeIdx = services.findIndex(s => s.name === parentSpan.service);
+    const children = graph[nodeIdx] || [];
+    
+    children.forEach(childSvcIdx => {
+      const childSvc = services[childSvcIdx];
+      const isError = childSvcIdx === 5 && Math.random() < 0.1;
+      const childSpan = {
+        name: getSpanName(childSvc.name),
+        service: childSvc.name,
+        serviceIdx: childSvcIdx,
+        startTime: 0,
+        duration: 0,
+        spans: [],
+        parentIdx: parentSpan.serviceIdx,
+        status: getSpanKind(parentSvcIdx),
+        error: isError,
+      };
+      parentSpan.spans.push(childSpan);
+      
+      // Recurse for deeper calls
+      if (graph[childSvcIdx]) {
+        buildSpans(childSpan, graph, services);
+      } else {
+        // Add a DB call as leaf
+        if (Math.random() < 0.7) {
+          childSpan.spans.push({
+            name: `db.query ${['SELECT', 'UPDATE', 'INSERT'][Math.floor(Math.random()*3)]}`,
+            service: childSvc.name,
+            serviceIdx: childSvcIdx,
+            startTime: 0,
+            duration: 2 + Math.random() * 8,
+            spans: [],
+            parentIdx: childSvcIdx,
+            status: 'client',
+            error: false,
+          });
+        }
+      }
+    });
+  }
+
+  function getSpanName(svcName) {
+    const names = {
+      'API Gateway': 'http.server',
+      'Auth Service': 'auth.validate_token',
+      'Checkout Svc': 'checkout.process',
+      'Cart Service': 'cart.get_items',
+      'Inventory': 'inventory.check',
+      'Payment Svc': 'payment.charge',
+      'Fraud Svc': 'fraud.evaluate',
+      'Email Svc': 'email.send_async',
+    };
+    return names[svcName] || 'service.call';
+  }
+
+  function getSpanKind(svcIdx) {
+    if (svcIdx === 0) return 'server';
+    if (svcIdx === 5) return 'client';
+    return 'client';
+  }
+
+  function countSpans(span) {
+    return 1 + span.spans.reduce((sum, s) => sum + countSpans(s), 0);
+  }
+
+  function getSpanAtDepth(span, targetStep, currentStep = { c: 0 }) {
+    if (currentStep.c >= targetStep) return null;
+    currentStep.c++;
+    if (currentStep.c === targetStep) return span;
+    for (const child of span.spans) {
+      const result = getSpanAtDepth(child, targetStep, currentStep);
+      if (result) return result;
+    }
+    return null;
+  }
+
+  function advanceStep(dir) {
+    if (!trace) return;
+    currentStep = Math.max(0, Math.min(maxStep, currentStep + dir));
+    draw();
+  }
+
+  function toggleAutoPlay() {
+    if (autoPlayInterval) {
+      clearInterval(autoPlayInterval);
+      autoPlayInterval = null;
+      autoPlayBtn.textContent = '▶ Auto-Play';
+    } else {
+      autoPlayInterval = setInterval(() => {
+        if (!trace) { toggleAutoPlay(); return; }
+        if (currentStep >= maxStep) currentStep = 0;
+        else currentStep++;
+        draw();
+      }, 800);
+      autoPlayBtn.textContent = '⏸ Pause';
+    }
+  }
+
+  function draw() {
+    const W = 900, H = 420;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fillRect(0, 0, W, H);
+
+    if (!trace) {
+      ctx.fillStyle = '#888';
+      ctx.font = '400 14px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Click "Generate Trace" to create a sample trace', W/2, H/2);
+      return;
+    }
+
+    if (mode === 'trace-tree') drawTraceTree(W, H);
+    else if (mode === 'span-lifecycle') drawSpanLifecycle(W, H);
+    else if (mode === 'timing-waterfall') drawWaterfall(W, H);
+    else if (mode === 'sampling') drawSampling(W, H);
+
+    // Step indicator
+    ctx.fillStyle = '#888';
+    ctx.font = '400 11px Inter';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Step ${currentStep} / ${maxStep}`, W - 10, H - 8);
+  }
+
+  function drawTraceTree(W, H) {
+    const services = trace.services;
+    const rowH = 45;
+    const startY = 40;
+
+    // Title
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Distributed Trace — Service Call Tree', W/2, 20);
+
+    // Draw service nodes at their x positions
+    const nodePositions = {};
+    services.forEach((svc, i) => {
+      const y = startY + i * rowH;
+      nodePositions[svc.name] = { x: svc.x, y };
+      drawServiceNode(svc.x, y, svc.name, services[i], i === 0);
+    });
+
+    // Draw edges from root
+    drawTraceEdges(trace.root, nodePositions, 0);
+  }
+
+  function drawTraceEdges(span, positions, depth) {
+    const pos = positions[span.service];
+    if (!pos) return;
+
+    span.spans.forEach(child => {
+      const childPos = positions[child.service];
+      if (!childPos) return;
+
+      const highlighted = currentStep > 0 && getSpanAtDepth(trace.root, currentStep) === child;
+      const faded = currentStep > 0 && getSpanAtDepth(trace.root, currentStep) !== child && getSpanAtDepth(trace.root, currentStep) !== span;
+
+      ctx.strokeStyle = highlighted ? '#60a5fa' : (faded ? '#2a2a2a' : '#404040');
+      ctx.lineWidth = highlighted ? 2.5 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y + 14);
+      const midX = (pos.x + childPos.x) / 2;
+      ctx.bezierCurveTo(midX, pos.y + 14, midX, childPos.y - 14, childPos.x, childPos.y - 14);
+      ctx.stroke();
+
+      // Arrow
+      const angle = Math.atan2(childPos.y - 14 - (pos.y + 14), childPos.x - pos.x);
+      ctx.beginPath();
+      ctx.moveTo(childPos.x, childPos.y - 14);
+      ctx.lineTo(childPos.x - 8 * Math.cos(angle - 0.4), childPos.y - 14 - 8 * Math.sin(angle - 0.4));
+      ctx.lineTo(childPos.x - 8 * Math.cos(angle + 0.4), childPos.y - 14 - 8 * Math.sin(angle + 0.4));
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.fill();
+
+      if (highlighted) {
+        // Draw step info
+        ctx.fillStyle = '#60a5fa';
+        ctx.font = '500 10px Inter';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${child.name}`, pos.x + 10, pos.y + 5);
+      }
+
+      drawTraceEdges(child, positions, depth + 1);
+    });
+  }
+
+  function drawServiceNode(x, y, name, svc, isRoot) {
+    const w = 110, h = 28;
+    ctx.fillStyle = isRoot ? svc.color + '33' : '#1a1a1a';
+    ctx.strokeStyle = svc.color;
+    ctx.lineWidth = isRoot ? 2 : 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x - w/2, y - h/2, w, h, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = svc.color;
+    ctx.font = `600 11px Inter`;
+    ctx.textAlign = 'center';
+    ctx.fillText(name, x, y + 4);
+
+    // Status dot
+    const dotX = x + w/2 - 10;
+    const dotY = y;
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = svc.color;
+    ctx.fill();
+  }
+
+  function drawSpanLifecycle(W, H) {
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Span Lifecycle: Create → Process → End', W/2, 20);
+
+    const phases = [
+      { label: 'Server receives request', sub: 'Extract trace context from headers', color: '#60a5fa', x: 100 },
+      { label: 'Create child span', sub: 'Generate span-id, set parent context', color: '#34d399', x: 280 },
+      { label: 'Service processing', sub: 'Business logic with span scope', color: '#a78bfa', x: 460 },
+      { label: 'Outgoing calls', sub: 'Inject context into downstream headers', color: '#f59e0b', x: 640 },
+      { label: 'Complete & export', sub: 'Batch export to OTel collector', color: '#22d3ee', x: 820 },
+    ];
+
+    const activePhase = currentStep > 0 ? Math.min(currentStep - 1, phases.length - 1) : -1;
+
+    phases.forEach((phase, i) => {
+      const cx = phase.x;
+      const cy = H / 2 - 20;
+      const r = i === activePhase ? 32 : 24;
+      const isActive = i === activePhase;
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? phase.color + '44' : '#1a1a1a';
+      ctx.strokeStyle = isActive ? phase.color : '#404040';
+      ctx.lineWidth = isActive ? 2.5 : 1.5;
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = isActive ? phase.color : '#888';
+      ctx.font = `600 ${isActive ? 11 : 10}px Inter`;
+      ctx.textAlign = 'center';
+      ctx.fillText(phase.label, cx, cy + 50);
+
+      ctx.fillStyle = '#666';
+      ctx.font = '400 9px Inter';
+      ctx.fillText(phase.sub, cx, cy + 65);
+
+      // Step number
+      ctx.fillStyle = phase.color;
+      ctx.font = '700 10px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(i + 1, cx, cy + 5);
+
+      // Connecting line
+      if (i < phases.length - 1) {
+        ctx.strokeStyle = i < activePhase ? phase.color + '66' : '#2a2a2a';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(cx + r + 5, cy);
+        ctx.lineTo(phases[i+1].x - phases[i+1].x + phases[i+1].x - r - 5, cy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    });
+
+    if (activePhase >= 0) {
+      ctx.fillStyle = '#e5e5e5';
+      ctx.font = '500 12px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Phase ${activePhase + 1}: ${phases[activePhase].label}`, W/2, H - 15);
+    }
+  }
+
+  function drawWaterfall(W, H) {
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Span Timing Waterfall', W/2, 20);
+
+    const marginLeft = 140;
+    const barH = 22;
+    const rowGap = 6;
+    const scale = (W - marginLeft - 40) / Math.max(trace.totalDuration, 1);
+
+    const allSpans = [];
+    function collect(span, depth, start) {
+      allSpans.push({ span, depth, start });
+      span.spans.forEach(child => collect(child, depth + 1, start + 5));
+    }
+    collect(trace.root, 0, 0);
+
+    const visibleCount = Math.min(allSpans.length, 14);
+    const startY = 50;
+
+    allSpans.slice(0, visibleCount).forEach((item, i) => {
+      const y = startY + i * (barH + rowGap);
+      const { span, depth, start } = item;
+
+      const width = Math.max(span.duration * scale, 4);
+      const barX = marginLeft + start * scale;
+
+      // Service label
+      ctx.fillStyle = depth === 0 ? '#e5e5e5' : '#888';
+      ctx.font = `${depth === 0 ? '600' : '400'} 10px Inter`;
+      ctx.textAlign = 'right';
+      ctx.fillText(span.name.length > 18 ? span.name.slice(0, 16) + '…' : span.name, marginLeft - 6, y + barH/2 + 4);
+
+      // Bar background (total time)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(marginLeft, y, W - marginLeft - 20, barH);
+
+      // Timing bar
+      let barColor = span.status === 'server' ? '#60a5fa' : '#34d399';
+      if (span.error) barColor = '#ef4444';
+      if (depth > 0) barColor = barColor + 'bb';
+
+      ctx.fillStyle = barColor;
+      ctx.beginPath();
+      ctx.roundRect(barX, y + 2, width, barH - 4, 3);
+      ctx.fill();
+
+      // Duration label
+      if (width > 40) {
+        ctx.fillStyle = '#000';
+        ctx.font = '600 9px Inter';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${span.duration.toFixed(0)}ms`, barX + 4, y + barH/2 + 3.5);
+      }
+
+      // Depth indent
+      if (depth > 0) {
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(marginLeft, y, depth * 8, barH);
+      }
+    });
+
+    // Time axis
+    const axisY = startY + visibleCount * (barH + rowGap) + 10;
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(marginLeft, axisY);
+    ctx.lineTo(W - 20, axisY);
+    ctx.stroke();
+
+    for (let t = 0; t <= trace.totalDuration; t += Math.max(trace.totalDuration / 5, 20)) {
+      const x = marginLeft + t * scale;
+      ctx.fillStyle = '#666';
+      ctx.font = '400 9px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${t.toFixed(0)}ms`, x, axisY + 12);
+      ctx.beginPath();
+      ctx.moveTo(x, axisY);
+      ctx.lineTo(x, axisY + 4);
+      ctx.stroke();
+    }
+
+    if (currentStep > 0) {
+      const stepSpan = getSpanAtDepth(trace.root, currentStep);
+      if (stepSpan) {
+        ctx.fillStyle = '#60a5fa';
+        ctx.font = '500 11px Inter';
+        ctx.textAlign = 'left';
+        ctx.fillText(`Current: ${stepSpan.name} (${stepSpan.service}) — ${stepSpan.duration.toFixed(1)}ms`, marginLeft, H - 10);
+      }
+    }
+  }
+
+  function drawSampling(W, H) {
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 14px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Tail-Based Sampling: Deciding Which Traces to Keep', W/2, 20);
+
+    const rules = [
+      { label: 'Error occurred', color: '#ef4444', rate: '100%', condition: 'error === true' },
+      { label: 'Latency > 1s', color: '#f59e0b', rate: '100%', condition: 'duration > 1000ms' },
+      { label: 'User: checkout', color: '#34d399', rate: '10%', condition: 'service === "checkout"' },
+      { label: 'All other', color: '#888', rate: '1%', condition: 'true' },
+    ];
+
+    const barW = 200;
+    const startX = 100;
+    const barH = 30;
+    const startY = 60;
+
+    rules.forEach((rule, i) => {
+      const y = startY + i * (barH + 20);
+      const isActive = currentStep > 0 && currentStep - 1 >= i;
+
+      ctx.fillStyle = '#1a1a1a';
+      ctx.strokeStyle = isActive ? rule.color : '#2a2a2a';
+      ctx.lineWidth = isActive ? 2 : 1;
+      ctx.beginPath();
+      ctx.roundRect(startX, y, barW, barH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = rule.color;
+      ctx.font = '600 11px Inter';
+      ctx.textAlign = 'left';
+      ctx.fillText(rule.label, startX + 12, y + barH/2 + 4);
+
+      ctx.fillStyle = isActive ? rule.color : '#666';
+      ctx.font = '600 11px Inter';
+      ctx.textAlign = 'right';
+      ctx.fillText(rule.rate, startX + barW - 12, y + barH/2 + 4);
+
+      // Condition code
+      ctx.fillStyle = '#555';
+      ctx.font = '400 9px JetBrains Mono';
+      ctx.textAlign = 'left';
+      ctx.fillText(rule.condition, startX + barW + 20, y + barH/2 + 4);
+
+      // Arrow showing flow
+      if (i === 0) {
+        ctx.fillStyle = '#888';
+        ctx.font = '400 10px Inter';
+        ctx.textAlign = 'left';
+        ctx.fillText('Incoming trace →', startX - 90, y + barH/2 + 4);
+      }
+    });
+
+    // Summary stats
+    const statsY = startY + rules.length * (barH + 20) + 20;
+    ctx.fillStyle = '#e5e5e5';
+    ctx.font = '600 12px Inter';
+    ctx.textAlign = 'left';
+    ctx.fillText('Budget impact:', startX, statsY);
+
+    const stats = [
+      { label: 'Traces/sec', value: '50,000' },
+      { label: 'Error traces kept', value: '~500 (100%)' },
+      { label: 'Slow traces kept', value: '~100 (100%)' },
+      { label: 'Checkout traces kept', value: '~500 (10%)' },
+      { label: 'Everything else kept', value: '~390 (1%)' },
+      { label: 'Total stored', value: '~1,490/sec ✓' },
+    ];
+
+    stats.forEach((stat, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const x = startX + col * 280;
+      const y = statsY + 20 + row * 22;
+      ctx.fillStyle = i === stats.length - 1 ? '#34d399' : '#888';
+      ctx.font = i === stats.length - 1 ? '600 11px Inter' : '400 11px Inter';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${stat.label}: `, x, y);
+      ctx.textAlign = 'right';
+      ctx.fillText(stat.value, x + 200, y);
+    });
+
+    if (currentStep === 0) {
+      ctx.fillStyle = '#888';
+      ctx.font = '400 11px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText('Click Step to see how each sampling rule is evaluated', W/2, H - 20);
+    }
+  }
+
+  // Initial draw
+  draw();
+})();
+</script>
+
+<style>
+.canvas-wrapper {
+  margin: 2.5rem 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-group label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.control-group select,
+.control-group input[type="range"] {
+  background: var(--code-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+  font-family: var(--font-sans);
+}
+
+.control-group input[type="range"] {
+  width: 80px;
+  accent-color: var(--accent);
+}
+
+#trace-mode {
+  min-width: 150px;
+}
+
+button {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+#reset-trace {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+#reset-trace:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+#auto-play {
+  background: #34d399;
+}
+
+#auto-play:hover {
+  background: #6ee7b7;
+}
+
+.canvas-row {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+canvas {
+  display: block;
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.legend {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.info-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.info-title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.info-content {
+  color: var(--text-muted);
+}
+</style>

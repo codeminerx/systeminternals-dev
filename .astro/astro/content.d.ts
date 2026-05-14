@@ -190,6 +190,13 @@ declare module 'astro:content' {
   collection: "posts";
   data: InferEntrySchema<"posts">
 } & { render(): Render[".md"] };
+"distributed-tracing-system-design.md": {
+	id: "distributed-tracing-system-design.md";
+  slug: "distributed-tracing-system-design";
+  body: string;
+  collection: "posts";
+  data: InferEntrySchema<"posts">
+} & { render(): Render[".md"] };
 "dns-deep-dive-how-domain-resolution-works.md": {
 	id: "dns-deep-dive-how-domain-resolution-works.md";
   slug: "dns-deep-dive-how-domain-resolution-works";
